@@ -271,6 +271,7 @@ class ModelServer:
         base_url: Optional[str] = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
         pat: Optional[str] = os.environ.get("CLARIFAI_PAT", None),
         context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
+        health_check_port: Optional[int] = 8080,
     ):
         # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
         # Note: The value in config.yaml takes precedence over the environment variable.
@@ -295,6 +296,7 @@ class ModelServer:
                 base_url,
                 pat,
                 num_threads,
+                health_check_port=health_check_port,
             )
 
     def start_servicer(self, port, pool_size, max_queue_size, max_msg_length, enable_tls):
@@ -326,6 +328,7 @@ class ModelServer:
         base_url,
         pat,
         num_threads,
+        health_check_port=8080,
     ):
         # initialize the Runner class. This is what the user implements.
         assert compute_cluster_id is not None, "compute_cluster_id must be set for the runner."
@@ -341,6 +344,7 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
+            health_check_port=health_check_port,
         )
 
         self._runner.start()  # start the runner to fetch work from the API.

@@ -8,7 +8,8 @@ from typing import Any, Dict, Optional
 import click
 import yaml
 
-from clarifai.cli.base import cli, pat_display
+from clarifai.cli.base import cli
+from clarifai.errors import UserError
 from clarifai.utils.cli import (
     check_lmstudio_installed,
     check_ollama_installed,
@@ -34,8 +35,6 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID,
-    DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID,
-    DEFAULT_LOCAL_RUNNER_MODEL_ID,
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
@@ -485,9 +484,9 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
 def model():
-    """Manage & Develop Models: init, download-checkpoints, signatures, upload\n
-    Run & Test Models Locally: local-runner, local-grpc, local-test\n
-    Model Inference: list, predict"""
+    """Manage Models: init, upload, deploy\n
+    Run Locally: local-runner, local-grpc\n
+    Observe: logs, list, predict"""
 
 
 @model.command()
@@ -1006,138 +1005,6 @@ def logs(
         raise SystemExit(1)
 
 
-@model.command(help="Download model checkpoint files.")
-@click.argument(
-    "model_path",
-    type=click.Path(exists=True),
-    required=False,
-    default=".",
-)
-@click.option(
-    '--out_path',
-    type=click.Path(exists=False),
-    required=False,
-    default=None,
-    help='Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.',
-)
-@click.option(
-    '--stage',
-    required=False,
-    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
-    default="build",
-    show_default=True,
-    help='The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
-)
-@click.pass_context
-def download_checkpoints(ctx, model_path, out_path, stage):
-    """Download checkpoints from external source to local model_path
-
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    """
-
-    from clarifai.runners.models.model_builder import ModelBuilder
-
-    validate_context(ctx)
-    _ensure_hf_token(ctx, model_path)
-    builder = ModelBuilder(model_path, download_validation_only=True)
-    builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
-
-
-@model.command(help="Generate model method signatures.")
-@click.argument(
-    "model_path",
-    type=click.Path(exists=True),
-    required=False,
-    default=".",
-)
-@click.option(
-    '--out_path',
-    type=click.Path(exists=False),
-    required=False,
-    default=None,
-    help='Path to write the method signature defitions to. If not provided, use stdout.',
-)
-def signatures(model_path, out_path):
-    """Generate method signatures for the model.
-
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    """
-
-    from clarifai.runners.models.model_builder import ModelBuilder
-
-    builder = ModelBuilder(model_path, download_validation_only=True)
-    signatures = builder.method_signatures_yaml()
-    if out_path:
-        with open(out_path, 'w') as f:
-            f.write(signatures)
-    else:
-        click.echo(signatures)
-
-
-@model.command(name="local-test", help="Execute all model unit tests locally.")
-@click.argument(
-    "model_path",
-    type=click.Path(exists=True),
-    required=False,
-    default=".",
-)
-@click.option(
-    '--mode',
-    type=click.Choice(['env', 'container'], case_sensitive=False),
-    default='env',
-    show_default=True,
-    help='Specify how to test the model locally: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
-)
-@click.option(
-    '--keep_env',
-    is_flag=True,
-    help='Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.',
-)
-@click.option(
-    '--keep_image',
-    is_flag=True,
-    help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
-)
-@click.option(
-    '--skip_dockerfile',
-    is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
-)
-@click.pass_context
-def test_locally(
-    ctx, model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False
-):
-    """Test model locally.
-
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    """
-    try:
-        from clarifai.runners.models import model_run_locally
-
-        validate_context(ctx)
-        _ensure_hf_token(ctx, model_path)
-        if mode == 'env' and keep_image:
-            raise ValueError("'keep_image' is applicable only for 'container' mode")
-        if mode == 'container' and keep_env:
-            raise ValueError("'keep_env' is applicable only for 'env' mode")
-
-        if mode == "env":
-            click.echo("Testing model locally in a virtual environment...")
-            model_run_locally.main(model_path, run_model_server=False, keep_env=keep_env)
-        elif mode == "container":
-            click.echo("Testing model locally inside a container...")
-            model_run_locally.main(
-                model_path,
-                inside_container=True,
-                run_model_server=False,
-                keep_image=keep_image,
-                skip_dockerfile=skip_dockerfile,
-            )
-        click.echo("Model tested successfully.")
-    except Exception as e:
-        click.echo(f"Failed to test model locally: {e}", err=True)
-
-
 @model.command(name="local-grpc", help="Run the model locally via a gRPC server.")
 @click.argument(
     "model_path",
@@ -1210,7 +1077,7 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
         click.echo(f"Failed to starts model server locally: {e}", err=True)
 
 
-@model.command(name="local-runner", help="Run the model locally for dev, debug, or local compute.")
+@model.command(name="local-runner")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -1218,412 +1085,262 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     default=".",
 )
 @click.option(
-    "--pool_size",
+    "--mode",
+    type=click.Choice(['none', 'env', 'container'], case_sensitive=False),
+    default='none',
+    show_default=True,
+    help='Execution environment. "none" uses your current env (dependencies must be pre-installed), "env" creates a virtualenv and installs all dependencies, "container" builds a Docker image with all dependencies.',
+)
+@click.option(
+    "--concurrency",
     type=int,
     default=32,
     show_default=True,
-    help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
-)  # pylint: disable=range-builtin-not-iterating
-@click.option(
-    '--suppress-toolkit-logs',
-    is_flag=True,
-    help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
+    help="Number of concurrent requests the local runner will handle.",
 )
 @click.option(
-    "--mode",
-    type=click.Choice(['env', 'container', 'none'], case_sensitive=False),
-    default='none',
-    show_default=True,
-    help='Specifies how to run the model: "env" for virtual environment, "container" for Docker container, or "none" to skip creating environment and directly run the model. Defaults to "none".',
+    '--keep-image',
+    is_flag=True,
+    help='Do not remove the Docker image on exit (only applies to --mode container).',
 )
 @click.option(
-    '--keep_image',
+    '-v',
+    '--verbose',
     is_flag=True,
-    help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
+    help='Show full SDK debug output instead of clean summaries.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
-    """Run the model as a local runner to help debug your model connected to the API or to
-      leverage local compute resources manually. This relies on many variables being present in the env
-      of the currently selected context. If they are not present then default values will be used to
-      ease the setup of a local runner and your context yaml will be updated in place. The required
-      env vars are:
+def local_runner(ctx, model_path, mode, concurrency, keep_image, verbose):
+    """Run a model locally while connected to the Clarifai API for predictions.
 
     \b
-      CLARIFAI_PAT:
+    Starts a local runner that registers with the Clarifai platform so you
+    can send predictions to your model via the API or the Playground UI,
+    all while the model code runs on your own machine. Cleans up on Ctrl+C.
 
     \b
-      # for where the model that represents the local runner should be:
+    MODEL_PATH  Path to the model directory (must contain config.yaml).
+                Defaults to the current directory.
+
     \b
-      CLARIFAI_USER_ID:
-      CLARIFAI_APP_ID:
-      CLARIFAI_MODEL_ID:
-    \b
-      # for where the local runner should be in a compute cluster
-      # note the user_id of the compute cluster is the same as the user_id of the model.
-    \b
-      CLARIFAI_COMPUTE_CLUSTER_ID:
-      CLARIFAI_NODEPOOL_ID:
-
-      # The following will be created in your context since it's generated by the API
-
-      CLARIFAI_RUNNER_ID:
-
-
-    Additionally using the provided model path, if the config.yaml file does not contain the model
-    information that matches the above CLARIFAI_USER_ID, CLARIFAI_APP_ID, CLARIFAI_MODEL_ID then the
-    config.yaml will be updated to include the model information. This is to ensure that the model
-    that starts up in the local runner is the same as the one you intend to call in the API.
-
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".
-    KEEP_IMAGE: Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.
+    Examples:
+      clarifai model local-runner ./my-model
+      clarifai model local-runner ./my-model --mode container
+      clarifai model local-runner ./my-model --concurrency 8 --verbose
     """
     from clarifai.client.user import User
+    from clarifai.runners.models import deploy_output as out
     from clarifai.runners.models.model_builder import ModelBuilder
+    from clarifai.runners.models.model_deploy import _quiet_sdk_logger
     from clarifai.runners.models.model_run_locally import ModelRunLocally
     from clarifai.runners.server import ModelServer
+    from clarifai.runners.utils import code_script
 
     validate_context(ctx)
     model_path = os.path.abspath(model_path)
-    _ensure_hf_token(ctx, model_path)
-    builder = ModelBuilder(model_path, download_validation_only=True)
-    manager = ModelRunLocally(model_path)
+    suppress = not verbose
 
-    port = 8080
-    if mode == "env":
-        manager.create_temp_venv()
-        manager.install_requirements()
+    # ── Phase 1: Validate ──────────────────────────────────────────────
+    out.phase_header("Validate")
 
-    dependencies = parse_requirements(model_path)
-    if mode != "container":
-        logger.info("> Checking local runner requirements...")
-        # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
-        if not check_requirements_installed(dependencies=dependencies):
-            logger.error(f"Requirements not installed for model at {model_path}.")
-            raise click.Abort()
+    with _quiet_sdk_logger(suppress):
+        builder = ModelBuilder(model_path, download_validation_only=True)
+    config = builder.config
+    model_config = config.get('model', {})
 
-    if "ollama" in dependencies or builder.config.get('toolkit', {}).get('provider') == 'ollama':
-        logger.info("Verifying Ollama installation...")
-        if not check_ollama_installed():
-            logger.error(
-                "Ollama application is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
-            )
-            raise click.Abort()
-    elif (
-        "lmstudio" in dependencies
-        or builder.config.get('toolkit', {}).get('provider') == 'lmstudio'
-    ):
-        logger.info("Verifying LM Studio installation...")
-        if not check_lmstudio_installed():
-            logger.error(
-                "LM Studio application is not installed. Please install it from `https://lmstudio.com/` to use the LM Studio toolkit."
-            )
-            raise click.Abort()
-
-    # Load model config
-    config_file = os.path.join(model_path, 'config.yaml')
-    if not os.path.exists(config_file):
-        logger.error(
-            f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
+    model_id = model_config.get('id')
+    if not model_id:
+        raise UserError(
+            "model.id is required in config.yaml.\n"
+            "  Add to your config.yaml:\n"
+            "    model:\n"
+            "      id: my-model"
         )
-        raise click.Abort()
-    config = ModelBuilder._load_config(config_file)
 
-    uploaded_model_type_id = config.get('model', {}).get(
-        'model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE
-    )
+    model_type_id = model_config.get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
 
-    logger.info("> Verifying local runner setup...")
-    logger.info(f"Current context: {ctx.obj.current.name}")
-    user_id = ctx.obj.current.user_id
-    logger.info(f"Current user_id: {user_id}")
+    # Resolve user_id: config → context → error
+    user_id = model_config.get('user_id')
     if not user_id:
-        logger.error(f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context.")
-        raise click.Abort()
-    pat = ctx.obj.current.pat
-    display_pat = pat_display(pat) if pat else ""
-    logger.info(f"Current PAT: {display_pat}")
-    if not pat:
-        logger.error(
-            "Personal Access Token (PAT) not found. Use 'clarifai login' to setup context."
-        )
-        raise click.Abort()
-    user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
-    logger.debug("Checking if a local runner compute cluster exists...")
-
-    # see if ctx has CLARIFAI_COMPUTE_CLUSTER_ID, if not use default
-    try:
-        compute_cluster_id = ctx.obj.current.compute_cluster_id
-    except AttributeError:
-        compute_cluster_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
-    logger.info(f"Current compute_cluster_id: {compute_cluster_id}")
-
-    try:
-        compute_cluster = user.compute_cluster(compute_cluster_id)
-        if compute_cluster.cluster_type != 'local-dev':
-            raise ValueError(
-                f"Compute cluster {user_id}/{compute_cluster_id} is not a compute cluster of type 'local-dev'. Please use a compute cluster of type 'local-dev'."
-            )
         try:
-            compute_cluster_id = ctx.obj.current.compute_cluster_id
-        except AttributeError:  # doesn't exist in context but does in API then update the context.
-            ctx.obj.current.CLARIFAI_COMPUTE_CLUSTER_ID = compute_cluster.id
-            ctx.obj.to_yaml()  # save to yaml file.
-    except ValueError:
-        raise
-    except Exception as e:
-        logger.warning(f"Failed to get compute cluster with ID '{compute_cluster_id}':\n{e}")
-        y = input(
-            f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}? (y/n): "
+            user_id = ctx.obj.current.user_id
+        except AttributeError:
+            pass
+    if not user_id:
+        raise UserError(
+            "user_id not found in config.yaml or CLI context.\n"
+            "  Run 'clarifai login' to set up credentials."
         )
-        if y.lower() != 'y':
-            raise click.Abort()
-        # Create a compute cluster with default configuration for local runner.
-        compute_cluster = user.create_compute_cluster(
-            compute_cluster_id=compute_cluster_id,
-            compute_cluster_config=DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
-        )
-        ctx.obj.current.CLARIFAI_COMPUTE_CLUSTER_ID = compute_cluster_id
-        ctx.obj.to_yaml()  # save to yaml file.
 
-    # Now check if there is a nodepool created in this compute cluser
-    try:
-        nodepool_id = ctx.obj.current.nodepool_id
-    except AttributeError:
-        nodepool_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
-    logger.info(f"Current nodepool_id: {nodepool_id}")
-
-    try:
-        nodepool = compute_cluster.nodepool(nodepool_id)
-        try:
-            nodepool_id = ctx.obj.current.nodepool_id
-        except AttributeError:  # doesn't exist in context but does in API then update the context.
-            ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool.id
-            ctx.obj.to_yaml()  # save to yaml file.
-    except Exception as e:
-        logger.warning(f"Failed to get nodepool with ID '{nodepool_id}':\n{e}")
-        y = input(
-            f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}? (y/n): "
-        )
-        if y.lower() != 'y':
-            raise click.Abort()
-        nodepool = compute_cluster.create_nodepool(
-            nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG, nodepool_id=nodepool_id
-        )
-        ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool_id
-        ctx.obj.to_yaml()  # save to yaml file.
-
-    logger.debug("Checking if model is created to call for local development...")
-    # see if ctx has CLARIFAI_APP_ID, if not use default
-    try:
-        app_id = ctx.obj.current.app_id
-    except AttributeError:
-        app_id = DEFAULT_LOCAL_RUNNER_APP_ID
-    logger.info(f"Current app_id: {app_id}")
-
-    try:
-        app = user.app(app_id)
+    # Resolve app_id: config → context → default
+    app_id = model_config.get('app_id')
+    if not app_id:
         try:
             app_id = ctx.obj.current.app_id
-        except AttributeError:  # doesn't exist in context but does in API then update the context.
-            ctx.obj.current.CLARIFAI_APP_ID = app.id
-            ctx.obj.to_yaml()  # save to yaml file.
-    except Exception as e:
-        logger.warning(f"Failed to get app with ID '{app_id}':\n{e}")
-        y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
-        if y.lower() != 'y':
-            raise click.Abort()
-        app = user.create_app(app_id)
-        ctx.obj.current.CLARIFAI_APP_ID = app_id
-        ctx.obj.to_yaml()  # save to yaml file.
+        except AttributeError:
+            pass
+    if not app_id:
+        app_id = DEFAULT_LOCAL_RUNNER_APP_ID
 
-    # Within this app we now need a model to call as the local runner.
-    try:
-        model_id = ctx.obj.current.model_id
-    except AttributeError:
-        model_id = DEFAULT_LOCAL_RUNNER_MODEL_ID
-    logger.info(f"Current model_id: {model_id}")
-
-    try:
-        model = app.model(model_id)
-        current_model_type_id = model.model_type_id
-        try:
-            model_id = ctx.obj.current.model_id
-        except AttributeError:  # doesn't exist in context but does in API then update the context.
-            ctx.obj.current.CLARIFAI_MODEL_ID = model.id
-            ctx.obj.to_yaml()  # save to yaml file.
-        if current_model_type_id != uploaded_model_type_id:
-            logger.warning(
-                f"Model type ID mismatch: expected '{uploaded_model_type_id}', found '{current_model_type_id}'. Deleting the model."
-            )
-            app.delete_model(model_id)
-            raise Exception
-    except Exception as e:
-        logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
-        y = input(
-            f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}? (y/n): "
+    pat = ctx.obj.current.pat
+    if not pat:
+        raise UserError(
+            "Personal Access Token (PAT) not found.\n  Run 'clarifai login' to set up credentials."
         )
-        if y.lower() != 'y':
-            raise click.Abort()
+    base_url = ctx.obj.current.api_base
 
-        model = app.create_model(model_id, model_type_id=uploaded_model_type_id)
-        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = uploaded_model_type_id
-        ctx.obj.current.CLARIFAI_MODEL_ID = model_id
-        ctx.obj.to_yaml()  # save to yaml file.
+    # Validate requirements before loading method signatures
+    dependencies = parse_requirements(model_path)
+    if mode != "container":
+        if not check_requirements_installed(dependencies=dependencies):
+            raise UserError(f"Requirements not installed for model at {model_path}.")
 
-    # Now we need to create a version for the model if no version exists. Only need one version that
-    # mentions it's a local runner.
-    model_versions = list(model.list_versions())
-    method_signatures = manager._get_method_signatures()
-
-    create_new_version = False
-    if len(model_versions) == 0:
-        logger.warning("No model versions found. Creating a new version for local runner.")
-        create_new_version = True
-    else:
-        # Try to patch the latest version, and fallback to creating a new one if that fails.
-        latest_version = model_versions[0]
-        logger.warning(f"Attempting to patch latest version: {latest_version.model_version.id}")
-
-        try:
-            patched_model = model.patch_version(
-                version_id=latest_version.model_version.id,
-                pretrained_model_config={"local_dev": True},
-                method_signatures=method_signatures,
+    if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+        if not check_ollama_installed():
+            raise UserError(
+                "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
             )
-            patched_model.load_info()
-            version = patched_model.model_version
-            logger.info(f"Successfully patched version {version.id}")
-            ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
-            ctx.obj.to_yaml()  # save to yaml file.
-        except Exception as e:
-            logger.warning(f"Failed to patch model version: {e}. Creating a new version instead.")
-            create_new_version = True
+    elif "lmstudio" in dependencies or config.get('toolkit', {}).get('provider') == 'lmstudio':
+        if not check_lmstudio_installed():
+            raise UserError(
+                "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
+            )
 
-    if create_new_version:
-        version = model.create_version(
-            pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
-        ).model_version
-        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
-        ctx.obj.to_yaml()
+    # Method signatures from ModelBuilder (same as upload/deploy).
+    # Use mocking=False for non-container modes since requirements are verified installed.
+    # mocking=True pollutes sys.modules with MagicMock'd third-party packages inside
+    # clarifai modules (e.g. FastMCP in stdio_mcp_class), which breaks ModelServer.__init__
+    # when it later tries to load the model for real.
+    use_mocking = mode == "container"
+    with _quiet_sdk_logger(suppress):
+        method_signatures = builder.get_method_signatures(mocking=use_mocking)
 
-    logger.info(f"Current model version {version.id}")
+    out.info("Model", f"{user_id}/{app_id}/models/{model_id}")
+    out.info("Type", model_type_id)
 
-    worker = {
-        "model": {
-            "id": f"{model.id}",
-            "model_version": {
-                "id": f"{version.id}",
-            },
-            "user_id": f"{user_id}",
-            "app_id": f"{app_id}",
-        },
-    }
+    _ensure_hf_token(ctx, model_path)
 
-    try:
-        # if it's already in our context then we'll re-use the same one.
-        # note these are UUIDs, we cannot provide a runner ID.
-        runner_id = ctx.obj.current.runner_id
+    # ── Phase 2: Setup ─────────────────────────────────────────────────
+    out.phase_header("Setup")
 
+    # Track what we create for cleanup
+    created = {}  # resource_name → cleanup_info
+
+    with _quiet_sdk_logger(suppress):
+        user = User(user_id=user_id, pat=pat, base_url=base_url)
+
+        # 1. Compute cluster (shared, reusable — never cleaned up)
+        cc_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
         try:
-            runner = nodepool.runner(runner_id)
-            # ensure the deployment is using the latest version.
-            if runner.worker.model.model_version.id != version.id:
-                nodepool.delete_runners([runner_id])
-                logger.warning("Deleted runner that was for an old model version ID.")
-                raise AttributeError(
-                    "Runner deleted because it was associated with an outdated model version."
+            user.compute_cluster(cc_id)
+            out.status("Compute cluster ready")
+        except Exception:
+            out.status("Creating compute cluster... ", nl=False)
+            user.create_compute_cluster(
+                compute_cluster_id=cc_id,
+                compute_cluster_config=DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
+            )
+            click.echo("done")
+
+        # 2. Nodepool (shared, reusable — never cleaned up)
+        np_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
+        try:
+            nodepool = user.compute_cluster(cc_id).nodepool(np_id)
+            out.status("Nodepool ready")
+        except Exception:
+            out.status("Creating nodepool... ", nl=False)
+            nodepool = user.compute_cluster(cc_id).create_nodepool(
+                nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
+                nodepool_id=np_id,
+            )
+            click.echo("done")
+
+        # 3. App (shared, reusable — never cleaned up)
+        try:
+            app = user.app(app_id)
+            out.status("App ready")
+        except Exception:
+            out.status("Creating app... ", nl=False)
+            app = user.create_app(app_id)
+            click.echo("done")
+
+        # 4. Model (ephemeral if we create it)
+        model_existed = False
+        try:
+            model = app.model(model_id)
+            model_existed = True
+            if model.model_type_id != model_type_id:
+                out.warning(
+                    f"Model type mismatch (expected '{model_type_id}', "
+                    f"found '{model.model_type_id}'). Recreating."
                 )
-        except Exception as e:
-            logger.warning(f"Failed to get runner with ID '{runner_id}':\n{e}")
-            raise AttributeError("Runner not found in nodepool.")
-    except AttributeError:
-        logger.info(
-            f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
+                app.delete_model(model_id)
+                model_existed = False
+                raise Exception("recreate")
+            out.status("Model ready")
+        except Exception:
+            if not model_existed:
+                out.status("Creating model... ", nl=False)
+                model = app.create_model(model_id, model_type_id=model_type_id)
+                created['model'] = model_id
+                click.echo("done")
+
+        # 5. Model version (always created fresh — always cleaned up)
+        out.status("Creating model version... ", nl=False)
+        version_model = model.create_version(
+            pretrained_model_config={"local_dev": True},
+            method_signatures=method_signatures,
         )
+        version_model.load_info()
+        version_id = version_model.model_version.id
+        created['model_version'] = version_id
+        click.echo(f"done ({version_id[:8]})")
+
+        # 6. Stale deployment cleanup (from previous crash)
+        deployment_id = f"local-{model_id}"
         try:
-            logger.info("Checking for existing runners in the nodepool...")
-            runners = nodepool.list_runners(
-                model_version_ids=[version.id],
-            )
-            runner_id = None
-            for runner in runners:
-                logger.info(
-                    f"Found existing runner {runner.id} for model version {version.id}. Reusing it."
-                )
-                runner_id = runner.id
-                break  # use the first one we find.
-            if runner_id is None:
-                logger.warning("No existing runners found in nodepool. Creating a new one.\n")
-                runner = nodepool.create_runner(
-                    runner_config={
-                        "runner": {
-                            "description": "local runner for model testing",
-                            "worker": worker,
-                            "num_replicas": 1,
-                        }
-                    }
-                )
-                runner_id = runner.id
-        except Exception as e:
-            logger.warning(
-                f"Failed to list existing runners in nodepool {e}...Creating a new one.\n"
-            )
-            runner = nodepool.create_runner(
-                runner_config={
-                    "runner": {
-                        "description": "local runner for model testing",
-                        "worker": worker,
-                        "num_replicas": 1,
-                    }
-                }
-            )
-            runner_id = runner.id
-        ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
-        ctx.obj.to_yaml()
-
-    logger.info(f"Current runner_id: {runner_id}")
-
-    # To make it easier to call the model without specifying a runner selector
-    # we will also create a deployment tying the model to the nodepool.
-    try:
-        deployment_id = ctx.obj.current.deployment_id
-    except AttributeError:
-        deployment_id = DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID
-    try:
-        deployment = nodepool.deployment(deployment_id)
-        # ensure the deployment is using the latest version.
-        if deployment.worker.model.model_version.id != version.id:
+            nodepool.deployment(deployment_id)
             nodepool.delete_deployments([deployment_id])
-            logger.warning("Deleted deployment that was for an old model version ID.")
-            raise Exception(
-                "Deployment deleted because it was associated with an outdated model version."
-            )
-        try:
-            deployment_id = ctx.obj.current.deployment_id
-        except AttributeError:  # doesn't exist in context but does in API then update the context.
-            ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment.id
-            ctx.obj.to_yaml()  # save to yaml file.
-    except Exception as e:
-        logger.warning(f"Failed to get deployment with ID {deployment_id}:\n{e}")
-        y = input(
-            f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}? (y/n): "
+        except Exception:
+            pass
+
+        # 7. Runner (always created fresh — always cleaned up)
+        worker = {
+            "model": {
+                "id": model_id,
+                "model_version": {"id": version_id},
+                "user_id": user_id,
+                "app_id": app_id,
+            }
+        }
+        out.status("Creating runner... ", nl=False)
+        runner = nodepool.create_runner(
+            runner_config={
+                "runner": {
+                    "description": f"local runner for {model_id}",
+                    "worker": worker,
+                    "num_replicas": 1,
+                }
+            }
         )
-        if y.lower() != 'y':
-            raise click.Abort()
+        runner_id = runner.id
+        created['runner'] = runner_id
+        click.echo("done")
+
+        # 8. Deployment (always created fresh — always cleaned up)
+        out.status("Creating deployment... ", nl=False)
         nodepool.create_deployment(
             deployment_id=deployment_id,
             deployment_config={
                 "deployment": {
-                    "scheduling_choice": 3,  # 3 means by price
+                    "scheduling_choice": 3,
                     "worker": worker,
                     "nodepools": [
                         {
-                            "id": f"{nodepool_id}",
+                            "id": np_id,
                             "compute_cluster": {
-                                "id": f"{compute_cluster_id}",
-                                "user_id": f"{user_id}",
+                                "id": cc_id,
+                                "user_id": user_id,
                             },
                         }
                     ],
@@ -1631,128 +1348,173 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
                 }
             },
         )
-        ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment_id
-        ctx.obj.to_yaml()  # save to yaml file.
+        created['deployment'] = deployment_id
+        click.echo("done")
 
-    logger.info(f"Current deployment_id: {deployment_id}")
+    # ── Phase 3: Running ───────────────────────────────────────────────
+    out.phase_header("Running")
+    out.success("Model is ready for API requests!")
+    click.echo()
 
-    # Now that we have all the context in ctx.obj, we need to update the config.yaml in
-    # the model_path directory with the model object containing user_id, app_id, model_id, version_id
-    # The config.yaml doens't match what we created above.
-    if 'model' in config and model_id != config['model'].get('id'):
-        logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
-        y = input(
-            "Do you want to backup config.yaml to config.yaml.bk then update the config.yaml with the new model information? (y/n): "
-        )
-        if y.lower() != 'y':
-            raise click.Abort()
-        config = ModelBuilder._set_local_runner_model(
-            config, user_id, app_id, model_id, uploaded_model_type_id
-        )
-        ModelBuilder._backup_config(config_file)
-        ModelBuilder._save_config(config_file, config)
+    # Code snippet
+    snippet = code_script.generate_client_script(
+        method_signatures,
+        user_id=user_id,
+        app_id=app_id,
+        model_id=model_id,
+        deployment_id=deployment_id,
+        base_url=base_url,
+        colorize=True,
+    )
+    out.status("Code snippet:")
+    click.echo(snippet)
+    click.echo()
 
-    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
-    if builder.config.get('toolkit', {}).get('provider') == 'ollama':
+    # Playground URL
+    ui_base = getattr(ctx.obj.current, 'ui', None) or "https://clarifai.com"
+    out.status("Playground:")
+    out.status(
+        f"  {ui_base}/playground?model={model_id}__{version_id}&user_id={user_id}&app_id={app_id}"
+    )
+    click.echo()
+
+    # Model URL
+    out.status("Model URL:")
+    out.status(f"  {ui_base}/{user_id}/{app_id}/models/{model_id}")
+    click.echo()
+
+    out.status("Press Ctrl+C to stop.")
+    click.echo()
+
+    # ── Phase 4: Serve (with cleanup) ──────────────────────────────────
+    def _cleanup():
+        out.phase_header("Stopping")
+        with _quiet_sdk_logger(suppress):
+            if 'deployment' in created:
+                out.status("Deleting deployment... ", nl=False)
+                try:
+                    nodepool.delete_deployments([created['deployment']])
+                    click.echo("done")
+                except Exception:
+                    click.echo("failed")
+            if 'runner' in created:
+                out.status("Deleting runner... ", nl=False)
+                try:
+                    nodepool.delete_runners([created['runner']])
+                    click.echo("done")
+                except Exception:
+                    click.echo("failed")
+            if 'model_version' in created:
+                out.status("Deleting model version... ", nl=False)
+                try:
+                    model.delete_version(version_id=created['model_version'])
+                    click.echo("done")
+                except Exception:
+                    click.echo("failed")
+            if 'model' in created:
+                out.status("Deleting model... ", nl=False)
+                try:
+                    app.delete_model(created['model'])
+                    click.echo("done")
+                except Exception:
+                    click.echo("failed")
+        out.status("Stopped.")
+
+    # Toolkit customization (before serving)
+    if config.get('toolkit', {}).get('provider') == 'ollama':
         try:
-            logger.info("Customizing Ollama model with provided parameters...")
-            customize_ollama_model(
-                model_path=model_path,
-                user_id=user_id,
-                verbose=False if suppress_toolkit_logs else True,
-            )
+            customize_ollama_model(model_path=model_path, user_id=user_id, verbose=verbose)
         except Exception as e:
-            logger.error(f"Failed to customize Ollama model: {e}")
-            raise click.Abort()
-    elif builder.config.get('toolkit', {}).get('provider') == 'lmstudio':
+            raise UserError(f"Failed to customize Ollama model: {e}")
+    elif config.get('toolkit', {}).get('provider') == 'lmstudio':
         try:
-            logger.info("Customizing LM Studio model with provided parameters...")
-            customize_lmstudio_model(
-                model_path=model_path,
-                user_id=user_id,
-            )
+            customize_lmstudio_model(model_path=model_path, user_id=user_id)
         except Exception as e:
-            logger.error(f"Failed to customize LM Studio model: {e}")
-            raise click.Abort()
-
-    logger.info("✅ Starting local runner...")
-
-    def print_code_snippet():
-        if ctx.obj.current is None:
-            logger.debug("Context is None. Skipping code snippet generation.")
-        else:
-            from clarifai.runners.utils import code_script
-
-            snippet = code_script.generate_client_script(
-                method_signatures,
-                user_id=ctx.obj.current.user_id,
-                app_id=ctx.obj.current.app_id,
-                model_id=ctx.obj.current.model_id,
-                deployment_id=ctx.obj.current.deployment_id,
-                base_url=ctx.obj.current.api_base,
-                colorize=True,
-            )
-            logger.info(
-                "✅ Your model is running locally and is ready for requests from the API...\n"
-            )
-            logger.info(
-                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
-            )
-            logger.info(
-                f"> Playground:   To chat with your model, visit: {ctx.obj.current.ui}/playground?model={ctx.obj.current.model_id}__{ctx.obj.current.model_version_id}&user_id={ctx.obj.current.user_id}&app_id={ctx.obj.current.app_id}\n"
-            )
-            logger.info(
-                f"> API URL:      To call your model via the API, use this model URL: {ctx.obj.current.ui}/{ctx.obj.current.user_id}/{ctx.obj.current.app_id}/models/{ctx.obj.current.model_id}\n"
-            )
-            logger.info("Press CTRL+C to stop the runner.\n")
+            raise UserError(f"Failed to customize LM Studio model: {e}")
 
     serving_args = {
-        "pool_size": pool_size,
-        "num_threads": pool_size,
+        "pool_size": concurrency,
+        "num_threads": concurrency,
         "user_id": user_id,
-        "compute_cluster_id": compute_cluster_id,
-        "nodepool_id": nodepool_id,
+        "compute_cluster_id": cc_id,
+        "nodepool_id": np_id,
         "runner_id": runner_id,
-        "base_url": ctx.obj.current.api_base,
-        "pat": ctx.obj.current.pat,
-        "context": ctx.obj.current,
+        "base_url": base_url,
+        "pat": pat,
+        "health_check_port": 0,  # OS-assigned port; avoids collisions between local runners
     }
 
-    if mode == "container":
-        try:
-            if not manager.is_docker_installed():
-                raise click.abort()
+    container_name = None
+    image_name = None
+    manager = None
+    cleanup_done = False
 
+    def _do_cleanup():
+        nonlocal cleanup_done
+        if cleanup_done:
+            return
+        cleanup_done = True
+        # Container cleanup (Docker)
+        if mode == "container" and manager is not None:
+            try:
+                if container_name and manager.container_exists(container_name):
+                    manager.stop_docker_container(container_name)
+                    manager.remove_docker_container(container_name=container_name)
+                if not keep_image and image_name:
+                    manager.remove_docker_image(image_name=image_name)
+            except Exception:
+                pass
+        # API resource cleanup (always)
+        _cleanup()
+
+    # Register SIGINT handler so cleanup runs before BaseRunner's os._exit(130).
+    # BaseRunner catches KeyboardInterrupt internally and calls os._exit(130),
+    # which bypasses try/finally. Our signal handler fires first.
+    import signal
+
+    original_sigint = signal.getsignal(signal.SIGINT)
+
+    def _sigint_handler(signum, frame):
+        signal.signal(signal.SIGINT, original_sigint)  # Restore so second Ctrl+C force-kills
+        _do_cleanup()
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, _sigint_handler)
+
+    try:
+        if mode == "container":
+            manager = ModelRunLocally(model_path)
+            if not manager.is_docker_installed():
+                raise UserError("Docker is not installed.")
             image_tag = manager._docker_hash()
-            model_id = manager.config['model']['id'].lower()
-            # must be in lowercase
-            image_name = f"{model_id}:{image_tag}"
-            container_name = model_id
+            container_name = model_id.lower()
+            image_name = f"{container_name}:{image_tag}"
             if not manager.docker_image_exists(image_name):
                 manager.build_docker_image(image_name=image_name)
-
-            manager.build_docker_image(image_name=image_name)
-            print_code_snippet()
             manager.run_docker_container(
                 image_name=image_name,
                 container_name=container_name,
-                port=port,
+                port=8080,
                 is_local_runner=True,
-                env_vars={"CLARIFAI_PAT": ctx.obj.current.pat},
+                env_vars={"CLARIFAI_PAT": pat},
                 **serving_args,
             )
-
-        finally:
-            if manager.container_exists(container_name):
-                manager.stop_docker_container(container_name)
-                manager.remove_docker_container(container_name=container_name)
-            if not keep_image:
-                manager.remove_docker_image(image_name=image_name)
-    else:
-        print_code_snippet()
-        # This reads the config.yaml from the model_path so we alter it above first.
-        server = ModelServer(model_path=model_path, model_runner_local=None)
-        server.serve(**serving_args)
+        else:
+            if mode == "env":
+                manager = ModelRunLocally(model_path)
+                manager.create_temp_venv()
+                manager.install_requirements()
+            server = ModelServer(model_path=model_path, model_runner_local=None)
+            server.serve(**serving_args)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        # Model failed to load or serve — show clean error, then cleanup below
+        click.echo()
+        out.warning(f"Model failed: {e}")
+    finally:
+        signal.signal(signal.SIGINT, original_sigint)
+        _do_cleanup()
 
 
 def _parse_json_param(param_value, param_name):
