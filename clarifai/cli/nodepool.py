@@ -62,7 +62,9 @@ def create(ctx, compute_cluster_id, nodepool_id, config):
 
 
 @nodepool.command(['ls'])
-@click.argument('compute_cluster_id', default="")
+@click.option(
+    '--compute_cluster_id', required=False, help='Compute cluster ID to list nodepools for.'
+)
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=128)
 @click.pass_context

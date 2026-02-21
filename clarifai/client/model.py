@@ -122,6 +122,7 @@ class Model(Lister, BaseClient):
         Lister.__init__(self)
 
         self.deployment_user_id = deployment_user_id
+        self.deployment_id = deployment_id
 
         self.load_info(validate=True)
 
@@ -727,6 +728,57 @@ class Model(Lister, BaseClient):
                 )
         # set the runner selector
         self._runner_selector = runner_selector
+
+    def logs(
+        self, stream: bool = False, log_type: str = "runner", page: int = 1, per_page: int = 100
+    ):
+        """Get logs for the model through its deployment.
+
+        Args:
+            stream (bool): Whether to stream the logs or list them.
+            log_type (str): The type of logs to retrieve. Defaults to "runner". Use "builder" for build logs.
+            page (int): The page number to list (only for list).
+            per_page (int): The number of items per page (only for list).
+
+        Yields:
+            LogEntry: Log entry objects.
+
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id="model_id", deployment_id="deployment_id")
+            >>> for entry in model.logs(stream=True):
+            ...     print(entry.message)
+        """
+        if not self.deployment_id:
+            raise UserError(
+                "Model object must be initialized with a deployment_id or "
+                "from_current_context() to access logs."
+            )
+
+        from clarifai.client.deployment import Deployment
+
+        user_id = self.deployment_user_id
+        if not user_id:
+            from clarifai.client.user import User
+
+            user_id = (
+                User(pat=self.auth_helper.pat, token=self.auth_helper._token)
+                .get_user_info(user_id='me')
+                .user.id
+            )
+
+        deployment = Deployment(
+            deployment_id=self.deployment_id,
+            user_id=user_id,
+            base_url=self.base,
+            pat=self.pat,
+            token=self.token,
+            root_certificates_path=self.root_certificates_path,
+        )
+        for entry in deployment.logs(
+            stream=stream, log_type=log_type, page=page, per_page=per_page
+        ):
+            yield entry
 
     def predict_by_filepath(
         self,

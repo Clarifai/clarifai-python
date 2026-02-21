@@ -192,6 +192,56 @@ class Pipeline(Lister, BaseClient):
         # Monitor the existing run
         return self._monitor_pipeline_run(self.pipeline_version_run_id, timeout, monitor_interval)
 
+    def logs(
+        self,
+        stream: bool = False,
+        log_type: str = "pipeline.version.run",
+        page: int = 1,
+        per_page: int = 100,
+    ):
+        """Get logs for the pipeline version run.
+
+        Args:
+            stream (bool): Whether to stream the logs or list them.
+            log_type (str): The type of logs to retrieve. Defaults to "pipeline.version.run".
+            page (int): The page number to list (only for list).
+            per_page (int): The number of items per page (only for list).
+
+        Yields:
+            LogEntry: Log entry objects.
+
+        Example:
+            >>> from clarifai.client.pipeline import Pipeline
+            >>> pipeline = Pipeline(pipeline_id="pipeline_id", user_id="user_id", app_id="app_id")
+            >>> for entry in pipeline.logs(stream=True):
+            ...     print(entry.message)
+        """
+        request_kwargs = {
+            "user_app_id": self.user_app_id,
+            "log_type": log_type,
+            "pipeline_id": self.pipeline_id,
+            "pipeline_version_id": self.pipeline_version_id or "",
+        }
+        if self.pipeline_version_run_id:
+            request_kwargs["pipeline_version_run_id"] = self.pipeline_version_run_id
+
+        if stream:
+            request = service_pb2.StreamLogEntriesRequest(**request_kwargs)
+            for response in self.STUB.StreamLogEntries(request):
+                if response.status.code != status_code_pb2.SUCCESS:
+                    raise Exception(f"Failed to stream logs: {response.status.details}")
+                for entry in response.log_entries:
+                    yield entry
+        else:
+            request_kwargs["page"] = page
+            request_kwargs["per_page"] = per_page
+            request = service_pb2.ListLogEntriesRequest(**request_kwargs)
+            response = self.STUB.ListLogEntries(request)
+            if response.status.code != status_code_pb2.SUCCESS:
+                raise Exception(f"Failed to list logs: {response.status.details}")
+            for entry in response.log_entries:
+                yield entry
+
     def _monitor_pipeline_run(self, run_id: str, timeout: int, monitor_interval: int) -> Dict:
         """Monitor a pipeline version run until completion.
 

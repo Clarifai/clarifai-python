@@ -7,7 +7,7 @@
 FROM --platform=$BUILDPLATFORM ${DOWNLOADER_IMAGE} as model-assets
 
 # Install minimal tools needed for download
-RUN pip install --no-cache-dir clarifai==${CLARIFAI_VERSION} huggingface_hub
+RUN pip install --no-cache-dir clarifai==${CLARIFAI_VERSION} huggingface_hub[hf_transfer]
 
 WORKDIR /home/nonroot/main
 
