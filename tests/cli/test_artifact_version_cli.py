@@ -18,7 +18,7 @@ class TestArtifactVersionCLI:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_list_versions_command_success(self, mock_artifact_version_class, mock_validate):
         """Test successful list versions command."""
         mock_obj = setup_context_mock(mock_validate)
@@ -51,7 +51,7 @@ class TestArtifactVersionCLI:
         mock_version_instance.list.assert_called_once()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_get_version_command_success(self, mock_artifact_version_class, mock_validate):
         """Test successful get version command."""
         mock_obj = setup_context_mock(mock_validate)
@@ -85,7 +85,7 @@ class TestArtifactVersionCLI:
         mock_version_instance.get.assert_called_once()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_delete_version_command_success(self, mock_artifact_version_class, mock_validate):
         """Test successful delete version command."""
         mock_obj = setup_context_mock(mock_validate)
@@ -134,7 +134,7 @@ class TestArtifactVersionCLI:
         mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
             mock_instance.upload.return_value = Mock(id="new_version")
@@ -158,7 +158,7 @@ class TestArtifactVersionCLI:
         """Test successful download of specific version via cp command."""
         mock_obj = setup_context_mock(mock_validate)
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
             mock_instance.download.return_value = "./downloaded_version.txt"
@@ -194,7 +194,7 @@ class TestArtifactVersionCLI:
         """Test version-specific error handling."""
         mock_obj = setup_context_mock(mock_validate)
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
 
@@ -226,7 +226,7 @@ class TestArtifactVersionCLIEdgeCases:
         """Test list versions with empty result."""
         mock_obj = setup_context_mock(mock_validate)
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
             mock_instance.list.return_value = []
@@ -262,7 +262,7 @@ class TestArtifactVersionCLIEdgeCases:
         mock_exists.return_value = True
 
         with (
-            patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version,
+            patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version,
             patch('os.path.getsize') as mock_getsize,
         ):
             # Simulate large file (1GB)
@@ -290,7 +290,7 @@ class TestArtifactVersionCLIEdgeCases:
         mock_obj = setup_context_mock(mock_validate)
 
         with (
-            patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version,
+            patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version,
             patch('os.path.exists') as mock_exists,
         ):
             # Simulate target file exists
@@ -319,7 +319,7 @@ class TestArtifactVersionCLIEdgeCases:
         """Test version commands with special characters in IDs."""
         mock_obj = setup_context_mock(mock_validate)
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
             mock_instance.get.return_value = Mock(
@@ -365,7 +365,7 @@ class TestArtifactVersionCLIIntegration:
         mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
-        with patch('clarifai.cli.artifact.ArtifactVersion') as mock_artifact_version:
+        with patch('clarifai.client.artifact_version.ArtifactVersion') as mock_artifact_version:
             mock_instance = Mock()
             mock_artifact_version.return_value = mock_instance
 
