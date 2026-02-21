@@ -6,13 +6,17 @@ import click
 import yaml
 
 from clarifai import __version__
-from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules, masked_input
+from clarifai.utils.cli import (
+    LazyAliasedGroup,
+    TableFormatter,
+    masked_input,
+)
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
 
 
-@click.group(cls=AliasedGroup)
+@click.group(cls=LazyAliasedGroup)
 @click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG, help='Path to config file')
 @click.option('--context', default=None, help='Context to use for this command')
@@ -58,7 +62,7 @@ def shell_completion(shell):
     os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=LazyAliasedGroup)
 def config():
     """
     Manage multiple configuration profiles (contexts).
@@ -587,7 +591,7 @@ def run(ctx, script, context=None):
 
 
 # Import the CLI commands to register them
-load_command_modules()
+# load_command_modules() - Now handled lazily by LazyLazyAliasedGroupp
 
 
 def main():
