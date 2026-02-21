@@ -32,11 +32,9 @@ contexts:
         self.assertEqual(config.current_context, "test_context")
         self.assertIn("test_context", config.contexts)
 
+    @patch.dict('os.environ', {"CLARIFAI_PAT": "env_pat", "CLARIFAI_UI": "env_ui"})
     def test_env_var_override(self):
         # Set environment variables that should override config values
-        os.environ["CLARIFAI_PAT"] = "env_pat"
-        os.environ["CLARIFAI_UI"] = "env_ui"
-
         config = Config.from_yaml(self.temp_config.name)
         context = config.current
 
@@ -44,10 +42,7 @@ contexts:
         self.assertEqual(context.pat, "env_pat")
         self.assertEqual(context.ui, "env_ui")
 
-        # Clean up
-        del os.environ["CLARIFAI_PAT"]
-        del os.environ["CLARIFAI_UI"]
-
+    @patch.dict('os.environ', {}, clear=True)
     def test_direct_access(self):
         config = Config.from_yaml(self.temp_config.name)
         context = config.current
@@ -56,6 +51,7 @@ contexts:
         self.assertEqual(context.pat, "config_pat")
         self.assertEqual(context.ui, "config_ui")
 
+    @patch.dict('os.environ', {"CLARIFAI_PAT": "env_pat"})
     def test_envvar_fallback(self):
         # Create a config with ENVVAR placeholder
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -68,9 +64,6 @@ contexts:
 """)
             temp_file_path = temp_file.name
 
-        # Set the environment variable
-        os.environ["CLARIFAI_PAT"] = "env_pat"
-
         config = Config.from_yaml(temp_file_path)
         context = config.current
 
@@ -78,7 +71,6 @@ contexts:
         self.assertEqual(context.pat, "env_pat")
 
         # Clean up
-        del os.environ["CLARIFAI_PAT"]
         os.unlink(temp_file_path)
 
     def test_attribute_error(self):
@@ -114,6 +106,7 @@ contexts:
         del os.environ["CLARIFAI_CUSTOM"]
         os.unlink(temp_file_path)
 
+    @patch.dict('os.environ', {}, clear=True)
     def test_default_fallbacks(self):
         # Create a config with no UI or API_BASE values
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -135,6 +128,7 @@ contexts:
         # Clean up
         os.unlink(temp_file_path)
 
+    @patch.dict('os.environ', {}, clear=True)
     def test_context_creation(self):
         # Test creating a context directly
         context = Context("test_context", CLARIFAI_PAT="context_pat", CLARIFAI_UI="context_ui")
