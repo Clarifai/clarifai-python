@@ -426,6 +426,8 @@ class ModelRunLocally:
                         str(kwargs.get("pat", None)),
                         "--num_threads",
                         str(kwargs.get("num_threads", 0)),
+                        "--health_check_port",
+                        str(kwargs.get("health_check_port", 8080)),
                     ]
                 )
             else:
