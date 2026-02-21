@@ -485,7 +485,7 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
 )
 def model():
     """Manage Models: init, upload, deploy\n
-    Run Locally: local-runner, local-grpc\n
+    Run Locally: local-runner\n
     Observe: logs, list, predict"""
 
 
@@ -1005,76 +1005,142 @@ def logs(
         raise SystemExit(1)
 
 
-@model.command(name="local-grpc", help="Run the model locally via a gRPC server.")
-@click.argument(
-    "model_path",
-    type=click.Path(exists=True),
-    required=False,
-    default=".",
-)
-@click.option(
-    '--port',
-    '-p',
-    type=int,
-    default=8000,
-    show_default=True,
-    help="The port to host the gRPC server for running the model locally. Defaults to 8000.",
-)
-@click.option(
-    '--mode',
-    type=click.Choice(['env', 'container'], case_sensitive=False),
-    default='env',
-    show_default=True,
-    help='Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
-)
-@click.option(
-    '--keep_env',
-    is_flag=True,
-    help='Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.',
-)
-@click.option(
-    '--keep_image',
-    is_flag=True,
-    help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
-)
-@click.option(
-    '--skip_dockerfile',
-    is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
-)
-@click.pass_context
-def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
-    """Run the model locally and start a gRPC server to serve the model.
+def _run_local_grpc(model_path, mode, port, keep_image, verbose):
+    """Run a model locally via a standalone gRPC server (no PAT, no API)."""
+    import signal
 
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    """
+    from clarifai.runners.models import deploy_output as out
+    from clarifai.runners.models.model_builder import ModelBuilder
+    from clarifai.runners.models.model_deploy import _quiet_sdk_logger
+    from clarifai.runners.models.model_run_locally import ModelRunLocally
+    from clarifai.runners.server import ModelServer
+
     model_path = os.path.abspath(model_path)
+    suppress = not verbose
+
+    # ── Phase 1: Validate ──────────────────────────────────────────────
+    out.phase_header("Validate")
+
+    with _quiet_sdk_logger(suppress):
+        builder = ModelBuilder(model_path, download_validation_only=True)
+    config = builder.config
+    model_config = config.get('model', {})
+
+    model_id = model_config.get('id', os.path.basename(model_path))
+    model_type_id = model_config.get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
+
+    # Validate requirements for none/env modes
+    if mode != "container":
+        dependencies = parse_requirements(model_path)
+        if not check_requirements_installed(dependencies=dependencies):
+            raise UserError(f"Requirements not installed for model at {model_path}.")
+
+        if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+            if not check_ollama_installed():
+                raise UserError(
+                    "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
+                )
+        elif "lmstudio" in dependencies or config.get('toolkit', {}).get('provider') == 'lmstudio':
+            if not check_lmstudio_installed():
+                raise UserError(
+                    "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
+                )
+
+    # Get method signatures to generate test snippet
+    use_mocking = mode == "container"
+    with _quiet_sdk_logger(suppress):
+        method_signatures = builder.get_method_signatures(mocking=use_mocking)
+
+    out.info("Model", model_id)
+    out.info("Type", model_type_id)
+    out.info("Port", str(port))
+
+    # ── Phase 2: Running ───────────────────────────────────────────────
+    out.phase_header("Running")
+    out.success(f"gRPC server running at localhost:{port}")
+    click.echo()
+
+    from clarifai.runners.utils.code_script import generate_client_script
+
+    snippet = generate_client_script(
+        method_signatures,
+        user_id=None,
+        app_id=None,
+        model_id=model_id,
+        local_grpc_port=port,
+        colorize=True,
+    )
+    out.status("Test with Python:")
+    click.echo(snippet)
+
+    out.status("Press Ctrl+C to stop.")
+    click.echo()
+
+    # ── Phase 3: Serve (with cleanup) ──────────────────────────────────
+    container_name = None
+    image_name = None
+    manager = None
+    cleanup_done = False
+
+    def _do_cleanup():
+        nonlocal cleanup_done
+        if cleanup_done:
+            return
+        cleanup_done = True
+        if mode == "container" and manager is not None:
+            try:
+                if container_name and manager.container_exists(container_name):
+                    manager.stop_docker_container(container_name)
+                    manager.remove_docker_container(container_name=container_name)
+                if not keep_image and image_name:
+                    manager.remove_docker_image(image_name=image_name)
+            except Exception:
+                pass
+        out.status("Stopped.")
+
+    original_sigint = signal.getsignal(signal.SIGINT)
+
+    def _sigint_handler(signum, frame):
+        signal.signal(signal.SIGINT, original_sigint)
+        _do_cleanup()
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, _sigint_handler)
+
     try:
-        from clarifai.runners.models import model_run_locally
-
-        validate_context(ctx)
-        _ensure_hf_token(ctx, model_path)
-        if mode == 'env' and keep_image:
-            raise ValueError("'keep_image' is applicable only for 'container' mode")
-        if mode == 'container' and keep_env:
-            raise ValueError("'keep_env' is applicable only for 'env' mode")
-
-        if mode == "env":
-            click.echo("Running model locally in a virtual environment...")
-            model_run_locally.main(model_path, run_model_server=True, keep_env=keep_env, port=port)
-        elif mode == "container":
-            click.echo("Running model locally inside a container...")
-            model_run_locally.main(
-                model_path,
-                inside_container=True,
-                run_model_server=True,
+        if mode == "container":
+            manager = ModelRunLocally(model_path)
+            if not manager.is_docker_installed():
+                raise UserError("Docker is not installed.")
+            image_tag = manager._docker_hash()
+            container_name = model_id.lower()
+            image_name = f"{container_name}:{image_tag}"
+            if not manager.docker_image_exists(image_name):
+                with _quiet_sdk_logger(suppress):
+                    manager.build_docker_image(image_name=image_name)
+            manager.run_docker_container(
+                image_name=image_name,
+                container_name=container_name,
                 port=port,
-                keep_image=keep_image,
-                skip_dockerfile=skip_dockerfile,
             )
-        click.echo(f"Model server started locally from {model_path} in {mode} mode.")
+        elif mode == "env":
+            manager = ModelRunLocally(model_path)
+            manager.create_temp_venv()
+            manager.install_requirements()
+            manager.run_model_server(port)
+        else:
+            # none mode: run in-process
+            with _quiet_sdk_logger(suppress):
+                server = ModelServer(model_path=model_path)
+            server.serve(port=port, grpc=True)
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
-        click.echo(f"Failed to starts model server locally: {e}", err=True)
+        click.echo()
+        out.warning(f"Model failed: {e}")
+    finally:
+        signal.signal(signal.SIGINT, original_sigint)
+        _do_cleanup()
 
 
 @model.command(name="local-runner")
@@ -1099,6 +1165,19 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     help="Number of concurrent requests the local runner will handle.",
 )
 @click.option(
+    '--port',
+    '-p',
+    type=int,
+    default=8000,
+    show_default=True,
+    help="Port for the gRPC server (only used with --grpc).",
+)
+@click.option(
+    '--grpc',
+    is_flag=True,
+    help='Run a standalone gRPC server instead of connecting to the Clarifai API. No login required.',
+)
+@click.option(
     '--keep-image',
     is_flag=True,
     help='Do not remove the Docker image on exit (only applies to --mode container).',
@@ -1110,13 +1189,16 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     help='Show full SDK debug output instead of clean summaries.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, mode, concurrency, keep_image, verbose):
-    """Run a model locally while connected to the Clarifai API for predictions.
+def local_runner(ctx, model_path, mode, concurrency, port, grpc, keep_image, verbose):
+    """Run a model locally for testing predictions.
 
     \b
-    Starts a local runner that registers with the Clarifai platform so you
-    can send predictions to your model via the API or the Playground UI,
-    all while the model code runs on your own machine. Cleans up on Ctrl+C.
+    By default, starts a local runner connected to the Clarifai API so you
+    can send predictions via the API or the Playground UI.
+
+    \b
+    With --grpc, starts a standalone gRPC server on localhost instead.
+    No login required — fully offline.
 
     \b
     MODEL_PATH  Path to the model directory (must contain config.yaml).
@@ -1125,9 +1207,16 @@ def local_runner(ctx, model_path, mode, concurrency, keep_image, verbose):
     \b
     Examples:
       clarifai model local-runner ./my-model
+      clarifai model local-runner ./my-model --grpc
+      clarifai model local-runner ./my-model --grpc --port 9000
       clarifai model local-runner ./my-model --mode container
       clarifai model local-runner ./my-model --concurrency 8 --verbose
     """
+    if grpc:
+        # Standalone gRPC server — no PAT, no API
+        _run_local_grpc(model_path, mode, port, keep_image, verbose)
+        return
+
     from clarifai.client.user import User
     from clarifai.runners.models import deploy_output as out
     from clarifai.runners.models.model_builder import ModelBuilder

@@ -37,6 +37,33 @@ def is_async_context():
         return False
 
 
+class _LocalGRPCStub:
+    """Lightweight gRPC stub for local model servers.
+
+    Only wraps the 3 RPCs needed for model predictions (PostModelOutputs,
+    GenerateModelOutputs, StreamModelOutputs). Avoids instantiating the full
+    V2Stub which can fail on certain clarifai_grpc versions due to missing
+    response deserializers.
+    """
+
+    def __init__(self, channel):
+        self.PostModelOutputs = channel.unary_unary(
+            "/clarifai.api.V2/PostModelOutputs",
+            request_serializer=service_pb2.PostModelOutputsRequest.SerializeToString,
+            response_deserializer=service_pb2.MultiOutputResponse.FromString,
+        )
+        self.GenerateModelOutputs = channel.unary_stream(
+            "/clarifai.api.V2/GenerateModelOutputs",
+            request_serializer=service_pb2.PostModelOutputsRequest.SerializeToString,
+            response_deserializer=service_pb2.MultiOutputResponse.FromString,
+        )
+        self.StreamModelOutputs = channel.stream_stream(
+            "/clarifai.api.V2/StreamModelOutputs",
+            request_serializer=service_pb2.PostModelOutputsRequest.SerializeToString,
+            response_deserializer=service_pb2.MultiOutputResponse.FromString,
+        )
+
+
 class ModelClient:
     '''
     Client for calling model predict, generate, and stream methods.
@@ -61,6 +88,33 @@ class ModelClient:
         self.request_template = request_template or service_pb2.PostModelOutputsRequest()
         self._method_signatures = None
         self._defined = False
+
+    @classmethod
+    def from_local_grpc(cls, port: int = 8000) -> 'ModelClient':
+        """Create a ModelClient connected to a local gRPC model server.
+
+        Connects to a local gRPC server started with ``clarifai model local-runner --grpc``.
+        Method signatures are auto-discovered from the running model.
+
+        Args:
+            port: Port of the local gRPC server (default 8000).
+
+        Returns:
+            ModelClient with predict/generate/stream methods ready to use.
+
+        Example::
+
+            from clarifai.client.model_client import ModelClient
+
+            client = ModelClient.from_local_grpc(port=8000)
+            response = client.predict(text="What is the future of AI?")
+            print(response)
+        """
+        import grpc
+
+        channel = grpc.insecure_channel(f"localhost:{port}")
+        stub = _LocalGRPCStub(channel)
+        return cls(stub=stub)
 
     def fetch(self):
         '''

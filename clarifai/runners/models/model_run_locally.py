@@ -288,7 +288,7 @@ class ModelRunLocally:
         Validate that the current environment supports model testing.
         Provides immediate feedback for unsupported configurations.
         This function runs only during CLI commands:
-            1. clarifai model local-grpc
+            1. clarifai model local-runner
             2. clarifai model local-test
         """
         warnings = []

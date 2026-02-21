@@ -35,6 +35,66 @@ def _colorize_script(script: str) -> str:
         return script
 
 
+def _generate_local_grpc_script(
+    method_signatures: List[resources_pb2.MethodSignature],
+    port: int,
+    colorize: bool = False,
+) -> str:
+    """Generate a Python snippet for calling a model on a local gRPC server.
+
+    Uses ModelClient.from_local_grpc() which auto-discovers method signatures
+    and provides the same SDK interface as cloud models.
+    """
+    lines = [
+        "from clarifai.client.model_client import ModelClient",
+        "",
+        f"client = ModelClient.from_local_grpc(port={port})",
+        "",
+    ]
+
+    for method_signature in method_signatures:
+        if method_signature is None:
+            continue
+        method_name = method_signature.name
+        # Skip bidirectional streaming — too complex for a quick snippet
+        if method_signature.method_type == resources_pb2.RunnerMethodType.STREAMING_STREAMING:
+            continue
+
+        annotations = _get_annotations_source(method_signature)
+        # Build sample kwargs from input params
+        param_parts = []
+        for param_name, (param_type, default_value, _required) in annotations.items():
+            if param_name == "return":
+                continue
+            if default_value is None:
+                default_value = _set_default_value(param_type)
+            if default_value is not None:
+                if param_type == "str":
+                    param_parts.append(f'{param_name}={json.dumps(str(default_value))}')
+                else:
+                    param_parts.append(f"{param_name}={default_value}")
+            break  # Just show the first param for brevity
+
+        call_args = ", ".join(param_parts) if param_parts else ""
+
+        is_streaming = (
+            method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING
+        )
+
+        lines.append(f"# Method: {method_name}")
+        if is_streaming:
+            lines.append(f"for chunk in client.{method_name}({call_args}):")
+            lines.append("    print(chunk, end='')")
+            lines.append("print()")
+        else:
+            lines.append(f"response = client.{method_name}({call_args})")
+            lines.append("print(response)")
+        lines.append("")
+
+    script = "\n".join(lines)
+    return _colorize_script(script) if colorize else script
+
+
 def generate_client_script(
     method_signatures: List[resources_pb2.MethodSignature],
     user_id,
@@ -47,7 +107,12 @@ def generate_client_script(
     deployment_user_id: str = None,
     use_ctx: bool = False,
     colorize: bool = False,
+    local_grpc_port: int = None,
 ) -> str:
+    # ── Local gRPC mode ────────────────────────────────────────────────
+    if local_grpc_port is not None:
+        return _generate_local_grpc_script(method_signatures, local_grpc_port, colorize=colorize)
+
     url_helper = ClarifaiUrlHelper()
 
     # Provide an mcp client config if there is a method named "mcp_transport"
