@@ -1764,7 +1764,7 @@ class TestPipelineListCommand:
 class TestPipelineTemplateCommands:
     """Test cases for the pipeline template CLI commands."""
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_all_templates(self, mock_template_manager_class):
         """Test that list_templates command works without type filter."""
         # Mock template manager
@@ -1787,7 +1787,7 @@ class TestPipelineTemplateCommands:
         assert 'template1' in result.output
         assert 'template2' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_with_type_filter(self, mock_template_manager_class):
         """Test that list_templates command works with type filter."""
         # Mock template manager
@@ -1810,7 +1810,7 @@ class TestPipelineTemplateCommands:
         assert 'train-template1' in result.output
         assert 'train-template2' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_empty_list(self, mock_template_manager_class):
         """Test that list_templates command handles empty template list."""
         # Mock template manager to return empty list
@@ -1826,7 +1826,7 @@ class TestPipelineTemplateCommands:
         # Should display message about no templates
         assert 'No templates found' in result.output or len(result.output.strip()) == 0
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_found(self, mock_template_manager_class):
         """Test that info command works when template exists."""
         # Mock template manager
@@ -1869,7 +1869,7 @@ class TestPipelineTemplateCommands:
         assert 'EXAMPLE_PATH (default: /default/data/path)' in result.output
         assert 'EXAMPLE_TYPE (default: default_type)' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_not_found(self, mock_template_manager_class):
         """Test that info command handles template not found."""
         # Mock template manager to return None
@@ -1886,7 +1886,7 @@ class TestPipelineTemplateCommands:
         # Should display error message
         assert 'not found' in result.output or 'Error' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_with_no_parameters(self, mock_template_manager_class):
         """Test that info command handles templates with no parameters."""
         # Mock template manager
@@ -1921,7 +1921,7 @@ class TestPipelineTemplateCommands:
             or result.output.count('Parameters') <= 1
         )  # Just the section header
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_with_rich_display(self, mock_template_manager_class):
         """Test that list_templates displays templates in a formatted table."""
         # Mock template manager
