@@ -234,15 +234,21 @@ class Nodepool(Lister, BaseClient):
                 logs_received = threading.Event()
 
                 def stream_logs(log_type, prefix):
-                    try:
-                        for entry in deployment.logs(stream=True, log_type=log_type):
-                            if stop_event.is_set():
-                                break
-                            logs_received.set()
-                            timestamp = entry.time.ToDatetime().isoformat()
-                            self.logger.info(f"[{prefix}] {timestamp} {entry.message}")
-                    except Exception:
-                        pass
+                    while not stop_event.is_set():
+                        try:
+                            for entry in deployment.logs(stream=True, log_type=log_type):
+                                if stop_event.is_set():
+                                    break
+                                logs_received.set()
+                                timestamp = entry.time.ToDatetime().isoformat()
+                                self.logger.info(f"[{prefix}] {timestamp} {entry.message}")
+                        except Exception:
+                            # Stream might fail if runner is not yet provisioned; wait and retry
+                            if not stop_event.is_set():
+                                time.sleep(2)
+
+                        if not stop_event.is_set():
+                            time.sleep(1)  # Brief pause before retrying if iterator ends normally
 
                 self.logger.info(
                     f"Waiting for deployment '{deployment_id}' to reach {min_replicas} running replicas..."
