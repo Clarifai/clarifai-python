@@ -115,7 +115,7 @@ class TestArtifactCLI:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_list_command_success(self, mock_artifact_class, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
@@ -149,7 +149,7 @@ class TestArtifactCLI:
         assert "Missing argument 'PATH'" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_list_versions_command(self, mock_artifact_version_class, mock_validate):
         """Test list versions command."""
         mock_validate.return_value = None
@@ -178,7 +178,7 @@ class TestArtifactCLI:
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.parse_artifact_path')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_get_command_success(self, mock_artifact_class, mock_parse_path, mock_validate):
         """Test successful get command."""
         mock_validate.return_value = None
@@ -221,7 +221,7 @@ class TestArtifactCLI:
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.parse_artifact_path')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_delete_command_success(self, mock_artifact_class, mock_parse_path, mock_validate):
         """Test successful delete command."""
         mock_validate.return_value = None
@@ -265,7 +265,7 @@ class TestArtifactCLI:
         assert "Operation cancelled" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_delete_command_force(self, mock_artifact_class, mock_validate):
         """Test delete command with force flag (no confirmation needed)."""
         mock_obj = setup_context_mock(mock_validate)
@@ -289,7 +289,7 @@ class TestArtifactCLI:
         mock_artifact_instance.delete.assert_called_once()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_delete_version_command_force(self, mock_artifact_version_class, mock_validate):
         """Test delete version command with force flag (no confirmation needed)."""
         mock_obj = setup_context_mock(mock_validate)
@@ -377,8 +377,8 @@ class TestArtifactCLI:
         assert kwargs.get('visibility') == 'org'
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    @patch('clarifai.client.artifact.Artifact')
     def test_cp_command_download_success(
         self, mock_artifact_class, mock_artifact_version_class, mock_validate
     ):
@@ -463,7 +463,7 @@ class TestArtifactCLI:
         """Test that CLI operations properly handle instance reuse."""
         mock_obj = setup_context_mock(Mock())
 
-        with patch('clarifai.cli.artifact.Artifact') as mock_artifact:
+        with patch('clarifai.client.artifact.Artifact') as mock_artifact:
             mock_instance = Mock()
             mock_artifact.return_value = mock_instance
 
@@ -541,7 +541,7 @@ class TestArtifactCLIIntegration:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_full_workflow_simulation(self, mock_artifact_class, mock_validate):
         """Test simulated full workflow - just test list command as representative."""
         mock_validate.return_value = None
@@ -563,7 +563,7 @@ class TestArtifactCLIIntegration:
         assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_error_handling(self, mock_artifact_class, mock_validate):
         """Test CLI error handling."""
         mock_validate.return_value = None
@@ -591,7 +591,7 @@ class TestArtifactCLIIntegration:
 class TestConvenienceFunctions:
     """Test class for CLI convenience functions."""
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     @patch('os.path.exists', return_value=True)
     def test_upload_artifact_function(self, mock_exists, mock_artifact_version_class):
         """Test _upload_artifact convenience function."""
@@ -638,8 +638,8 @@ class TestConvenienceFunctions:
 
         assert result.version_id == "test_version"
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    @patch('clarifai.client.artifact.Artifact')
     def test_download_artifact_function(self, mock_artifact_class, mock_artifact_version_class):
         """Test _download_artifact convenience function."""
         # Mock Artifact instance for getting latest version
@@ -698,7 +698,7 @@ class TestConvenienceFunctions:
 
         assert result == "/downloaded/path"
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_download_artifact_with_specific_version(self, mock_artifact_version_class):
         """Test _download_artifact with specific version ID."""
         # Mock ArtifactVersion instance and its download method
