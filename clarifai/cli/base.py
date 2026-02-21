@@ -120,6 +120,54 @@ def login(ctx, api_url, user_id):
     logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
 
 
+@cli.command()
+@click.pass_context
+def whoami(ctx):
+    """Display information about the current user."""
+    from clarifai_grpc.grpc.api.status import status_code_pb2
+
+    from clarifai.client.user import User
+
+    # Get the current context
+    cfg = ctx.obj
+    current_ctx = cfg.contexts[cfg.current_context]
+
+    # Get user_id from context
+    context_user_id = current_ctx.CLARIFAI_USER_ID
+    pat = current_ctx.CLARIFAI_PAT
+    base_url = current_ctx.CLARIFAI_API_BASE
+
+    # Display context user info
+    click.echo("Context User ID: " + click.style(context_user_id, fg='cyan', bold=True))
+
+    # Call GetUser RPC with "me" to get the actual authenticated user
+    try:
+        user_client = User(user_id="me", pat=pat, base_url=base_url)
+        response = user_client.get_user_info(user_id="me")
+
+        if response.status.code == status_code_pb2.SUCCESS:
+            actual_user_id = response.user.id
+            click.echo(
+                "Authenticated User ID: " + click.style(actual_user_id, fg='green', bold=True)
+            )
+
+            # Check if they differ
+            if context_user_id != actual_user_id:
+                click.echo()
+                click.secho(
+                    "��️  Warning: The context user ID differs from the authenticated user ID!",
+                    fg='yellow',
+                )
+                click.echo(
+                    "This means you as the caller will be calling different user or organization."
+                )
+        else:
+            click.secho(f"Error getting user info: {response.status.description}", fg='red')
+
+    except Exception as e:
+        click.secho(f"Error: Could not retrieve authenticated user info: {str(e)}", fg='red')
+
+
 def _warn_env_pat():
     """Warn if CLARIFAI_PAT environment variable is still set."""
     if os.environ.get('CLARIFAI_PAT'):
