@@ -1,6 +1,7 @@
 import os
 from typing import Any, Dict, Generator, List, Optional
 
+import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -523,6 +524,29 @@ class User(Lister, BaseClient):
             raise Exception(response.status)
 
         return response
+
+    def list_organizations(self) -> List[Dict[str, str]]:
+        """List organizations the user belongs to via REST API.
+
+        Returns:
+            list: List of dicts with 'id' and 'name' keys for each organization.
+        """
+        base = self.auth_helper.base
+        user_id = self.id
+        url = f"{base}/v2/users/{user_id}/organizations"
+        headers = {"Authorization": f"Key {self.auth_helper.pat}"}
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            orgs = []
+            for uo in data.get("organizations", []):
+                org = uo.get("organization", {})
+                orgs.append({"id": org.get("id", ""), "name": org.get("name", "")})
+            return orgs
+        except Exception as e:
+            self.logger.debug(f"Failed to list organizations: {e}")
+            return []
 
     def __getattr__(self, name):
         return getattr(self.user_info, name)

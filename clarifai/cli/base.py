@@ -63,55 +63,164 @@ def config():
     """
 
 
-@cli.command()
-@click.argument('api_url', default=DEFAULT_BASE)
-@click.option('--user_id', required=False, help='User ID')
-@click.pass_context
-def login(ctx, api_url, user_id):
-    """Login command to set PAT and other configurations."""
-    from clarifai.utils.cli import validate_context_auth
-
-    # Input user_id if not supplied
-    if not user_id:
-        user_id = click.prompt('Enter your Clarifai user ID', type=str)
-
-    click.echo()  # Blank line for readability
-
-    # Check for environment variable first
+def _get_pat_interactive():
+    """Resolve PAT from --pat flag, env var, or interactive prompt. Returns (pat, source)."""
     env_pat = os.environ.get('CLARIFAI_PAT')
     if env_pat:
-        use_env = click.confirm('Use CLARIFAI_PAT from environment?', default=True)
-        if use_env:
-            pat = env_pat
-        else:
-            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/security')
-            pat = masked_input('Enter your Personal Access Token (PAT): ')
+        click.secho('Using PAT from CLARIFAI_PAT environment variable.', fg='cyan')
+        return env_pat
+
+    # Best-effort browser open to PAT page
+    pat_url = 'https://clarifai.com/me/settings/secrets'
+    try:
+        import webbrowser
+
+        webbrowser.open(pat_url)
+        click.secho(f'Opening browser to {pat_url} ...', fg='cyan')
+    except Exception:
+        click.echo(f'Get your PAT at: {click.style(pat_url, fg="cyan", underline=True)}')
+    return masked_input('Enter your PAT: ')
+
+
+def _verify_and_resolve_user(pat, api_url):
+    """Validate PAT and return the personal user_id via GET /v2/users/me."""
+    try:
+        from clarifai.client.user import User
+
+        user = User(user_id='me', pat=pat, base_url=api_url)
+        response = user.get_user_info(user_id='me')
+        return response.user.id
+    except Exception as e:
+        click.secho(f'Authentication failed: {e}', fg='red', err=True)
+        click.echo(
+            f'Create a PAT at: {click.style("https://clarifai.com/me/settings/secrets", fg="cyan", underline=True)}',
+            err=True,
+        )
+        raise click.Abort()
+
+
+def _list_user_orgs(pat, user_id, api_url):
+    """Return list of (org_id, org_name) tuples for the user. Returns [] on failure."""
+    try:
+        from clarifai.client.user import User
+
+        user = User(user_id=user_id, pat=pat, base_url=api_url)
+        orgs = user.list_organizations()
+        return [(org['id'], org['name']) for org in orgs if org.get('id')]
+    except Exception:
+        return []
+
+
+def _prompt_user_or_org(personal_user_id, orgs):
+    """Interactive org selection. Returns selected user_id."""
+    click.echo()
+    choices = [(personal_user_id, '(personal)')]
+    for org_id, org_name in orgs:
+        label = f'({org_name})' if org_name and org_name != org_id else '(org)'
+        choices.append((org_id, label))
+
+    for i, (uid, label) in enumerate(choices, 1):
+        num = click.style(f'[{i}]', fg='yellow', bold=True)
+        name = click.style(uid, bold=True)
+        tag = click.style(label, dim=True)
+        click.echo(f'  {num} {name} {tag}')
+    click.echo()
+
+    selection = click.prompt('Select user_id', default='1', type=str).strip()
+
+    # Accept number or exact user_id string
+    if selection.isdigit() and 1 <= int(selection) <= len(choices):
+        return choices[int(selection) - 1][0]
+    for uid, _ in choices:
+        if selection == uid:
+            return uid
+    return personal_user_id
+
+
+def _env_prefix(api_url):
+    """'https://api-dev.clarifai.com' -> 'dev', 'https://api-staging...' -> 'staging'."""
+    from urllib.parse import urlparse
+
+    host = urlparse(api_url).hostname or ''
+    if 'api-dev' in host:
+        return 'dev'
+    elif 'api-staging' in host:
+        return 'staging'
+    return 'prod'
+
+
+@cli.command()
+@click.argument('api_url', default=DEFAULT_BASE)
+@click.option('--pat', required=False, help='Personal Access Token (skips interactive prompt).')
+@click.option(
+    '--user-id', required=False, help='User or org ID. Auto-detected from PAT if omitted.'
+)
+@click.option('--name', required=False, help='Context name. Defaults to the selected user_id.')
+@click.pass_context
+def login(ctx, api_url, pat, user_id, name):
+    """Log in to Clarifai and save credentials.
+
+    \b
+    Verifies your PAT, detects your user_id, and saves a named
+    context to ~/.config/clarifai/config.
+
+    \b
+    API_URL  Clarifai API base URL (default: https://api.clarifai.com).
+
+    \b
+    Examples:
+      clarifai login                                  # interactive
+      clarifai login --pat $MY_PAT                    # non-interactive
+      clarifai login --pat $PAT --user-id openai      # org user, skip selection
+      clarifai login https://api-dev.clarifai.com     # dev environment
+      clarifai login --name my-context                # custom context name
+    """
+    # 1. Get PAT: --pat flag > CLARIFAI_PAT env var > browser + interactive prompt
+    if not pat:
+        pat = _get_pat_interactive()
+
+    # 2. Validate PAT + resolve personal user_id
+    click.secho('Verifying...', dim=True)
+    personal_user_id = _verify_and_resolve_user(pat, api_url)
+
+    # 3. Resolve which user_id to use
+    if user_id:
+        selected_user_id = user_id
     else:
-        click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
-        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/security')
-        click.echo('> Tip: Set CLARIFAI_PAT environment variable to skip this prompt.\n')
-        pat = masked_input('Enter your Personal Access Token (PAT): ')
+        orgs = _list_user_orgs(pat, personal_user_id, api_url)
+        if orgs:
+            selected_user_id = _prompt_user_or_org(personal_user_id, orgs)
+        else:
+            selected_user_id = personal_user_id
 
-    # Progress indicator
-    click.echo('\n> Verifying token...')
-    validate_context_auth(pat, user_id, api_url)
+    # 4. Derive context name
+    if not name:
+        if api_url != DEFAULT_BASE:
+            prefix = _env_prefix(api_url)
+            name = f"{prefix}-{selected_user_id}"
+        else:
+            name = selected_user_id
 
-    # Save context with default name
-    context_name = 'default'
+    # 5. Save (update if exists, create if new)
+    action = "Updated" if name in ctx.obj.contexts else "Created"
     context = Context(
-        context_name,
+        name,
         CLARIFAI_API_BASE=api_url,
-        CLARIFAI_USER_ID=user_id,
+        CLARIFAI_USER_ID=selected_user_id,
         CLARIFAI_PAT=pat,
     )
-
-    ctx.obj.contexts[context_name] = context
-    ctx.obj.current_context = context_name
+    ctx.obj.contexts[name] = context
+    ctx.obj.current_context = name
     ctx.obj.to_yaml()
-    click.secho(f'✅ Success! You\'re logged in as {user_id}', fg='green')
-    click.echo('💡 Tip: Use `clarifai config` to manage multiple accounts or environments')
 
-    logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
+    # 6. Output
+    click.echo()
+    click.echo(
+        click.style('Logged in as ', fg='green')
+        + click.style(selected_user_id, fg='green', bold=True)
+        + click.style(f' ({api_url})', dim=True)
+    )
+    click.echo(f'{action} context {click.style(name, bold=True)} and set as active.')
 
 
 def pat_display(pat):
@@ -195,46 +304,48 @@ def current_context(ctx, output_format):
 
 @config.command(aliases=['create-context', 'create'])
 @click.argument('name')
-@click.option('--user-id', required=False, help='User ID')
-@click.option('--base-url', required=False, help='Base URL')
-@click.option('--pat', required=False, help='Personal access token')
+@click.option(
+    '--user-id', required=False, help='User or org ID. Auto-detected from PAT if omitted.'
+)
+@click.option('--base-url', required=False, default=DEFAULT_BASE, help='API base URL.')
+@click.option('--pat', required=False, help='Personal Access Token.')
 @click.pass_context
-def create_context(
-    ctx,
-    name,
-    user_id=None,
-    base_url=None,
-    pat=None,
-):
-    """Create a new context."""
-    from clarifai.utils.cli import validate_context_auth
-
+def create_context(ctx, name, user_id, base_url, pat):
+    """Create a new named context."""
     if name in ctx.obj.contexts:
-        click.secho(f'Error: Context "{name}" already exists', fg='red', err=True)
-        sys.exit(1)
-    if not user_id:
-        user_id = input('user id: ')
-    if not base_url:
-        base_url = input_or_default(
-            'base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com'
+        click.secho(
+            f'Context "{name}" already exists. Use "clarifai login" to update it.',
+            fg='red',
+            err=True,
         )
+        raise SystemExit(1)
+
+    # Same PAT resolution as login: flag > env > browser + prompt
     if not pat:
-        # Check for environment variable first
-        env_pat = os.environ.get('CLARIFAI_PAT')
-        if env_pat:
-            use_env = click.confirm('Found CLARIFAI_PAT in environment. Use it?', default=True)
-            if use_env:
-                pat = env_pat
-            else:
-                pat = masked_input('Enter your Personal Access Token (PAT): ')
+        pat = _get_pat_interactive()
+
+    # Same user_id resolution: flag > auto-detect + org selection
+    if not user_id:
+        click.secho('Verifying...', dim=True)
+        personal_user_id = _verify_and_resolve_user(pat, base_url)
+        orgs = _list_user_orgs(pat, personal_user_id, base_url)
+        if orgs:
+            user_id = _prompt_user_or_org(personal_user_id, orgs)
         else:
-            click.echo('Tip: Set CLARIFAI_PAT environment variable to skip this step.')
-            pat = masked_input('Enter your Personal Access Token (PAT): ')
-    validate_context_auth(pat, user_id, base_url)
+            user_id = personal_user_id
+    else:
+        click.secho('Verifying...', dim=True)
+        _verify_and_resolve_user(pat, base_url)
+
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
-    ctx.obj.contexts[context.name] = context
+    ctx.obj.contexts[name] = context
     ctx.obj.to_yaml()
-    click.secho(f"✅ Context '{name}' created successfully", fg='green')
+    click.echo(
+        click.style('Context ', fg='green')
+        + click.style(name, fg='green', bold=True)
+        + click.style(' created ', fg='green')
+        + click.style(f'({user_id} @ {base_url})', dim=True)
+    )
 
 
 @config.command(aliases=['e'])

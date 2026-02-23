@@ -474,9 +474,12 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
 def model():
-    """Manage Models: init, upload, deploy\n
-    Run Locally: serve\n
-    Observe: logs, list, predict"""
+    """Build, test, and deploy models on Clarifai.
+
+    \b
+    Workflow:   init → serve → deploy
+    Observe:    logs, list, predict
+    """
 
 
 def _sanitize_model_id(name):
@@ -573,12 +576,12 @@ def _print_init_success(model_path, toolkit):
         case_sensitive=False,
     ),
     required=False,
-    help='Inference engine or framework to use.',
+    help='Inference toolkit to scaffold. Omit for a blank Python model.',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model checkpoint: HF repo_id for vllm/sglang/huggingface, model tag for ollama.',
+    help='Model checkpoint (HF repo_id or ollama tag). Auto-creates directory from name.',
 )
 @click.pass_context
 def init(
@@ -587,26 +590,34 @@ def init(
     toolkit,
     model_name,
 ):
-    """Create a new model from a toolkit template.
+    """Scaffold a new model project with a specific toolkit like vLLM, SGLang, HuggingFace, Ollama, etc.
 
     \b
-    Generates a ready-to-use model directory. Pick a toolkit for a
-    specific inference engine, or omit for a blank Python template.
+    Creates a ready-to-serve model directory with config.yaml,
+    requirements.txt, and 1/model.py. Pick a toolkit for a specific
+    inference engine, or omit --toolkit for a blank Python template.
 
     \b
-    MODEL_PATH  Target directory. Auto-created from --model-name if omitted
-                (e.g., --model-name org/Model -> ./Model/). Defaults to ".".
+    MODEL_PATH  Target directory (default: current dir).
+                Auto-created from --model-name if omitted
+                (e.g., --model-name org/Model → ./Model/).
 
     \b
-    Toolkits:
-      vllm         High-throughput LLM serving (--model-name: HF repo_id)
-      sglang       Fast LLM serving with SGLang (--model-name: HF repo_id)
-      huggingface  HuggingFace Transformers (--model-name: HF repo_id)
-      ollama       Local LLM via Ollama (--model-name: model tag)
+    Toolkits (GPU):
+      vllm         High-throughput LLM serving with vLLM
+      sglang       Fast LLM serving with SGLang
+      huggingface  HuggingFace Transformers (direct inference)
+
+    \b
+    Toolkits (local):
+      ollama       Ollama (local LLM server)
+      lmstudio     LM Studio (local LLM server)
+
+    \b
+    Toolkits (other):
+      python       Blank Python model (default)
       mcp          MCP tool server (FastMCP)
-      python       Blank Python model
       openai       OpenAI-compatible API wrapper
-      lmstudio     Local LLM via LM Studio
 
     \b
     Examples:
@@ -763,24 +774,29 @@ def _ensure_hf_token(ctx, model_path):
         logger.warning(f"Unexpected error ensuring HF_TOKEN: {e}")
 
 
-@model.command(help="Upload a trained model.")
+@model.command()
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--platform',
     required=False,
-    help='Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.',
+    help='Docker build platform (e.g., "linux/amd64"). Overrides config.yaml.',
 )
 @click.option(
-    '--verbose',
     '-v',
+    '--verbose',
     is_flag=True,
-    help='Show detailed build logs and SDK messages.',
+    help='Show detailed build and upload logs.',
 )
 @click.pass_context
 def upload(ctx, model_path, platform, verbose):
-    """Upload a model to Clarifai.
+    """Upload a model to Clarifai (without deploying).
 
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+    \b
+    Builds a Docker image and uploads it to the Clarifai registry.
+    Use 'clarifai model deploy' to upload and deploy in one step.
+
+    \b
+    MODEL_PATH  Model directory containing config.yaml (default: ".").
     """
     from clarifai.runners.models.model_builder import upload_model
 
@@ -802,54 +818,62 @@ def upload(ctx, model_path, platform, verbose):
 @click.option(
     '--instance',
     default=None,
-    help="Hardware to deploy on. Run '--instance-info' to see available options.",
+    help='Hardware instance type (e.g., g5.xlarge). Use --instance-info to list options.',
 )
 @click.option(
     '--instance-info',
     is_flag=True,
-    help='List all available instance types and exit.',
+    help='Show available instance types with GPU, memory, and pricing, then exit.',
 )
 @click.option(
     '--model-url',
     default=None,
-    help='Deploy an existing model by URL instead of a local directory.',
+    help='Deploy an already-uploaded model by its Clarifai URL (skips upload).',
 )
 @click.option(
     '--model-version-id',
     default=None,
-    help='Version to deploy. Defaults to the latest version.',
+    help='Specific model version to deploy (default: latest).',
 )
 @click.option(
-    '--min-replicas', default=1, type=int, show_default=True, help='Minimum number of replicas.'
+    '--min-replicas',
+    default=1,
+    type=int,
+    show_default=True,
+    help='Minimum number of running replicas.',
 )
 @click.option(
-    '--max-replicas', default=5, type=int, show_default=True, help='Maximum number of replicas.'
+    '--max-replicas',
+    default=5,
+    type=int,
+    show_default=True,
+    help='Maximum replicas for autoscaling.',
 )
 @click.option(
     '--cloud',
     default=None,
-    help="Cloud provider. Auto-detected from --instance if not set.",
+    help='Cloud provider (e.g., aws, gcp). Auto-detected from --instance if omitted.',
 )
 @click.option(
     '--region',
     default=None,
-    help="Cloud region. Auto-detected from --instance if not set.",
+    help='Cloud region (e.g., us-east-1). Auto-detected from --instance if omitted.',
 )
 @click.option(
     '--compute-cluster-id',
     default=None,
-    help='[Advanced] Use an existing compute cluster instead of auto-creating one.',
+    help='[Advanced] Existing compute cluster ID (skip auto-creation).',
 )
 @click.option(
     '--nodepool-id',
     default=None,
-    help='[Advanced] Use an existing nodepool instead of auto-creating one.',
+    help='[Advanced] Existing nodepool ID (skip auto-creation).',
 )
 @click.option(
-    '--verbose',
     '-v',
+    '--verbose',
     is_flag=True,
-    help='Show detailed build, deploy, and runner logs.',
+    help='Show detailed build, upload, and deployment logs.',
 )
 @click.pass_context
 def deploy(
@@ -867,16 +891,22 @@ def deploy(
     nodepool_id,
     verbose,
 ):
-    """Deploy a model to Clarifai compute.
+    """Deploy a model to Clarifai cloud compute.
 
+    \b
     Uploads, builds, and deploys in one step. Compute infrastructure
-    (cluster + nodepool) is auto-created if needed.
+    (cluster + nodepool) is auto-created when needed.
+
+    \b
+    MODEL_PATH  Local model directory to upload and deploy (default: ".").
+                Not needed when using --model-url.
 
     \b
     Examples:
       clarifai model deploy ./my-model --instance g5.xlarge
       clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance g5.xlarge
       clarifai model deploy --instance-info
+      clarifai model deploy --instance-info --cloud gcp
     """
     if instance_info:
         from clarifai.utils.compute_presets import list_gpu_presets
@@ -969,37 +999,35 @@ def _print_deploy_result(result):
     click.echo("")
 
 
-@model.command(help="Stream model runner logs.")
+@model.command()
 @click.option('--model-url', default=None, help='Clarifai model URL.')
-@click.option('--model-id', default=None, help='Model ID.')
+@click.option('--model-id', default=None, help='Model ID (alternative to --model-url).')
 @click.option('--model-version-id', default=None, help='Specific version (default: latest).')
-@click.option(
-    '--compute-cluster-id', default=None, help='[Advanced] Filter by compute cluster ID.'
-)
-@click.option('--nodepool-id', default=None, help='[Advanced] Filter by nodepool ID.')
 @click.option(
     '--follow/--no-follow',
     default=True,
-    help='Continuously tail logs (default: --follow). Use --no-follow to print existing logs and exit.',
+    help='Continuously tail new logs. Use --no-follow to print and exit.',
 )
 @click.option(
     '--duration',
     default=None,
     type=int,
-    help='Max seconds to stream logs (default: unlimited, until Ctrl+C).',
+    help='Stop after N seconds (default: unlimited, Ctrl+C to stop).',
 )
+@click.option('--compute-cluster-id', default=None, help='[Advanced] Filter by compute cluster.')
+@click.option('--nodepool-id', default=None, help='[Advanced] Filter by nodepool.')
 @click.pass_context
 def logs(
-    ctx, model_url, model_id, model_version_id, compute_cluster_id, nodepool_id, follow, duration
+    ctx, model_url, model_id, model_version_id, follow, duration, compute_cluster_id, nodepool_id
 ):
-    """Stream model runner pod logs.
+    """Stream logs from a deployed model's runner.
 
     \b
-    Shows stdout/stderr from the model's runner pod, useful for viewing
-    model loading progress, inference logs, and debugging.
+    Shows stdout/stderr from the runner pod — useful for monitoring
+    model loading, inference, and debugging errors.
 
     \b
-    EXAMPLES:
+    Examples:
       clarifai model logs --model-url https://clarifai.com/user/app/models/id
       clarifai model logs --model-url <url> --no-follow
       clarifai model logs --model-url <url> --duration 60
@@ -1190,16 +1218,16 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     default=".",
 )
 @click.option(
-    '--grpc',
-    is_flag=True,
-    help='Offline mode: start a local gRPC server. No login or API connection needed.',
-)
-@click.option(
     "--mode",
     type=click.Choice(['none', 'env', 'container'], case_sensitive=False),
     default='none',
     show_default=True,
-    help='How to run the model. "none": current Python env, requirements must be pre-installed (fastest). "env": auto-create a virtualenv and install requirements. "container": build a Docker image with all requirements.',
+    help='Execution environment. none: use current Python (fastest, deps must be installed). env: auto-create virtualenv and install deps. container: build and run a Docker image.',
+)
+@click.option(
+    '--grpc',
+    is_flag=True,
+    help='Standalone gRPC server (no login required). Without this flag, the model registers with the Clarifai API for Playground and API access.',
 )
 @click.option(
     '-p',
@@ -1207,46 +1235,51 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     type=int,
     default=8000,
     show_default=True,
-    help="gRPC server port (only with --grpc).",
+    help="Server port (used with --grpc).",
 )
 @click.option(
     "--concurrency",
     type=int,
     default=32,
     show_default=True,
-    help="Max concurrent requests.",
+    help="Maximum number of concurrent requests.",
 )
 @click.option(
     '--keep-image',
     is_flag=True,
-    help='Keep the Docker image on exit (--mode container only).',
+    help='Keep Docker image after exit (only with --mode container).',
 )
 @click.option(
     '-v',
     '--verbose',
     is_flag=True,
-    help='Show full SDK debug output.',
+    help='Show detailed SDK and server logs.',
 )
 @click.pass_context
 def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose):
-    """Serve a model locally for development and testing.
+    """Run a model locally for development and testing.
 
     \b
-    By default, registers with the Clarifai platform so you can send
-    predictions via the API or Playground UI. Use --grpc for a standalone
-    gRPC server with no API connection. Cleans up on Ctrl+C.
+    Starts the model and registers it with Clarifai so you can send
+    predictions via the API, SDK, or Playground UI. Use --grpc for a
+    standalone gRPC server with no API connection. Cleans up on Ctrl+C.
 
     \b
-    MODEL_PATH  Path to the model directory (must contain config.yaml).
-                Defaults to the current directory.
+    MODEL_PATH  Model directory containing config.yaml (default: ".").
+
+    \b
+    Modes:
+      none        Run in current Python env (fastest, deps pre-installed)
+      env         Auto-create a virtualenv, install deps, then run
+      container   Build a Docker image with all deps, then run
 
     \b
     Examples:
-      clarifai model serve                              # serve current dir via API
-      clarifai model serve ./my-model                   # specify model path
+      clarifai model serve ./my-model                   # current env, API-connected
+      clarifai model serve --mode env                   # auto-install deps in venv
+      clarifai model serve --mode container             # run inside Docker
       clarifai model serve --grpc                       # offline gRPC server
       clarifai model serve --grpc --port 9000           # custom port
-      clarifai model serve --mode container             # run inside Docker
       clarifai model serve --mode container --keep-image
     """
     if grpc:
@@ -1932,18 +1965,19 @@ def predict(
     default=None,
 )
 @click.option(
-    '--app_id',
     '-a',
+    '--app_id',
     type=str,
     default=None,
-    show_default=True,
-    help="Get all models of an app",
+    help='Filter by app ID.',
 )
 @click.pass_context
 def list_model(ctx, user_id, app_id):
-    """List models of user/community.
+    """List models for a user or across the platform.
 
-    USER_ID: User id. If not specified, the current user is used by default. Set "all" to get all public models in Clarifai platform.
+    \b
+    USER_ID  User ID to list models for (default: current user).
+             Use "all" to list public models across Clarifai.
     """
     from clarifai.client import User
 
