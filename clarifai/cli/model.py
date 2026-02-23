@@ -1028,8 +1028,8 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     model_id = model_config.get('id', os.path.basename(model_path))
     model_type_id = model_config.get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
 
-    # Validate requirements for none/env modes
-    if mode != "container":
+    # Validate requirements for none mode only (env creates its own venv, container builds image)
+    if mode not in ("container", "env"):
         dependencies = parse_requirements(model_path)
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
@@ -1046,7 +1046,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
                 )
 
     # Get method signatures to generate test snippet
-    use_mocking = mode == "container"
+    use_mocking = mode in ("container", "env")
     with _quiet_sdk_logger(suppress):
         method_signatures = builder.get_method_signatures(mocking=use_mocking)
 
@@ -1111,6 +1111,8 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            with _quiet_sdk_logger(suppress):
+                manager.builder.create_dockerfile(generate_dockerfile=True)
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
@@ -1276,8 +1278,9 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     base_url = ctx.obj.current.api_base
 
     # Validate requirements before loading method signatures
+    # Skip for container (builds image) and env (creates its own venv)
     dependencies = parse_requirements(model_path)
-    if mode != "container":
+    if mode not in ("container", "env"):
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
@@ -1293,11 +1296,12 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             )
 
     # Method signatures from ModelBuilder (same as upload/deploy).
-    # Use mocking=False for non-container modes since requirements are verified installed.
+    # Use mocking=False for "none" mode since requirements are verified installed.
     # mocking=True pollutes sys.modules with MagicMock'd third-party packages inside
     # clarifai modules (e.g. FastMCP in stdio_mcp_class), which breaks ModelServer.__init__
     # when it later tries to load the model for real.
-    use_mocking = mode == "container"
+    # For container/env modes, deps may not be in current env, so mocking is needed.
+    use_mocking = mode in ("container", "env")
     with _quiet_sdk_logger(suppress):
         method_signatures = builder.get_method_signatures(mocking=use_mocking)
 
@@ -1572,6 +1576,8 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            with _quiet_sdk_logger(suppress):
+                manager.builder.create_dockerfile(generate_dockerfile=True)
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
