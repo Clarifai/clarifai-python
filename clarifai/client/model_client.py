@@ -93,7 +93,7 @@ class ModelClient:
     def from_local_grpc(cls, port: int = 8000) -> 'ModelClient':
         """Create a ModelClient connected to a local gRPC model server.
 
-        Connects to a local gRPC server started with ``clarifai model local-runner --grpc``.
+        Connects to a local gRPC server started with ``clarifai model serve --grpc``.
         Method signatures are auto-discovered from the running model.
 
         Args:

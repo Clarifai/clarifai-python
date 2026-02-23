@@ -1,6 +1,6 @@
-"""Tests for the local-runner CLI command.
+"""Tests for the serve CLI command.
 
-These tests verify the basic functionality of the `clarifai model local-runner` command
+These tests verify the basic functionality of the `clarifai model serve` command
 by mocking external dependencies and testing key behaviors.
 """
 
@@ -16,7 +16,7 @@ from clarifai.cli.base import cli
 
 
 class TestLocalRunnerCLI:
-    """Test cases for the local-runner CLI command."""
+    """Test cases for the serve CLI command."""
 
     @pytest.fixture
     def dummy_model_dir(self):
@@ -48,7 +48,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner checks for installed requirements."""
+        """Test that serve checks for installed requirements."""
         # Setup: Requirements not installed
         mock_check_requirements.return_value = False
         mock_parse_requirements.return_value = []
@@ -63,7 +63,7 @@ class TestLocalRunnerCLI:
 
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
         )
 
         # Should abort because requirements are not installed
@@ -88,7 +88,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner aborts when user declines resource creation."""
+        """Test that serve aborts when user declines resource creation."""
         # Setup: user declines resource creation
         mock_input.return_value = "n"  # User says no
         mock_check_requirements.return_value = True
@@ -110,7 +110,7 @@ class TestLocalRunnerCLI:
 
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
         )
 
         # Should abort when user declines
@@ -136,7 +136,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner creates missing resources when user accepts."""
+        """Test that serve creates missing resources when user accepts."""
         # Setup: user accepts resource creation
         mock_input.return_value = "y"  # User says yes
         mock_check_requirements.return_value = True
@@ -223,7 +223,7 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
@@ -257,7 +257,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner uses existing resources without creating new ones."""
+        """Test that serve uses existing resources without creating new ones."""
         # Setup
         mock_input.return_value = "y"
         mock_check_requirements.return_value = True
@@ -356,7 +356,7 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
@@ -389,7 +389,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner accepts and uses the pool_size parameter."""
+        """Test that serve accepts and uses the pool_size parameter."""
         # Setup
         mock_input.return_value = "y"
         mock_check_requirements.return_value = True
@@ -481,7 +481,7 @@ class TestLocalRunnerCLI:
         # Test with custom pool_size
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir), "--pool_size", "24"],
+            ["model", "serve", str(dummy_model_dir), "--pool_size", "24"],
             catch_exceptions=False,
         )
 
@@ -525,7 +525,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner properly initializes and serves the model."""
+        """Test that serve properly initializes and serves the model."""
         # Setup
         mock_input.return_value = "y"
         mock_check_requirements.return_value = True
@@ -616,7 +616,7 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 

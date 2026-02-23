@@ -485,7 +485,7 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
 )
 def model():
     """Manage Models: init, upload, deploy\n
-    Run Locally: local-runner\n
+    Run Locally: serve\n
     Observe: logs, list, predict"""
 
 
@@ -1143,7 +1143,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
         _do_cleanup()
 
 
-@model.command(name="local-runner")
+@model.command(name="serve")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -1151,54 +1151,51 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     default=".",
 )
 @click.option(
+    '--grpc',
+    is_flag=True,
+    help='Offline mode: start a local gRPC server. No login or API connection needed.',
+)
+@click.option(
     "--mode",
     type=click.Choice(['none', 'env', 'container'], case_sensitive=False),
     default='none',
     show_default=True,
-    help='Execution environment. "none" uses your current env (dependencies must be pre-installed), "env" creates a virtualenv and installs all dependencies, "container" builds a Docker image with all dependencies.',
+    help='How to run the model. "none": current Python env, requirements must be pre-installed (fastest). "env": auto-create a virtualenv and install requirements. "container": build a Docker image with all requirements.',
+)
+@click.option(
+    '-p',
+    '--port',
+    type=int,
+    default=8000,
+    show_default=True,
+    help="gRPC server port (only with --grpc).",
 )
 @click.option(
     "--concurrency",
     type=int,
     default=32,
     show_default=True,
-    help="Number of concurrent requests the local runner will handle.",
-)
-@click.option(
-    '--port',
-    '-p',
-    type=int,
-    default=8000,
-    show_default=True,
-    help="Port for the gRPC server (only used with --grpc).",
-)
-@click.option(
-    '--grpc',
-    is_flag=True,
-    help='Run a standalone gRPC server instead of connecting to the Clarifai API. No login required.',
+    help="Max concurrent requests.",
 )
 @click.option(
     '--keep-image',
     is_flag=True,
-    help='Do not remove the Docker image on exit (only applies to --mode container).',
+    help='Keep the Docker image on exit (--mode container only).',
 )
 @click.option(
     '-v',
     '--verbose',
     is_flag=True,
-    help='Show full SDK debug output instead of clean summaries.',
+    help='Show full SDK debug output.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, mode, concurrency, port, grpc, keep_image, verbose):
-    """Run a model locally for testing predictions.
+def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose):
+    """Serve a model locally for development and testing.
 
     \b
-    By default, starts a local runner connected to the Clarifai API so you
-    can send predictions via the API or the Playground UI.
-
-    \b
-    With --grpc, starts a standalone gRPC server on localhost instead.
-    No login required — fully offline.
+    By default, registers with the Clarifai platform so you can send
+    predictions via the API or Playground UI. Use --grpc for a standalone
+    gRPC server with no API connection. Cleans up on Ctrl+C.
 
     \b
     MODEL_PATH  Path to the model directory (must contain config.yaml).
@@ -1206,11 +1203,12 @@ def local_runner(ctx, model_path, mode, concurrency, port, grpc, keep_image, ver
 
     \b
     Examples:
-      clarifai model local-runner ./my-model
-      clarifai model local-runner ./my-model --grpc
-      clarifai model local-runner ./my-model --grpc --port 9000
-      clarifai model local-runner ./my-model --mode container
-      clarifai model local-runner ./my-model --concurrency 8 --verbose
+      clarifai model serve                              # serve current dir via API
+      clarifai model serve ./my-model                   # specify model path
+      clarifai model serve --grpc                       # offline gRPC server
+      clarifai model serve --grpc --port 9000           # custom port
+      clarifai model serve --mode container             # run inside Docker
+      clarifai model serve --mode container --keep-image
     """
     if grpc:
         # Standalone gRPC server — no PAT, no API
