@@ -1054,28 +1054,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     out.info("Type", model_type_id)
     out.info("Port", str(port))
 
-    # ── Phase 2: Running ───────────────────────────────────────────────
-    out.phase_header("Running")
-    out.success(f"gRPC server running at localhost:{port}")
-    click.echo()
-
-    from clarifai.runners.utils.code_script import generate_client_script
-
-    snippet = generate_client_script(
-        method_signatures,
-        user_id=None,
-        app_id=None,
-        model_id=model_id,
-        local_grpc_port=port,
-        colorize=True,
-    )
-    out.status("Test with Python:")
-    click.echo(snippet)
-
-    out.status("Press Ctrl+C to stop.")
-    click.echo()
-
-    # ── Phase 3: Serve (with cleanup) ──────────────────────────────────
+    # ── Phase 2: Prepare environment ─────────────────────────────────
     container_name = None
     image_name = None
     manager = None
@@ -1117,17 +1096,45 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
             if not manager.docker_image_exists(image_name):
+                out.status("Building Docker image... ")
                 with _quiet_sdk_logger(suppress):
                     manager.build_docker_image(image_name=image_name)
+        elif mode == "env":
+            manager = ModelRunLocally(model_path)
+            out.status("Creating virtual environment... ")
+            manager.create_temp_venv()
+            out.status("Installing requirements... ")
+            manager.install_requirements()
+
+        # ── Phase 3: Running ────────────────────────────────────────────
+        out.phase_header("Running")
+        out.success(f"gRPC server running at localhost:{port}")
+        click.echo()
+
+        from clarifai.runners.utils.code_script import generate_client_script
+
+        snippet = generate_client_script(
+            method_signatures,
+            user_id=None,
+            app_id=None,
+            model_id=model_id,
+            local_grpc_port=port,
+            colorize=True,
+        )
+        out.status("Test with Python:")
+        click.echo(snippet)
+
+        out.status("Press Ctrl+C to stop.")
+        click.echo()
+
+        # ── Serve ───────────────────────────────────────────────────────
+        if mode == "container":
             manager.run_docker_container(
                 image_name=image_name,
                 container_name=container_name,
                 port=port,
             )
         elif mode == "env":
-            manager = ModelRunLocally(model_path)
-            manager.create_temp_venv()
-            manager.install_requirements()
             manager.run_model_server(port)
         else:
             # none mode: run in-process
@@ -1441,42 +1448,35 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         created['deployment'] = deployment_id
         click.echo("done")
 
-    # ── Phase 3: Running ───────────────────────────────────────────────
-    out.phase_header("Running")
-    out.success("Model is ready for API requests!")
-    click.echo()
+    # Toolkit customization (before serving)
+    if config.get('toolkit', {}).get('provider') == 'ollama':
+        try:
+            customize_ollama_model(model_path=model_path, user_id=user_id, verbose=verbose)
+        except Exception as e:
+            raise UserError(f"Failed to customize Ollama model: {e}")
+    elif config.get('toolkit', {}).get('provider') == 'lmstudio':
+        try:
+            customize_lmstudio_model(model_path=model_path, user_id=user_id)
+        except Exception as e:
+            raise UserError(f"Failed to customize LM Studio model: {e}")
 
-    # Code snippet
-    snippet = code_script.generate_client_script(
-        method_signatures,
-        user_id=user_id,
-        app_id=app_id,
-        model_id=model_id,
-        deployment_id=deployment_id,
-        base_url=base_url,
-        colorize=True,
-    )
-    out.status("Code snippet:")
-    click.echo(snippet)
-    click.echo()
+    serving_args = {
+        "pool_size": concurrency,
+        "num_threads": concurrency,
+        "user_id": user_id,
+        "compute_cluster_id": cc_id,
+        "nodepool_id": np_id,
+        "runner_id": runner_id,
+        "base_url": base_url,
+        "pat": pat,
+        "health_check_port": 0,  # OS-assigned port; avoids collisions between local runners
+    }
 
-    # Playground URL
-    ui_base = getattr(ctx.obj.current, 'ui', None) or "https://clarifai.com"
-    out.status("Playground:")
-    out.status(
-        f"  {ui_base}/playground?model={model_id}__{version_id}&user_id={user_id}&app_id={app_id}"
-    )
-    click.echo()
+    container_name = None
+    image_name = None
+    manager = None
+    cleanup_done = False
 
-    # Model URL
-    out.status("Model URL:")
-    out.status(f"  {ui_base}/{user_id}/{app_id}/models/{model_id}")
-    click.echo()
-
-    out.status("Press Ctrl+C to stop.")
-    click.echo()
-
-    # ── Phase 4: Serve (with cleanup) ──────────────────────────────────
     def _cleanup():
         out.phase_header("Stopping")
         with _quiet_sdk_logger(suppress):
@@ -1509,35 +1509,6 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 except Exception:
                     click.echo("failed")
         out.status("Stopped.")
-
-    # Toolkit customization (before serving)
-    if config.get('toolkit', {}).get('provider') == 'ollama':
-        try:
-            customize_ollama_model(model_path=model_path, user_id=user_id, verbose=verbose)
-        except Exception as e:
-            raise UserError(f"Failed to customize Ollama model: {e}")
-    elif config.get('toolkit', {}).get('provider') == 'lmstudio':
-        try:
-            customize_lmstudio_model(model_path=model_path, user_id=user_id)
-        except Exception as e:
-            raise UserError(f"Failed to customize LM Studio model: {e}")
-
-    serving_args = {
-        "pool_size": concurrency,
-        "num_threads": concurrency,
-        "user_id": user_id,
-        "compute_cluster_id": cc_id,
-        "nodepool_id": np_id,
-        "runner_id": runner_id,
-        "base_url": base_url,
-        "pat": pat,
-        "health_check_port": 0,  # OS-assigned port; avoids collisions between local runners
-    }
-
-    container_name = None
-    image_name = None
-    manager = None
-    cleanup_done = False
 
     def _do_cleanup():
         nonlocal cleanup_done
@@ -1572,6 +1543,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     signal.signal(signal.SIGINT, _sigint_handler)
 
     try:
+        # ── Phase 3: Prepare environment ────────────────────────────────
         if mode == "container":
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
@@ -1582,7 +1554,52 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
             if not manager.docker_image_exists(image_name):
+                out.status("Building Docker image... ")
                 manager.build_docker_image(image_name=image_name)
+        elif mode == "env":
+            manager = ModelRunLocally(model_path)
+            out.status("Creating virtual environment... ")
+            manager.create_temp_venv()
+            out.status("Installing requirements... ")
+            manager.install_requirements()
+
+        # ── Phase 4: Running ────────────────────────────────────────────
+        out.phase_header("Running")
+        out.success("Model is ready for API requests!")
+        click.echo()
+
+        # Code snippet
+        snippet = code_script.generate_client_script(
+            method_signatures,
+            user_id=user_id,
+            app_id=app_id,
+            model_id=model_id,
+            deployment_id=deployment_id,
+            base_url=base_url,
+            colorize=True,
+        )
+        out.status("Code snippet:")
+        click.echo(snippet)
+        click.echo()
+
+        # Playground URL
+        ui_base = getattr(ctx.obj.current, 'ui', None) or "https://clarifai.com"
+        out.status("Playground:")
+        out.status(
+            f"  {ui_base}/playground?model={model_id}__{version_id}&user_id={user_id}&app_id={app_id}"
+        )
+        click.echo()
+
+        # Model URL
+        out.status("Model URL:")
+        out.status(f"  {ui_base}/{user_id}/{app_id}/models/{model_id}")
+        click.echo()
+
+        out.status("Press Ctrl+C to stop.")
+        click.echo()
+
+        # ── Serve ───────────────────────────────────────────────────────
+        if mode == "container":
             manager.run_docker_container(
                 image_name=image_name,
                 container_name=container_name,
@@ -1592,10 +1609,6 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 **serving_args,
             )
         else:
-            if mode == "env":
-                manager = ModelRunLocally(model_path)
-                manager.create_temp_venv()
-                manager.install_requirements()
             server = ModelServer(model_path=model_path, model_runner_local=None)
             server.serve(**serving_args)
     except KeyboardInterrupt:
