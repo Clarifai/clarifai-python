@@ -625,6 +625,13 @@ def simplify_cloned_config(config_path, user_id=None, model_name=None):
             config['compute'] = {'instance': gpu_name}
             del config['inference_compute_info']
 
+    # Remove placeholder hf_token values from checkpoints
+    checkpoints = config.get('checkpoints', {})
+    if checkpoints:
+        hf_token = checkpoints.get('hf_token', '')
+        if hf_token in {'your_hf_token', 'hf_token', 'your-huggingface-token', ''}:
+            checkpoints.pop('hf_token', None)
+
     # Update model_id from directory name if it's a placeholder
     if model_name:
         # Use the last part of the model_name (e.g. 'Llama-3-8B' from 'meta-llama/Llama-3-8B')

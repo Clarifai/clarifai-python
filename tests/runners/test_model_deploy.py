@@ -971,11 +971,10 @@ class TestConfigTemplate:
         assert "app_id" not in template
 
     def test_verbose_template(self):
-        """Verbose template has TODOs."""
+        """Verbose template has full config fields."""
         from clarifai.cli.templates.model_templates import get_config_template
 
         template = get_config_template(simplified=False, user_id="test-user")
-        assert "TODO" in template
         assert "test-user" in template
         assert "inference_compute_info" in template
 

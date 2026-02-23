@@ -10,13 +10,10 @@ from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_utils import Param
 
 class MyModel(ModelClass):
-    """A custom model implementation using ModelClass."""
+    """A custom model."""
 
     def load_model(self):
-        """Load the model here.
-        # TODO: please fill in
-        # Add your model loading logic here
-        """
+        """Initialize your model here. Called once when the model starts."""
         pass
 
     @ModelClass.method
@@ -24,28 +21,25 @@ class MyModel(ModelClass):
         self,
         prompt: str = "",
         chat_history: List[dict] = None,
-        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
-        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
-        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate."),
+        temperature: float = Param(default=1.0, description="Sampling temperature (higher = more random)."),
+        top_p: float = Param(default=1.0, description="Nucleus sampling threshold."),
     ) -> str:
-        """This is the method that will be called when the runner is run. It takes in an input and returns an output."""
-        # TODO: please fill in
-        # Implement your prediction logic here
-        return "This is a placeholder response. Please implement your model logic."
+        """Return a single response."""
+        return f"Echo: {prompt}"
 
     @ModelClass.method
     def generate(
         self,
         prompt: str = "",
         chat_history: List[dict] = None,
-        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
-        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
-        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate."),
+        temperature: float = Param(default=1.0, description="Sampling temperature (higher = more random)."),
+        top_p: float = Param(default=1.0, description="Nucleus sampling threshold."),
     ) -> Iterator[str]:
-        """Example yielding a streamed response."""
-        # TODO: please fill in
-        # Implement your generation logic here
-        yield "This is a placeholder response. Please implement your model logic."
+        """Stream a response."""
+        for word in f"Echo: {prompt}".split():
+            yield word + " "
 '''
 
 
@@ -53,45 +47,28 @@ def get_mcp_model_class_template() -> str:
     """Return the template for an MCPModelClass-based model."""
     return '''from typing import Any
 
-from fastmcp import FastMCP  # use fastmcp v2 not the built in mcp
+from fastmcp import FastMCP
 from pydantic import Field
 
 from clarifai.runners.models.mcp_class import MCPModelClass
 
-# TODO: please fill in
-# Configure your FastMCP server
-server = FastMCP("my-mcp-server", instructions="", stateless_http=True)
+server = FastMCP("my-mcp-server", instructions="A sample MCP server.", stateless_http=True)
 
 
-# TODO: please fill in
-# Add your tools, resources, and prompts here
-@server.tool("example_tool", description="An example tool")
-def example_tool(input_param: Any = Field(description="Example input parameter")):
-    """Example tool implementation."""
-    # TODO: please fill in
-    # Implement your tool logic here
-    return f"Processed: {input_param}"
+@server.tool("hello", description="Say hello to someone")
+def hello(name: str = Field(description="Name to greet")) -> str:
+    """Greet a user by name."""
+    return f"Hello, {name}!"
 
 
-# Static resource example
 @server.resource("config://version")
 def get_version():
-    """Example static resource."""
-    # TODO: please fill in
-    # Return your resource data
+    """Return the server version."""
     return "1.0.0"
 
 
-@server.prompt()
-def example_prompt(text: str) -> str:
-    """Example prompt template."""
-    # TODO: please fill in
-    # Define your prompt template
-    return f"Process this text: {text}"
-
-
 class MyModel(MCPModelClass):
-    """A custom model implementation using MCPModelClass."""
+    """MCP model that exposes tools, resources, and prompts."""
 
     def get_server(self) -> FastMCP:
         """Return the FastMCP server instance."""
@@ -108,22 +85,17 @@ from clarifai.runners.utils.data_utils import Param
 from clarifai.runners.utils.openai_convertor import build_openai_messages
 
 class MyModel(OpenAIModelClass):
-    """A custom model implementation using OpenAIModelClass."""
+    """Wraps an OpenAI-compatible API endpoint."""
 
-    # TODO: please fill in
-    # Configure your OpenAI-compatible client for local model
     client = OpenAI(
-        api_key="local-key",  # TODO: please fill in - use your local API key
-        base_url="http://localhost:{port}/v1",  # TODO: please fill in - your local model server endpoint
+        api_key="local-key",
+        base_url="http://localhost:{port}/v1",
     )
 
-    # Automatically get the first available model
     model = client.models.list().data[0].id
 
     def load_model(self):
-        """Optional: Add any additional model loading logic here."""
-        # TODO: please fill in (optional)
-        # Add any initialization logic if needed
+        """Optional initialization logic."""
         pass
 
     @OpenAIModelClass.method
@@ -131,13 +103,11 @@ class MyModel(OpenAIModelClass):
         self,
         prompt: str = "",
         chat_history: List[dict] = None,
-        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
-        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
-        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate."),
+        temperature: float = Param(default=1.0, description="Sampling temperature (higher = more random)."),
+        top_p: float = Param(default=1.0, description="Nucleus sampling threshold."),
     ) -> str:
-        """Run a single prompt completion using the OpenAI client."""
-        # TODO: please fill in
-        # Implement your prediction logic here
+        """Run a single prompt completion."""
         messages = build_openai_messages(prompt, chat_history)
         response = self.client.chat.completions.create(
             model=self.model,
@@ -153,13 +123,11 @@ class MyModel(OpenAIModelClass):
         self,
         prompt: str = "",
         chat_history: List[dict] = None,
-        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
-        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
-        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate."),
+        temperature: float = Param(default=1.0, description="Sampling temperature (higher = more random)."),
+        top_p: float = Param(default=1.0, description="Nucleus sampling threshold."),
     ) -> Iterator[str]:
-        """Stream a completion response using the OpenAI client."""
-        # TODO: please fill in
-        # Implement your streaming logic here
+        """Stream a completion response."""
         messages = build_openai_messages(prompt, chat_history)
         stream = self.client.chat.completions.create(
             model=self.model,
@@ -215,58 +183,39 @@ def _get_verbose_config_template(
     user_id: str = None, model_type_id: str = "any-to-any", model_id: str = "my-model"
 ) -> str:
     """Return the verbose template for config.yaml (original format)."""
-    return f'''# Configuration file for your Clarifai model
-
-model:
-  id: "{model_id}"  # TODO: please fill in - replace with your model ID
-  user_id: "{user_id}"  # TODO: please fill in - replace with your user ID
-  app_id: "app_id"  # TODO: please fill in - replace with your app ID
-  model_type_id: "{model_type_id}"  # TODO: please fill in - replace if different model type ID
+    return f'''model:
+  id: "{model_id}"
+  user_id: "{user_id}"
+  app_id: "app_id"
+  model_type_id: "{model_type_id}"
 
 build_info:
   python_version: "3.12"
-  # platform: "linux/amd64,linux/arm64"  # Optional: Specify target platform(s) for Docker image build
 
-# TODO: please fill in - adjust compute requirements for your model
 inference_compute_info:
-  cpu_limit: "1"  # TODO: please fill in - Amount of CPUs to use as a limit
-  cpu_memory: "1Gi"  # TODO: please fill in - Amount of CPU memory to use as a limit
-  cpu_requests: "0.5"  # TODO: please fill in - Amount of CPUs to use as a minimum
-  cpu_memory_requests: "512Mi"  # TODO: please fill in - Amount of CPU memory to use as a minimum
-  num_accelerators: 1  # TODO: please fill in - Amount of GPU/TPUs to use
-  accelerator_type: ["NVIDIA-*"]  # TODO: please fill in - type of accelerators requested
-  accelerator_memory: "1Gi"  # TODO: please fill in - Amount of accelerator/GPU memory to use as a minimum
+  cpu_limit: "1"
+  cpu_memory: "1Gi"
+  cpu_requests: "0.5"
+  cpu_memory_requests: "512Mi"
+  num_accelerators: 1
+  accelerator_type: ["NVIDIA-*"]
+  accelerator_memory: "1Gi"
 
-# TODO: please fill in (optional) - add checkpoints section if needed
 # checkpoints:
-#   type: "huggingface"  # supported type
-#   repo_id: "your-model-repo"  # for huggingface like openai/gpt-oss-20b
-#   # hf_token: "your-huggingface-token"  # if private repo
-#   when: "runtime"  # or "build", "upload"
-
-# Uncomment if model needs to work with streaming video runners (adds additional packages):
-# streaming_video_consumer: true
+#   type: "huggingface"
+#   repo_id: "your-model-repo"
+#   when: "runtime"
 '''
 
 
 def get_requirements_template(model_type_id: str = None) -> str:
     """Return the template for requirements.txt."""
-    requirements = f'''# Clarifai SDK - required
-clarifai>={__version__}
-'''
+    req = f'clarifai>={__version__}\n'
     if model_type_id == "mcp":
-        requirements += "fastmcp\n"
+        req += "fastmcp\n"
     elif model_type_id == "openai":
-        requirements += "openai\n"
-    requirements += '''
-# TODO: please fill in - add your model's dependencies here
-# Examples:
-# torch>=2.0.0
-# transformers>=4.30.0
-# numpy>=1.21.0
-# pillow>=9.0.0
-'''
-    return requirements
+        req += "openai\n"
+    return req
 
 
 # Mapping of model type IDs to their corresponding templates
@@ -280,7 +229,6 @@ def get_model_template(model_type_id: str = None, **kwargs) -> str:
     """Get the appropriate model template based on model_type_id."""
     if model_type_id in MODEL_TYPE_TEMPLATES:
         template_func = MODEL_TYPE_TEMPLATES[model_type_id]
-        # Check if the template function accepts additional parameters
         import inspect
 
         sig = inspect.signature(template_func)

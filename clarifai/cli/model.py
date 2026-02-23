@@ -1,8 +1,9 @@
 import json
 import os
+import re
 import shutil
 import subprocess
-import tempfile
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
@@ -30,25 +31,14 @@ from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import (
     CLI_LOGIN_DOC_URL,
     CONFIG_GUIDE_URL,
-    DEFAULT_HF_MODEL_REPO_BRANCH,
-    DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH,
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID,
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
-    DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
-    DEFAULT_PYTHON_MODEL_REPO_BRANCH,
-    DEFAULT_SGLANG_MODEL_REPO_BRANCH,
-    DEFAULT_TOOLKIT_MODEL_REPO,
-    DEFAULT_VLLM_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import (
-    clone_github_repo,
-    format_github_repo_url,
-)
 
 
 def _select_context(ctx_config: Config) -> Optional[Context]:
@@ -489,26 +479,79 @@ def model():
     Observe: logs, list, predict"""
 
 
+def _sanitize_model_id(name):
+    """Convert a model name to a valid model.id (lowercase, alphanumeric, hyphens only)."""
+    name = name.split('/')[-1]  # "meta-llama/Llama-3-8B" -> "Llama-3-8B"
+    name = name.lower()
+    name = name.replace('_', '-')
+    name = re.sub(r'[^a-z0-9-]', '', name)  # strip invalid chars (dots, etc.)
+    name = re.sub(r'-+', '-', name).strip('-')  # collapse/trim hyphens
+    return name or "my-model"
+
+
+def _copy_embedded_toolkit(toolkit, model_path):
+    """Copy embedded toolkit template files to model_path."""
+    toolkit_dir = Path(__file__).parent / "templates" / "toolkits" / toolkit
+    if not toolkit_dir.exists():
+        raise UserError(f"Toolkit '{toolkit}' template not found at {toolkit_dir}")
+    for item in toolkit_dir.iterdir():
+        if item.name == '__pycache__':
+            continue
+        dest = Path(model_path) / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, dest)
+
+
+def _patch_config(config_path, model_id, checkpoints_repo_id=None):
+    """Update model.id and optionally checkpoints.repo_id in config.yaml."""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f) or {}
+    config.setdefault('model', {})['id'] = model_id
+    if checkpoints_repo_id:
+        config.setdefault('checkpoints', {})['repo_id'] = checkpoints_repo_id
+    with open(config_path, 'w', encoding='utf-8') as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+def _print_init_success(model_path, toolkit):
+    """Print unified success message after init."""
+    from clarifai.runners.models import deploy_output as out
+
+    click.echo()
+    out.success(f"Model initialized in {model_path}")
+    click.echo()
+    if toolkit in ('python', 'mcp', 'openai', None):
+        click.echo("  1. Edit 1/model.py with your model logic")
+        click.echo("  2. Add dependencies to requirements.txt")
+    click.echo("  Test locally:")
+    click.echo(f"    clarifai model serve {model_path} --grpc")
+    click.echo("  Deploy to Clarifai:")
+    click.echo(f"    clarifai model deploy {model_path} --instance g5.xlarge")
+    click.echo()
+
+
 @model.command()
 @click.argument(
     "model_path",
     type=click.Path(),
     required=False,
-    default=".",
+    default=None,
 )
 @click.option(
     '--toolkit',
     type=click.Choice(
-        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python', 'mcp', 'openai'],
+        ['vllm', 'sglang', 'huggingface', 'ollama', 'mcp', 'python', 'openai', 'lmstudio'],
         case_sensitive=False,
     ),
     required=False,
-    help='Toolkit/template to use for model initialization.',
+    help='Inference engine or framework to use.',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit (e.g., "meta-llama/Llama-3-8B" for vllm/huggingface, "llama3.1" for ollama).',
+    help='Model checkpoint: HF repo_id for vllm/sglang/huggingface, model tag for ollama.',
 )
 @click.pass_context
 def init(
@@ -517,128 +560,97 @@ def init(
     toolkit,
     model_name,
 ):
-    """Initialize a new model directory structure.
+    """Create a new model from a toolkit template.
 
     \b
-    Creates the following structure:
-      MODEL_PATH/
-      ├── 1/model.py
-      ├── requirements.txt
-      └── config.yaml
+    Generates a ready-to-use model directory. Pick a toolkit for a
+    specific inference engine, or omit for a blank Python template.
+
+    \b
+    MODEL_PATH  Target directory. Auto-created from --model-name if omitted
+                (e.g., --model-name org/Model -> ./Model/). Defaults to ".".
+
+    \b
+    Toolkits:
+      vllm         High-throughput LLM serving (--model-name: HF repo_id)
+      sglang       Fast LLM serving with SGLang (--model-name: HF repo_id)
+      huggingface  HuggingFace Transformers (--model-name: HF repo_id)
+      ollama       Local LLM via Ollama (--model-name: model tag)
+      mcp          MCP tool server (FastMCP)
+      python       Blank Python model
+      openai       OpenAI-compatible API wrapper
+      lmstudio     Local LLM via LM Studio
 
     \b
     Examples:
-      clarifai model init my-model
-      clarifai model init --toolkit vllm --model-name meta-llama/Llama-3-8B my-llama
-      clarifai model init --toolkit ollama --model-name llama3.1 my-ollama
+      clarifai model init --toolkit vllm --model-name meta-llama/Llama-3-8B
+      clarifai model init --toolkit ollama --model-name llama3.1
       clarifai model init --toolkit mcp my-mcp-server
-      clarifai model init --toolkit openai my-openai-model
+      clarifai model init my-model
     """
     validate_context(ctx)
-    user_id = ctx.obj.current.user_id
-    # Resolve the absolute path
-    model_path = os.path.abspath(model_path)
-
-    # Create the model directory if it doesn't exist
-    os.makedirs(model_path, exist_ok=True)
 
     # Validate option combinations
     if model_name and not toolkit:
         logger.error("--model-name can only be used with --toolkit")
         raise click.Abort()
 
-    # Template-based toolkits (mcp, openai) use local templates, not GitHub clone
-    TEMPLATE_TOOLKITS = ('mcp', 'openai')
+    # Resolve model_path: explicit > derived from model-name > current dir
+    if model_path is None:
+        if model_name:
+            # "meta-llama/Llama-3-8B" -> "./Llama-3-8B"
+            model_path = model_name.split('/')[-1]
+        else:
+            model_path = "."
+    model_path = os.path.abspath(model_path)
+    os.makedirs(model_path, exist_ok=True)
 
-    github_url = None
-    branch = None
+    # Derive model_id: from --model-name if given, else from directory name
+    if model_name:
+        model_id = _sanitize_model_id(model_name)
+    else:
+        model_id = _sanitize_model_id(os.path.basename(model_path))
 
-    # --toolkit option (GitHub-cloned toolkits)
-    if toolkit == 'ollama':
-        if not check_ollama_installed():
+    # Embedded toolkits: copy from clarifai/cli/templates/toolkits/{name}/
+    EMBEDDED_TOOLKITS = ('vllm', 'sglang', 'huggingface', 'ollama', 'lmstudio')
+    # Template toolkits: generate from string templates
+    TEMPLATE_TOOLKITS = ('mcp', 'openai', 'python')
+
+    if toolkit in EMBEDDED_TOOLKITS:
+        # Pre-flight checks for local server toolkits
+        if toolkit == 'ollama' and not check_ollama_installed():
+            logger.error("Ollama is not installed. Please install it from https://ollama.com/")
+            raise click.Abort()
+        if toolkit == 'lmstudio' and not check_lmstudio_installed():
             logger.error(
-                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+                "LM Studio is not installed. Please install it from https://lmstudio.com/"
             )
             raise click.Abort()
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
-    elif toolkit == 'huggingface':
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_HF_MODEL_REPO_BRANCH
-    elif toolkit == 'lmstudio':
-        if not check_lmstudio_installed():
-            logger.error(
-                "LM Studio is not installed. Please install it from `https://lmstudio.com/` to use the LM Studio toolkit."
-            )
-            raise click.Abort()
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH
-    elif toolkit == 'vllm':
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_VLLM_MODEL_REPO_BRANCH
-    elif toolkit == 'sglang':
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_SGLANG_MODEL_REPO_BRANCH
-    elif toolkit == 'python':
-        github_url = DEFAULT_TOOLKIT_MODEL_REPO
-        branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
 
-    if toolkit and github_url:
         logger.info(f"Initializing model with {toolkit} toolkit...")
+        _copy_embedded_toolkit(toolkit, model_path)
 
-        repo_url = format_github_repo_url(github_url)
+        # Toolkit-specific customization (updates toolkit.model, model.py defaults, etc.)
+        user_id = ctx.obj.current.user_id
+        if toolkit == 'ollama':
+            customize_ollama_model(model_path, user_id, model_name)
+        elif toolkit == 'lmstudio':
+            customize_lmstudio_model(model_path, user_id, model_name)
+        elif toolkit in ('huggingface', 'vllm', 'sglang'):
+            customize_huggingface_model(model_path, user_id, model_name)
 
-        try:
-            # Create a temporary directory for cloning
-            with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
-                # Clone the repository with explicit branch parameter
-                if not clone_github_repo(repo_url, clone_dir, None, branch):
-                    logger.error(f"Failed to clone repository from {repo_url}")
-                    github_url = None  # Fall back to template mode
+        # Patch config LAST to ensure sanitized model_id and checkpoint override
+        config_path = os.path.join(model_path, "config.yaml")
+        _patch_config(config_path, model_id=model_id, checkpoints_repo_id=model_name)
 
-                else:
-                    # Copy the entire repository content to target directory (excluding .git)
-                    for item in os.listdir(clone_dir):
-                        if item == '.git':
-                            continue
-
-                        source_path = os.path.join(clone_dir, item)
-                        target_path = os.path.join(model_path, item)
-
-                        if os.path.isdir(source_path):
-                            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-                        else:
-                            shutil.copy2(source_path, target_path)
-
-        except Exception as e:
-            logger.error(f"Failed to clone GitHub repository: {e}")
-            github_url = None
-
-    if toolkit == 'ollama':
-        customize_ollama_model(model_path, user_id, model_name)
-
-    if toolkit == 'lmstudio':
-        customize_lmstudio_model(model_path, user_id, model_name)
-
-    if toolkit in ('huggingface', 'vllm', 'sglang'):
-        customize_huggingface_model(model_path, user_id, model_name)
-
-    if github_url:
-        logger.info(f"Model initialization complete in {model_path}")
-        logger.info("Next steps:")
-        logger.info("1. Review the model configuration in config.yaml")
-        logger.info("2. Deploy: clarifai model deploy %s --instance g5.xlarge" % model_path)
-
-    # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
-    # Also handles template toolkits (mcp, openai) which don't clone from GitHub
-    if not github_url:
-        # Determine model_type_id from toolkit (mcp/openai) or default
+    else:
+        # Template-based initialization (mcp, openai, python, or no toolkit)
         model_type_id = toolkit if toolkit in TEMPLATE_TOOLKITS else None
 
         if model_type_id:
             logger.info(f"Initializing {model_type_id} model from template...")
         else:
-            logger.info("Initializing model with default templates...")
+            logger.info("Initializing model with default template...")
 
         from clarifai.cli.templates.model_templates import (
             get_config_template,
@@ -646,18 +658,15 @@ def init(
             get_requirements_template,
         )
 
-        # Create the 1/ subdirectory
+        # Create 1/model.py
         model_version_dir = os.path.join(model_path, "1")
         os.makedirs(model_version_dir, exist_ok=True)
-
-        # Create model.py
         model_py_path = os.path.join(model_version_dir, "model.py")
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id)
             with open(model_py_path, 'w') as f:
-                f.write(model_template)
+                f.write(get_model_template(model_type_id))
             logger.info(f"Created {model_py_path}")
 
         # Create requirements.txt
@@ -665,9 +674,8 @@ def init(
         if os.path.exists(requirements_path):
             logger.warning(f"File {requirements_path} already exists, skipping...")
         else:
-            requirements_template = get_requirements_template(model_type_id)
             with open(requirements_path, 'w') as f:
-                f.write(requirements_template)
+                f.write(get_requirements_template(model_type_id))
             logger.info(f"Created {requirements_path}")
 
         # Create config.yaml
@@ -675,21 +683,12 @@ def init(
         if os.path.exists(config_path):
             logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            dir_name = os.path.basename(os.path.abspath(model_path))
             config_model_type_id = model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
-
-            config_template = get_config_template(
-                user_id=user_id, model_type_id=config_model_type_id, model_id=dir_name
-            )
             with open(config_path, 'w') as f:
-                f.write(config_template)
+                f.write(get_config_template(model_type_id=config_model_type_id, model_id=model_id))
             logger.info(f"Created {config_path}")
 
-        logger.info(f"Model initialization complete in {model_path}")
-        logger.info("Next steps:")
-        logger.info("1. Implement your model logic in 1/model.py")
-        logger.info("2. Add your model dependencies to requirements.txt")
-        logger.info("3. Deploy: clarifai model deploy %s --instance g5.xlarge" % model_path)
+    _print_init_success(model_path, toolkit)
 
 
 def _ensure_hf_token(ctx, model_path):
