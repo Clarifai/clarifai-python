@@ -68,12 +68,7 @@ class VLLMModel(OpenAIModelClass):
 
     def load_model(self):
         server_args = {
-            'dtype': 'auto',
-            'task': 'auto',
-            'kv_cache_dtype': 'auto',
             'tensor_parallel_size': 1,
-            'quantization': None,
-            'chat_template': None,
             'port': 23333,
             'host': 'localhost',
         }
