@@ -408,13 +408,18 @@ class ModelRunLocally:
             cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
-            # update the CMD to run the server
+            # Override CMD to run the server (ENTRYPOINT is tini, so we need the full command)
+            server_cmd = [
+                "python",
+                "-m",
+                "clarifai.runners.server",
+                "--model_path",
+                "/home/nonroot/main",
+            ]
             if is_local_runner:
                 kwargs.pop("pool_size", None)  # remove pool_size if exists
-                cmd.extend(
+                server_cmd.extend(
                     [
-                        "--model_path",
-                        "/home/nonroot/main",
                         "--compute_cluster_id",
                         str(kwargs.get("compute_cluster_id", None)),
                         "--user_id",
@@ -432,7 +437,8 @@ class ModelRunLocally:
                     ]
                 )
             else:
-                cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
+                server_cmd.extend(["--grpc", "--port", str(port)])
+            cmd.extend(server_cmd)
             # Run the container
             logger.info(f"Running docker commands: {cmd}")
             process = subprocess.Popen(
