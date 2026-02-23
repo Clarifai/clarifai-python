@@ -250,10 +250,15 @@ class ModelRunLocally:
             with open(dockerfile_path, 'r') as file:
                 lines = file.readlines()
 
-            # Comment out the COPY instruction that copies the current folder
+            # Comment out lines not needed for local container builds:
+            # - download-checkpoints: checkpoints are mounted at runtime, not baked in
+            # - downloader/unused.yaml: only exists in cloud build context
             modified_lines = []
             for line in lines:
+                stripped = line.strip()
                 if 'download-checkpoints' in line and '/home/nonroot/main' in line:
+                    modified_lines.append(f'# {line}')
+                elif stripped.startswith('COPY') and 'downloader/' in line:
                     modified_lines.append(f'# {line}')
                 else:
                     modified_lines.append(line)
