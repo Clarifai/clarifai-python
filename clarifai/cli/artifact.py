@@ -5,12 +5,9 @@ from datetime import datetime
 from typing import Dict, Optional
 
 import click
-from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from clarifai.cli.base import cli
-from clarifai.client.artifact import Artifact
-from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.constants.artifact import (
     ARTIFACT_VISIBILITY_ORG,
     ARTIFACT_VISIBILITY_PRIVATE,
@@ -139,6 +136,8 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
     Returns:
         ArtifactVersion: The created artifact version
     """
+    from clarifai.client.artifact_version import ArtifactVersion
+
     user_id = parsed_destination['user_id']
     app_id = parsed_destination['app_id']
     artifact_id = parsed_destination['artifact_id']  # Now required
@@ -177,6 +176,10 @@ def _download_artifact(
     Returns:
         str: The path where file was downloaded
     """
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     user_id = parsed_source['user_id']
     app_id = parsed_source['app_id']
     artifact_id = parsed_source['artifact_id']
@@ -229,6 +232,12 @@ def list(ctx, path, versions):
         clarifai af list users/u/apps/a
         clarifai af list users/u/apps/a/artifacts/my-artifact --versions
     """
+
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
 
@@ -327,6 +336,11 @@ def get(ctx, path):
         clarifai af get users/u/apps/a/artifacts/my-artifact
         clarifai af get users/u/apps/a/artifacts/my-artifact/versions/v123
     """
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
         parsed = _parse_and_validate_path(path)
@@ -399,6 +413,9 @@ def delete(ctx, path, force):
         clarifai af rm users/u/apps/a/artifacts/my-artifact/versions/v123
         clarifai af rm users/u/apps/a/artifacts/my-artifact --force
     """
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
         parsed = _parse_and_validate_path(path)
@@ -484,6 +501,7 @@ def cp(
         clarifai af cp users/u/apps/a/artifacts/my-artifact/versions/v123 /tmp/
         clarifai af cp users/u/apps/a/artifacts/my-artifact .
     """
+
     try:
         validate_context(ctx)
 

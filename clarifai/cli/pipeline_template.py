@@ -7,7 +7,6 @@ import click
 from clarifai.cli.base import cli
 from clarifai.utils.cli import AliasedGroup, display_co_resources
 from clarifai.utils.logging import logger
-from clarifai.utils.template_manager import TemplateManager
 
 
 @cli.group(
@@ -37,6 +36,8 @@ def list_templates(template_type):
         clarifai pipelinetemplate ls --type=train       # List only training templates
         clarifai pipelinetemplate ls --type=data        # List only data processing templates
     """
+    from clarifai.utils.template_manager import TemplateManager
+
     try:
         template_manager = TemplateManager()
         templates = template_manager.list_templates(template_type)
@@ -102,6 +103,8 @@ def info(template_name):
         clarifai pipelinetemplate info image-classification
         clarifai pipelinetemplate info text-prep
     """
+    from clarifai.utils.template_manager import TemplateManager
+
     try:
         template_manager = TemplateManager()
         template_info = template_manager.get_template_info(template_name)
