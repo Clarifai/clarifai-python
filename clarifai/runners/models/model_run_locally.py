@@ -172,8 +172,18 @@ class ModelRunLocally:
                     process.kill()
 
     # run the model server
-    def run_model_server(self, port=8080):
-        """Run the Clarifai Runners's model server."""
+    def run_model_server(self, port=8080, grpc=True, **kwargs):
+        """Run the Clarifai Runner's model server.
+
+        Args:
+            port: Port to run the server on.
+            grpc: If True, start a standalone gRPC server. If False, start a
+                runner that connects to the Clarifai API (requires kwargs like
+                user_id, compute_cluster_id, nodepool_id, runner_id, base_url, pat).
+            **kwargs: Additional arguments passed to clarifai.runners.server
+                (e.g. user_id, compute_cluster_id, nodepool_id, runner_id,
+                base_url, pat, num_threads, pool_size).
+        """
 
         command = [
             self.python_executable,
@@ -181,10 +191,17 @@ class ModelRunLocally:
             "clarifai.runners.server",
             "--model_path",
             self.model_path,
-            "--grpc",
             "--port",
             str(port),
         ]
+        if grpc:
+            command.append("--grpc")
+        # Pass additional runner args
+        for key, value in kwargs.items():
+            if value is None:
+                continue
+            command.extend([f"--{key}", str(value)])
+
         try:
             logger.info(
                 f"Starting model server at localhost:{port} with the model at {self.model_path}..."

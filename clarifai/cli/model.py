@@ -1608,6 +1608,25 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 env_vars={"CLARIFAI_PAT": pat},
                 **serving_args,
             )
+        elif mode == "env":
+            # Run via venv subprocess so model code uses venv's packages
+            # Filter to args accepted by clarifai.runners.server CLI
+            runner_args = {
+                k: v
+                for k, v in serving_args.items()
+                if k
+                in (
+                    'pool_size',
+                    'num_threads',
+                    'user_id',
+                    'compute_cluster_id',
+                    'nodepool_id',
+                    'runner_id',
+                    'base_url',
+                    'pat',
+                )
+            }
+            manager.run_model_server(grpc=False, **runner_args)
         else:
             server = ModelServer(model_path=model_path, model_runner_local=None)
             server.serve(**serving_args)
