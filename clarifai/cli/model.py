@@ -504,6 +504,26 @@ def _copy_embedded_toolkit(toolkit, model_path):
             shutil.copy2(item, dest)
 
 
+def _ensure_config_defaults(model_path, model_type_id='any-to-any'):
+    """Ensure config.yaml has required fields that older clarifai versions assert on.
+
+    When running in env/container mode, the subprocess installs clarifai from PyPI
+    which may still assert on model_type_id. This patches it into config.yaml if missing.
+    """
+    config_path = os.path.join(model_path, 'config.yaml')
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f) or {}
+    model = config.get('model', {})
+    changed = False
+    if 'model_type_id' not in model:
+        model['model_type_id'] = model_type_id
+        config['model'] = model
+        changed = True
+    if changed:
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
 def _patch_config(config_path, model_id, checkpoints_repo_id=None):
     """Update model.id and optionally checkpoints.repo_id in config.yaml."""
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -1086,6 +1106,10 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     signal.signal(signal.SIGINT, _sigint_handler)
 
     try:
+        # Ensure config.yaml has fields required by PyPI clarifai in subprocess
+        if mode in ("container", "env"):
+            _ensure_config_defaults(model_path, model_type_id=model_type_id)
+
         if mode == "container":
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
@@ -1544,6 +1568,10 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
 
     try:
         # ── Phase 3: Prepare environment ────────────────────────────────
+        # Ensure config.yaml has fields required by PyPI clarifai in subprocess
+        if mode in ("container", "env"):
+            _ensure_config_defaults(model_path, model_type_id=model_type_id)
+
         if mode == "container":
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
