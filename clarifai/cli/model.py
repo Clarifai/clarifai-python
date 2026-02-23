@@ -474,7 +474,7 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
 def model():
-    """Build, test, and deploy models on Clarifai.
+    """Build, test, and deploy models.
 
     \b
     Workflow:   init → serve → deploy

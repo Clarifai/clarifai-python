@@ -12,7 +12,7 @@ from clarifai.utils.cli import AliasedGroup, display_co_resources, from_yaml, va
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def deployment():
-    """Manage Deployments: create, delete, list"""
+    """Manage deployments."""
 
 
 @deployment.command(['c'])

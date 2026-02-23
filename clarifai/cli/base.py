@@ -14,10 +14,10 @@ from clarifai.utils.logging import logger
 
 @click.group(cls=AliasedGroup)
 @click.version_option(version=__version__)
-@click.option('--config', default=DEFAULT_CONFIG)
+@click.option('--config', default=DEFAULT_CONFIG, help='Path to config file.')
 @click.pass_context
 def cli(ctx, config):
-    """Clarifai CLI"""
+    """Build, deploy, and manage AI models on the Clarifai platform."""
     ctx.ensure_object(dict)
     if os.path.exists(config):
         cfg = Config.from_yaml(filename=config)
@@ -45,21 +45,21 @@ def cli(ctx, config):
         ctx.obj = cfg  # still have the default config even if couldn't write.
 
 
-@cli.command()
+@cli.command(short_help='Generate shell completion script.')
 @click.argument('shell', type=click.Choice(['bash', 'zsh']))
 def shell_completion(shell):
-    """Shell completion script"""
+    """Generate shell completion script for bash or zsh."""
     os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, short_help='Manage configuration profiles (contexts).')
 def config():
-    """
-    Manage multiple configuration profiles (contexts).
+    """Manage configuration profiles (contexts).
 
-    Authentication Precedence:\n
-      1. Environment variables (e.g., `CLARIFAI_PAT`) are used first if set.
-      2. The settings from the active context are used if no environment variables are provided.\n
+    \b
+    Authentication Precedence:
+      1. Environment variables (e.g., CLARIFAI_PAT) are used first if set.
+      2. The active context settings are used as fallback.
     """
 
 
@@ -149,7 +149,7 @@ def _env_prefix(api_url):
     return 'prod'
 
 
-@cli.command()
+@cli.command(short_help='Authenticate and save credentials.')
 @click.argument('api_url', default=DEFAULT_BASE)
 @click.option('--pat', required=False, help='Personal Access Token (skips interactive prompt).')
 @click.option(
@@ -158,7 +158,7 @@ def _env_prefix(api_url):
 @click.option('--name', required=False, help='Context name. Defaults to the selected user_id.')
 @click.pass_context
 def login(ctx, api_url, pat, user_id, name):
-    """Log in to Clarifai and save credentials.
+    """Authenticate and save credentials.
 
     \b
     Verifies your PAT, detects your user_id, and saves a named
@@ -227,6 +227,101 @@ def pat_display(pat):
     return pat[:5] + "****"
 
 
+@cli.command(short_help='Show current user and context.')
+@click.option('--orgs', is_flag=True, help='Show organizations you belong to.')
+@click.option('--all', 'show_all', is_flag=True, help='Show full profile (email, name, orgs).')
+@click.option(
+    '-o',
+    '--output-format',
+    default='wide',
+    type=click.Choice(['wide', 'json']),
+    help='Output format.',
+)
+@click.pass_context
+def whoami(ctx, orgs, show_all, output_format):
+    """Show current user and context.
+
+    \b
+    Examples:
+      clarifai whoami                # user + context (local only)
+      clarifai whoami --orgs         # include organizations (API call)
+      clarifai whoami --all          # full profile + orgs (API call)
+      clarifai whoami -o json        # JSON output for scripting
+    """
+    cfg = ctx.obj
+    context = cfg.current
+
+    # Check if logged in
+    pat = context.get('pat')
+    user_id = context.get('user_id')
+    api_base = context.get('api_base', DEFAULT_BASE)
+
+    if not pat or not user_id or user_id == '_empty_':
+        click.secho("Not logged in. Run 'clarifai login' to authenticate.", fg='red', err=True)
+        raise SystemExit(1)
+
+    data = {
+        'user_id': user_id,
+        'context': cfg.current_context,
+        'api_base': api_base,
+    }
+
+    # Fetch full profile and/or orgs if requested
+    org_list = []
+    if show_all or orgs:
+        try:
+            org_list = _list_user_orgs(pat, user_id, api_base)
+            data['organizations'] = [{'id': oid, 'name': oname} for oid, oname in org_list]
+        except Exception:
+            org_list = []
+
+    if show_all:
+        try:
+            from clarifai.client.user import User
+
+            user = User(user_id='me', pat=pat, base_url=api_base)
+            response = user.get_user_info(user_id=user_id)
+            u = response.user
+            if u.full_name:
+                data['name'] = u.full_name
+            if u.primary_email:
+                data['email'] = u.primary_email
+            if u.company_name:
+                data['company'] = u.company_name
+        except Exception:
+            if output_format == 'wide':
+                click.secho(
+                    'Warning: could not fetch full profile from API.', fg='yellow', err=True
+                )
+
+    # Output
+    if output_format == 'json':
+        click.echo(json.dumps(data))
+    else:
+        click.echo(
+            click.style('User:     ', bold=True) + click.style(user_id, fg='green', bold=True)
+        )
+        if data.get('name'):
+            click.echo(click.style('Name:     ', bold=True) + data['name'])
+        if data.get('email'):
+            click.echo(click.style('Email:    ', bold=True) + data['email'])
+        if data.get('company'):
+            click.echo(click.style('Company:  ', bold=True) + data['company'])
+        click.echo(
+            click.style('Context:  ', bold=True)
+            + f'{cfg.current_context} @ '
+            + click.style(api_base, dim=True)
+        )
+
+        if org_list:
+            click.echo()
+            click.echo(click.style('Organizations:', bold=True))
+            for org_id, org_name in org_list:
+                click.echo(
+                    f'  {click.style(org_id, bold=True)}   {click.style(org_name, dim=True)}'
+                )
+
+
 def input_or_default(prompt, default):
     value = input(prompt)
     return value if value else default
@@ -242,10 +337,14 @@ def get_contexts(ctx, output_format):
     """List all available contexts."""
     if output_format == 'wide':
         columns = {
-            '': lambda c: '*' if c.name == ctx.obj.current_context else '',
-            'NAME': lambda c: c.name,
+            '': lambda c: click.style('*', fg='green', bold=True)
+            if c.name == ctx.obj.current_context
+            else '',
+            'NAME': lambda c: click.style(c.name, bold=True)
+            if c.name == ctx.obj.current_context
+            else c.name,
             'USER_ID': lambda c: c.user_id,
-            'API_BASE': lambda c: c.api_base,
+            'API_BASE': lambda c: click.style(c.api_base, dim=True),
             'PAT': lambda c: pat_display(c.pat),
         }
         additional_columns = set()
@@ -283,10 +382,12 @@ def get_contexts(ctx, output_format):
 def use_context(ctx, name):
     """Set the current context."""
     if name not in ctx.obj.contexts:
-        raise click.UsageError('Context not found')
+        raise click.UsageError(f'Context "{name}" not found')
     ctx.obj.current_context = name
     ctx.obj.to_yaml()
-    print(f'Set {name} as the current context')
+    click.echo(
+        click.style('Switched to context ', fg='green') + click.style(name, fg='green', bold=True)
+    )
 
 
 @config.command(aliases=['current-context', 'current'])
@@ -364,11 +465,13 @@ def edit(
 def delete_context(ctx, name):
     """Delete a context."""
     if name not in ctx.obj.contexts:
-        print(f'{name} is not a valid context')
+        click.secho(f'Context "{name}" not found.', fg='red', err=True)
         sys.exit(1)
     ctx.obj.contexts.pop(name)
     ctx.obj.to_yaml()
-    print(f'{name} deleted')
+    click.echo(
+        click.style('Deleted context ', fg='yellow') + click.style(name, fg='yellow', bold=True)
+    )
 
 
 @config.command(aliases=['get-env'])
@@ -396,12 +499,12 @@ def view(ctx, output_format):
         print(yaml.safe_dump(config_dict, default_flow_style=False))
 
 
-@cli.command()
+@cli.command(short_help='Run a script with context env vars.')
 @click.argument('script', type=str)
 @click.option('--context', type=str, help='Context to use')
 @click.pass_context
 def run(ctx, script, context=None):
-    """Execute a script with the current context's environment"""
+    """Run a script with the current context's environment variables injected."""
     context = ctx.obj.current if not context else context
     cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.api_base} CLARIFAI_PAT={context.pat} '
     cmd += ' '.join([f'{k}={v}' for k, v in context.to_serializable_dict().items()])
@@ -411,6 +514,16 @@ def run(ctx, script, context=None):
 
 # Import the CLI commands to register them
 load_command_modules()
+
+# Define section ordering for `clarifai --help`
+cli.command_sections = [
+    ('Auth', ['login', 'whoami']),
+    ('Config', ['config']),
+    ('Models', ['model']),
+    ('Pipelines', ['pipeline', 'pipeline-step', 'pipelinerun', 'pipelinetemplate']),
+    ('Compute', ['computecluster', 'nodepool', 'deployment']),
+    ('Other', ['artifact', 'run', 'shell-completion']),
+]
 
 
 def main():

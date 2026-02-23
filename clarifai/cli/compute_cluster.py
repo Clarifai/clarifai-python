@@ -12,7 +12,7 @@ from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_cont
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def computecluster():
-    """Manage Compute Clusters: create, delete, list"""
+    """Manage compute clusters."""
 
 
 @computecluster.command(['c'])

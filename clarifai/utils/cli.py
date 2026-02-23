@@ -309,19 +309,42 @@ class AliasedGroup(click.Group):
 
     def format_commands(self, ctx, formatter):
         sub_commands = self.list_commands(ctx)
+        limit = formatter.width - 6 - max(len(c) for c in sub_commands) if sub_commands else 80
 
-        rows = []
+        # Build command -> (display_name, short_help) map
+        cmd_info = {}
         for sub_command in sub_commands:
             cmd = self.get_command(ctx, sub_command)
             if cmd is None or getattr(cmd, 'hidden', False):
                 continue
+            name = sub_command
             if cmd in self.command_to_aliases:
                 aliases = ', '.join(self.command_to_aliases[cmd])
-                sub_command = f'{sub_command} ({aliases})'
-            cmd_help = cmd.help
-            rows.append((sub_command, cmd_help))
+                name = f'{sub_command} ({aliases})'
+            help_text = cmd.get_short_help_str(limit=limit)
+            cmd_info[sub_command] = (name, help_text)
 
-        if rows:
+        if not cmd_info:
+            return
+
+        sections = getattr(self, 'command_sections', None)
+        if sections:
+            listed = set()
+            for section_name, cmd_names in sections:
+                rows = []
+                for cmd_name in cmd_names:
+                    if cmd_name in cmd_info:
+                        rows.append(cmd_info[cmd_name])
+                        listed.add(cmd_name)
+                if rows:
+                    with formatter.section(section_name):
+                        formatter.write_dl(rows)
+            remaining = [(n, h) for cn, (n, h) in cmd_info.items() if cn not in listed]
+            if remaining:
+                with formatter.section("Other"):
+                    formatter.write_dl(remaining)
+        else:
+            rows = list(cmd_info.values())
             with formatter.section("Commands"):
                 formatter.write_dl(rows)
 

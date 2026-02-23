@@ -18,7 +18,7 @@ from clarifai.utils.cli import (
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def nodepool():
-    """Manage Nodepools: create, delete, list"""
+    """Manage nodepools."""
 
 
 @nodepool.command(['c'])

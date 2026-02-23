@@ -16,7 +16,7 @@ from clarifai.utils.template_manager import TemplateManager
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipelinetemplate():
-    """Manage pipeline templates: list, discover, etc"""
+    """Browse pipeline templates."""
 
 
 @pipelinetemplate.command(name='list', aliases=['ls'])

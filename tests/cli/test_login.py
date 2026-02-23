@@ -311,6 +311,132 @@ class TestCreateContextCommand:
         assert 'already exists' in result.output
 
 
+def _mock_get_user_info(user_id=None):
+    """Return a mock response with user profile fields."""
+    from unittest.mock import MagicMock
+
+    user = MagicMock()
+    user.id = 'testuser'
+    user.full_name = 'Test User'
+    user.primary_email = 'test@clarifai.com'
+    user.company_name = 'Clarifai'
+    resp = MagicMock()
+    resp.user = user
+    return resp
+
+
+class TestWhoamiCommand:
+    """Test cases for the whoami command."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def _login_first(self, config_path='./config.yaml', pat='test_pat_123'):
+        """Helper to login and create a config."""
+        with (
+            mock.patch('clarifai.cli.base._verify_and_resolve_user', side_effect=_mock_verify),
+            mock.patch('clarifai.cli.base._list_user_orgs', side_effect=_mock_list_orgs_empty),
+        ):
+            self.runner.invoke(
+                cli,
+                ['--config', config_path, 'login', '--pat', pat],
+                catch_exceptions=False,
+            )
+
+    def test_whoami_default(self):
+        """Default whoami shows user_id and context from local config (no API call)."""
+        with self.runner.isolated_filesystem():
+            with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
+                self._login_first()
+                result = self.runner.invoke(
+                    cli, ['--config', './config.yaml', 'whoami'], catch_exceptions=False
+                )
+
+        assert result.exit_code == 0
+        assert 'testuser' in result.output
+        assert 'Context:' in result.output
+
+    def test_whoami_with_orgs(self):
+        """--orgs shows organization list."""
+        with self.runner.isolated_filesystem():
+            with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
+                self._login_first()
+                with mock.patch(
+                    'clarifai.cli.base._list_user_orgs', side_effect=_mock_list_orgs_with_orgs
+                ):
+                    result = self.runner.invoke(
+                        cli,
+                        ['--config', './config.yaml', 'whoami', '--orgs'],
+                        catch_exceptions=False,
+                    )
+
+        assert result.exit_code == 0
+        assert 'testuser' in result.output
+        assert 'Organizations:' in result.output
+        assert 'clarifai' in result.output
+        assert 'openai' in result.output
+
+    def test_whoami_with_all(self):
+        """--all shows full profile including name, email, company, and orgs."""
+        with self.runner.isolated_filesystem():
+            with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
+                self._login_first()
+                with (
+                    mock.patch(
+                        'clarifai.cli.base._list_user_orgs', side_effect=_mock_list_orgs_with_orgs
+                    ),
+                    mock.patch(
+                        'clarifai.client.user.User.get_user_info', side_effect=_mock_get_user_info
+                    ),
+                ):
+                    result = self.runner.invoke(
+                        cli,
+                        ['--config', './config.yaml', 'whoami', '--all'],
+                        catch_exceptions=False,
+                    )
+
+        assert result.exit_code == 0
+        assert 'testuser' in result.output
+        assert 'Test User' in result.output
+        assert 'test@clarifai.com' in result.output
+        assert 'Clarifai' in result.output
+        assert 'Organizations:' in result.output
+
+    def test_whoami_json_output(self):
+        """JSON output contains expected keys."""
+        import json
+
+        with self.runner.isolated_filesystem():
+            with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
+                self._login_first()
+                result = self.runner.invoke(
+                    cli,
+                    ['--config', './config.yaml', 'whoami', '-o', 'json'],
+                    catch_exceptions=False,
+                )
+
+        assert result.exit_code == 0
+        data = json.loads(result.output.strip())
+        assert data['user_id'] == 'testuser'
+        assert 'context' in data
+        assert 'api_base' in data
+
+    def test_whoami_not_logged_in(self):
+        """Error when no PAT is configured."""
+        with self.runner.isolated_filesystem():
+            env = os.environ.copy()
+            env.pop('CLARIFAI_PAT', None)
+            with mock.patch.dict(os.environ, env, clear=True):
+                result = self.runner.invoke(
+                    cli,
+                    ['--config', './nonexistent.yaml', 'whoami'],
+                    catch_exceptions=True,
+                )
+
+        assert result.exit_code == 1
+        assert 'Not logged in' in result.output or 'Not logged in' in (result.stderr or '')
+
+
 class TestEnvPrefix:
     """Test cases for _env_prefix helper."""
 
