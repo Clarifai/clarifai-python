@@ -82,8 +82,8 @@ class HuggingFaceModel(OpenAIModelClass):
             **inputs,
             do_sample=True,
             max_new_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
+            temperature=float(temperature),
+            top_p=float(top_p),
             eos_token_id=self.tokenizer.eos_token_id,
         )
         generated_tokens = output[0][inputs["input_ids"].shape[-1] :]
@@ -123,8 +123,8 @@ class HuggingFaceModel(OpenAIModelClass):
             "input_ids": inputs,
             "do_sample": True,
             "max_new_tokens": max_tokens,
-            "temperature": temperature,
-            "top_p": top_p,
+            "temperature": float(temperature),
+            "top_p": float(top_p),
             "eos_token_id": self.tokenizer.eos_token_id,
             "streamer": self.streamer,
         }
