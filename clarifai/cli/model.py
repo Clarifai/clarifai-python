@@ -545,10 +545,17 @@ def _print_init_success(model_path, toolkit):
     if toolkit in ('python', 'mcp', 'openai', None):
         click.echo("  1. Edit 1/model.py with your model logic")
         click.echo("  2. Add dependencies to requirements.txt")
+        click.echo()
     click.echo("  Test locally:")
-    click.echo(f"    clarifai model serve {model_path} --grpc")
+    click.echo(f"    clarifai model serve {model_path}")
+    click.echo(
+        f"    clarifai model serve {model_path} --mode env       # auto-create venv and install deps"
+    )
+    click.echo(f"    clarifai model serve {model_path} --mode container # run inside Docker")
+    click.echo()
     click.echo("  Deploy to Clarifai:")
     click.echo(f"    clarifai model deploy {model_path} --instance g5.xlarge")
+    click.echo("    clarifai model deploy --instance-info              # list available instances")
     click.echo()
 
 
