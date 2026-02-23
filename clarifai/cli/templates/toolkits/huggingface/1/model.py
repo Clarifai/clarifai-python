@@ -6,16 +6,12 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
 from clarifai.runners.models.model_builder import ModelBuilder
-from clarifai.runners.models.openai_class import OpenAIModelClass
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_utils import Param
-from clarifai.runners.utils.openai_convertor import openai_response
 from clarifai.utils.logging import logger
 
 
-class HuggingFaceModel(OpenAIModelClass):
-    client = True
-    model = True
-
+class HuggingFaceModel(ModelClass):
     def load_model(self):
         if torch.backends.mps.is_available():
             self.device = 'mps'
@@ -35,7 +31,7 @@ class HuggingFaceModel(OpenAIModelClass):
 
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoints)
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(
+        self.hf_model = AutoModelForCausalLM.from_pretrained(
             checkpoints,
             low_cpu_mem_usage=True,
             device_map=self.device,
@@ -47,7 +43,7 @@ class HuggingFaceModel(OpenAIModelClass):
             skip_special_tokens=True,
         )
 
-    @OpenAIModelClass.method
+    @ModelClass.method
     def predict(
         self,
         prompt: str = "",
@@ -76,9 +72,9 @@ class HuggingFaceModel(OpenAIModelClass):
             add_generation_prompt=True,
             return_tensors="pt",
             return_dict=True,
-        ).to(self.model.device)
+        ).to(self.hf_model.device)
 
-        output = self.model.generate(
+        output = self.hf_model.generate(
             **inputs,
             do_sample=True,
             max_new_tokens=max_tokens,
@@ -89,7 +85,7 @@ class HuggingFaceModel(OpenAIModelClass):
         generated_tokens = output[0][inputs["input_ids"].shape[-1] :]
         return self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
-    @OpenAIModelClass.method
+    @ModelClass.method
     def generate(
         self,
         prompt: str = "",
@@ -117,10 +113,11 @@ class HuggingFaceModel(OpenAIModelClass):
             tokenize=True,
             add_generation_prompt=True,
             return_tensors="pt",
-        ).to(self.model.device)
+            return_dict=True,
+        ).to(self.hf_model.device)
 
         generation_kwargs = {
-            "input_ids": inputs,
+            **inputs,
             "do_sample": True,
             "max_new_tokens": max_tokens,
             "temperature": float(temperature),
@@ -128,13 +125,9 @@ class HuggingFaceModel(OpenAIModelClass):
             "eos_token_id": self.tokenizer.eos_token_id,
             "streamer": self.streamer,
         }
-        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread = Thread(target=self.hf_model.generate, kwargs=generation_kwargs)
         thread.start()
-        for chunk in openai_response(self.streamer):
-            if (
-                'choices' in chunk
-                and 'delta' in chunk['choices'][0]
-                and 'content' in chunk['choices'][0]['delta']
-            ):
-                yield chunk['choices'][0]['delta']['content']
+        for text in self.streamer:
+            if text:
+                yield text
         thread.join()
