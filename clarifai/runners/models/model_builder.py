@@ -588,7 +588,7 @@ class ModelBuilder:
         if "app_id" not in model:
             raise UserError("app_id not found in config.yaml")
         if "model_type_id" not in model:
-            raise UserError("model_type_id not found in the model section of config.yaml")
+            model["model_type_id"] = "any-to-any"
         if "id" not in model:
             raise UserError("model id not found in the model section of config.yaml")
         if '.' in model.get('id', ''):
@@ -599,8 +599,6 @@ class ModelBuilder:
             raise UserError("user_id cannot be empty in config.yaml")
         if not model.get('app_id'):
             raise UserError("app_id cannot be empty in config.yaml")
-        if not model.get('model_type_id'):
-            raise UserError("model_type_id cannot be empty in config.yaml")
         if not model.get('id'):
             raise UserError("model id cannot be empty in config.yaml")
 
@@ -1016,7 +1014,7 @@ class ModelBuilder:
         model = self.config.get('model')
 
         if "model_type_id" not in model:
-            raise UserError("model_type_id not found in the model section of config.yaml")
+            model["model_type_id"] = "any-to-any"
         if "id" not in model:
             raise UserError("model id not found in the model section of config.yaml")
         if not self.download_validation_only:
