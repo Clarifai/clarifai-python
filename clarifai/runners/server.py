@@ -108,6 +108,12 @@ def main():
         default=0,
         help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
     )
+    parser.add_argument(
+        '--health_check_port',
+        type=int,
+        default=8080,
+        help="The port to host the health check server at. Set to 0 or -1 to disable.",
+    )
 
     parsed_args = parser.parse_args()
     server = ModelServer(parsed_args.model_path)
@@ -137,11 +143,17 @@ def main():
         max_msg_length=parsed_args.max_msg_length,
         enable_tls=parsed_args.enable_tls,
         grpc=parsed_args.grpc,
+        health_check_port=parsed_args.health_check_port,
     )
 
 
 class ModelServer:
-    def __init__(self, model_path, model_runner_local: ModelRunLocally = None):
+    def __init__(
+        self,
+        model_path,
+        model_runner_local: ModelRunLocally = None,
+        model_builder: ModelBuilder = None,
+    ):
         """Initialize the ModelServer.
         Args:
             model_path: Path to the model directory
@@ -158,7 +170,11 @@ class ModelServer:
         self._initialize_secrets_system()
 
         # Build model after secrets are loaded
-        self._builder = ModelBuilder(model_path, download_validation_only=True)
+        self._builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(model_path, download_validation_only=True)
+        )
         self._current_model = self._builder.create_model_instance()
 
         logger.info("ModelServer initialized successfully")
@@ -264,6 +280,7 @@ class ModelServer:
         max_msg_length=1024 * 1024 * 1024,
         enable_tls=False,
         grpc=False,
+        health_check_port=8080,
         user_id: Optional[str] = os.environ.get("CLARIFAI_USER_ID", None),
         compute_cluster_id: Optional[str] = os.environ.get("CLARIFAI_COMPUTE_CLUSTER_ID", None),
         nodepool_id: Optional[str] = os.environ.get("CLARIFAI_NODEPOOL_ID", None),
@@ -271,7 +288,6 @@ class ModelServer:
         base_url: Optional[str] = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
         pat: Optional[str] = os.environ.get("CLARIFAI_PAT", None),
         context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
-        health_check_port: Optional[int] = 8080,
     ):
         # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
         # Note: The value in config.yaml takes precedence over the environment variable.

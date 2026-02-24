@@ -152,7 +152,7 @@ def test_model_uploader_flow(dummy_models_path, client):
     7. Delete the deployment
     """
     # Initialize
-    builder = ModelBuilder(folder=str(dummy_models_path))
+    builder = ModelBuilder(folder=str(dummy_models_path), compute_info_required=True)
     assert builder.folder == str(dummy_models_path), "Uploader folder mismatch"
 
     # Basic checks on config

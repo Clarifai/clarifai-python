@@ -18,12 +18,31 @@ from clarifai.utils.logging import logger
 
 
 class ModelRunLocally:
-    def __init__(self, model_path):
+    def __init__(self, model_path, model_builder: ModelBuilder = None):
+        """
+        Initialize a helper to run a Clarifai model locally in an isolated environment.
+
+        Parameters
+        ----------
+        model_path : str
+            Filesystem path to the root directory of the model. This directory is expected
+            to contain the model code and a ``requirements.txt`` file describing its
+            Python dependencies.
+        model_builder : ModelBuilder, optional
+            An existing :class:`ModelBuilder` instance to use for interacting with the
+            model. Pass this when you already have a configured builder you want to
+            reuse. If ``None`` (the default), a new ``ModelBuilder`` is created for
+            ``model_path`` with ``download_validation_only=True``.
+        """
         self.model_path = os.path.abspath(model_path)
         self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
         # ModelBuilder contains multiple useful methods to interact with the model
-        self.builder = ModelBuilder(self.model_path, download_validation_only=True)
+        self.builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(self.model_path, download_validation_only=True)
+        )
         self.config = self.builder.config
 
     def _get_method_signatures(self):
@@ -439,6 +458,8 @@ class ModelRunLocally:
                         str(kwargs.get("pat", None)),
                         "--num_threads",
                         str(kwargs.get("num_threads", 0)),
+                        "--health_check_port",
+                        str(kwargs.get("health_check_port", 8080)),
                     ]
                 )
             else:

@@ -116,42 +116,35 @@ def init(pipeline_step_path):
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.option(
     '--app_id',
+    required=True,
+    help='App ID to list pipeline steps from.',
+)
+@click.option(
+    '--user_id',
     required=False,
-    help='App ID to list pipeline steps from. If not provided, lists across all apps.',
+    help='User ID to list pipeline steps from. If not provided, uses current user.',
 )
 @click.option(
     '--pipeline_id',
     required=False,
-    help='Pipeline ID to list pipeline steps from. Must be used with --app_id.',
+    help='Pipeline ID to list pipeline steps from.',
 )
 @click.pass_context
-def list(ctx, page_no, per_page, app_id, pipeline_id):
+def list(ctx, page_no, per_page, app_id, user_id, pipeline_id):
     """List all pipeline steps for the user."""
     validate_context(ctx)
 
-    if pipeline_id and not app_id:
-        raise click.UsageError("--pipeline_id must be used together with --app_id")
+    target_user_id = user_id or ctx.obj.current.user_id
 
     from clarifai.client.app import App
-    from clarifai.client.user import User
 
-    if app_id:
-        app = App(
-            app_id=app_id,
-            user_id=ctx.obj.current.user_id,
-            pat=ctx.obj.current.pat,
-            base_url=ctx.obj.current.api_base,
-        )
-        response = app.list_pipeline_steps(
-            pipeline_id=pipeline_id, page_no=page_no, per_page=per_page
-        )
-    else:
-        user = User(
-            user_id=ctx.obj.current.user_id,
-            pat=ctx.obj.current.pat,
-            base_url=ctx.obj.current.api_base,
-        )
-        response = user.list_pipeline_steps(page_no=page_no, per_page=per_page)
+    app = App(
+        app_id=app_id,
+        user_id=target_user_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
+    response = app.list_pipeline_steps(pipeline_id=pipeline_id, page_no=page_no, per_page=per_page)
 
     display_co_resources(
         response,
@@ -160,6 +153,7 @@ def list(ctx, page_no, per_page, app_id, pipeline_id):
             'USER_ID': lambda ps: getattr(ps, 'user_id', ''),
             'APP_ID': lambda ps: getattr(ps, 'app_id', ''),
             'VERSION_ID': lambda ps: getattr(ps, 'pipeline_step_version_id', ''),
+            'VISIBILITY': lambda ps: getattr(ps, 'visibility', ''),
             'DESCRIPTION': lambda ps: getattr(ps, 'description', ''),
             'CREATED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'created_at', '')),
             'MODIFIED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'modified_at', '')),

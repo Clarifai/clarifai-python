@@ -2,7 +2,9 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
+from contextlib import closing
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -39,6 +41,19 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
+
+
+def find_available_port(start_port=8080):
+    """Find the first available port starting from start_port."""
+    port = start_port
+    while port <= 65535:
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            try:
+                sock.bind(('', port))
+                return port
+            except OSError:
+                port += 1
+    raise RuntimeError("No available port found")
 
 
 def _select_context(ctx_config: Config) -> Optional[Context]:

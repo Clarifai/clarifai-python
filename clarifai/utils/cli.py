@@ -349,6 +349,49 @@ class AliasedGroup(click.Group):
                 formatter.write_dl(rows)
 
 
+class LazyAliasedGroup(AliasedGroup):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lazy_mapping = {
+            'app': 'app',
+            'a': 'app',
+            'artifact': 'artifact',
+            'af': 'artifact',
+            'computecluster': 'compute_cluster',
+            'cc': 'compute_cluster',
+            'deployment': 'deployment',
+            'dp': 'deployment',
+            'model': 'model',
+            'nodepool': 'nodepool',
+            'np': 'nodepool',
+            'pipeline': 'pipeline',
+            'pl': 'pipeline',
+            'pipelinerun': 'pipeline_run',
+            'pr': 'pipeline_run',
+            'pipelinestep': 'pipeline_step',
+            'ps': 'pipeline_step',
+            'pipelinetemplate': 'pipeline_template',
+            'pt': 'pipeline_template',
+        }
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> Optional[click.Command]:
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        if cmd_name in self.lazy_mapping:
+            module_name = self.lazy_mapping[cmd_name]
+            importlib.import_module(f'clarifai.cli.{module_name}')
+            return super().get_command(ctx, cmd_name)
+
+        return None
+
+    def list_commands(self, ctx: click.Context) -> t.List[str]:
+        base_commands = super().list_commands(ctx)
+        lazy_commands = [k for k in self.lazy_mapping.keys()]
+        return sorted(set(base_commands) | set(lazy_commands))
+
+
 def validate_context(ctx):
     from clarifai.utils.logging import logger
 

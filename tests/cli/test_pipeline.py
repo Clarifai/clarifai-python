@@ -1662,31 +1662,8 @@ class TestPipelineRunCommand:
 class TestPipelineListCommand:
     """Test cases for the pipeline list CLI command."""
 
-    @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.client.user.User')
-    @patch('clarifai.cli.pipeline.display_co_resources')
-    def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
-        """Test that list command works without app_id (lists across all apps)."""
-        # Setup mocks
-        mock_validate.return_value = None
-        mock_user_instance = Mock()
-        mock_user_class.return_value = mock_user_instance
-        mock_user_instance.list_pipelines.return_value = [
-            {
-                'id': 'pipeline1',
-                'user_id': 'user1',
-                'app_id': 'app1',
-                'description': 'Test pipeline 1',
-            },
-            {
-                'id': 'pipeline2',
-                'user_id': 'user1',
-                'app_id': 'app2',
-                'description': 'Test pipeline 2',
-            },
-        ]
-
-        # Setup context
+    def test_list_command_requires_app_id(self):
+        """Test that list command requires app_id."""
         runner = CliRunner()
         ctx_obj = Mock()
         ctx_obj.current.user_id = 'test-user'
@@ -1702,13 +1679,8 @@ class TestPipelineListCommand:
             obj=ctx_obj,
         )
 
-        assert result.exit_code == 0
-        mock_validate.assert_called_once()
-        mock_user_class.assert_called_once_with(
-            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
-        )
-        mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=10)
-        mock_display.assert_called_once()
+        assert result.exit_code != 0
+        assert "Missing option '--app_id'" in result.output
 
     @patch('clarifai.cli.pipeline.validate_context')
     @patch('clarifai.client.app.App')
@@ -1771,22 +1743,28 @@ class TestPipelineListCommand:
         # Import here to avoid circular imports in testing
         from clarifai.cli.pipeline import list as list_command
 
-        with patch('clarifai.client.user.User') as mock_user_class:
-            mock_user_instance = Mock()
-            mock_user_class.return_value = mock_user_instance
-            mock_user_instance.list_pipelines.return_value = []
+        with patch('clarifai.client.app.App') as mock_app_class:
+            mock_app_instance = Mock()
+            mock_app_class.return_value = mock_app_instance
+            mock_app_instance.list_pipelines.return_value = []
 
             with patch('clarifai.cli.pipeline.display_co_resources') as mock_display:
-                result = runner.invoke(list_command, [], obj=ctx_obj)
+                result = runner.invoke(list_command, ['--app_id', 'test-app'], obj=ctx_obj)
 
                 assert result.exit_code == 0
-                mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
+                mock_app_class.assert_called_once_with(
+                    app_id='test-app',
+                    user_id='test-user',
+                    pat='test-pat',
+                    base_url='https://api.clarifai.com',
+                )
+                mock_app_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
 
 
 class TestPipelineTemplateCommands:
     """Test cases for the pipeline template CLI commands."""
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_all_templates(self, mock_template_manager_class):
         """Test that list_templates command works without type filter."""
         # Mock template manager
@@ -1809,7 +1787,7 @@ class TestPipelineTemplateCommands:
         assert 'template1' in result.output
         assert 'template2' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_with_type_filter(self, mock_template_manager_class):
         """Test that list_templates command works with type filter."""
         # Mock template manager
@@ -1832,7 +1810,7 @@ class TestPipelineTemplateCommands:
         assert 'train-template1' in result.output
         assert 'train-template2' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_empty_list(self, mock_template_manager_class):
         """Test that list_templates command handles empty template list."""
         # Mock template manager to return empty list
@@ -1848,7 +1826,7 @@ class TestPipelineTemplateCommands:
         # Should display message about no templates
         assert 'No templates found' in result.output or len(result.output.strip()) == 0
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_found(self, mock_template_manager_class):
         """Test that info command works when template exists."""
         # Mock template manager
@@ -1891,7 +1869,7 @@ class TestPipelineTemplateCommands:
         assert 'EXAMPLE_PATH (default: /default/data/path)' in result.output
         assert 'EXAMPLE_TYPE (default: default_type)' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_not_found(self, mock_template_manager_class):
         """Test that info command handles template not found."""
         # Mock template manager to return None
@@ -1908,7 +1886,7 @@ class TestPipelineTemplateCommands:
         # Should display error message
         assert 'not found' in result.output or 'Error' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_info_command_template_with_no_parameters(self, mock_template_manager_class):
         """Test that info command handles templates with no parameters."""
         # Mock template manager
@@ -1943,7 +1921,7 @@ class TestPipelineTemplateCommands:
             or result.output.count('Parameters') <= 1
         )  # Just the section header
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_command_with_rich_display(self, mock_template_manager_class):
         """Test that list_templates displays templates in a formatted table."""
         # Mock template manager

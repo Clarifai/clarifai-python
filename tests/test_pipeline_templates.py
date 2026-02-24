@@ -18,7 +18,7 @@ class TestPipelineTemplateCLI:
         """Set up test fixtures."""
         self.runner = CliRunner()
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_success(self, mock_template_manager_class):
         """Test successful template listing."""
         mock_manager = Mock()
@@ -43,7 +43,7 @@ class TestPipelineTemplateCLI:
         assert 'Available types: data, train' in result.output
         mock_manager.list_templates.assert_called_once_with(None)
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_with_type_filter(self, mock_template_manager_class):
         """Test template listing with type filter."""
         mock_manager = Mock()
@@ -65,7 +65,7 @@ class TestPipelineTemplateCLI:
         assert "Found 1 template(s) of type 'train'" in result.output
         mock_manager.list_templates.assert_called_once_with('train')
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_empty_result(self, mock_template_manager_class):
         """Test template listing when no templates found."""
         mock_manager = Mock()
@@ -78,7 +78,7 @@ class TestPipelineTemplateCLI:
         assert 'No templates found' in result.output
         mock_manager.list_templates.assert_called_once_with(None)
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_list_templates_with_error(self, mock_template_manager_class):
         """Test template listing error handling."""
         mock_template_manager_class.side_effect = Exception("Template root not found")
@@ -88,7 +88,7 @@ class TestPipelineTemplateCLI:
         assert result.exit_code == 0
         assert 'Error: Could not list templates' in result.output
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_template_info_success(self, mock_template_manager_class):
         """Test successful template info display."""
         mock_manager = Mock()
@@ -118,7 +118,7 @@ class TestPipelineTemplateCLI:
         assert 'EXAMPLE_SIZE (default: 32)' in result.output
         mock_manager.get_template_info.assert_called_once_with('image-classification')
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_template_info_not_found(self, mock_template_manager_class):
         """Test template info when template not found."""
         mock_manager = Mock()
@@ -131,7 +131,7 @@ class TestPipelineTemplateCLI:
         assert "Template 'nonexistent-template' not found" in result.output
         mock_manager.get_template_info.assert_called_once_with('nonexistent-template')
 
-    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_template_info_with_error(self, mock_template_manager_class):
         """Test template info error handling."""
         mock_template_manager_class.side_effect = Exception("File not found")
