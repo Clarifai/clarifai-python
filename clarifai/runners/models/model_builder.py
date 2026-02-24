@@ -553,12 +553,18 @@ class ModelBuilder:
             if instance:
                 from clarifai.utils.compute_presets import get_inference_compute_for_gpu
 
-                ici = get_inference_compute_for_gpu(instance)
-                # Always use wildcard accelerator_type so the model can be scheduled
-                # on any compatible NVIDIA GPU, not locked to a specific type.
-                if ici.get('num_accelerators', 0) > 0:
-                    ici['accelerator_type'] = ['NVIDIA-*']
-                config['inference_compute_info'] = ici
+                try:
+                    ici = get_inference_compute_for_gpu(instance)
+                    # Always use wildcard accelerator_type so the model can be scheduled
+                    # on any compatible NVIDIA GPU, not locked to a specific type.
+                    if ici.get('num_accelerators', 0) > 0:
+                        ici['accelerator_type'] = ['NVIDIA-*']
+                    config['inference_compute_info'] = ici
+                except ValueError:
+                    logger.debug(
+                        f"Could not resolve compute instance '{instance}'. "
+                        "Skipping inference_compute_info normalization."
+                    )
                 # Normalize to compute.instance
                 compute['instance'] = instance
                 compute.pop('gpu', None)

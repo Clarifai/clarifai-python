@@ -452,7 +452,7 @@ class TestArtifactCLI:
         # Test that 'af' alias works
         result = self.runner.invoke(artifact, ['--help'])
         assert result.exit_code == 0
-        assert "Manage Artifacts" in result.output
+        assert "Manage artifacts" in result.output
 
         # Test that 'ls' alias works for list command
         with patch('clarifai.cli.artifact.validate_context'):

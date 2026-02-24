@@ -458,10 +458,13 @@ class ModelRunLocally:
                         str(kwargs.get("pat", None)),
                         "--num_threads",
                         str(kwargs.get("num_threads", 0)),
-                        "--health_check_port",
-                        str(kwargs.get("health_check_port", 8080)),
                     ]
                 )
+                # Only pass health_check_port if non-zero (avoids compat issues with
+                # older clarifai versions inside the container that lack the flag)
+                hcp = kwargs.get("health_check_port", 8080)
+                if hcp and hcp > 0:
+                    server_cmd.extend(["--health_check_port", str(hcp)])
             else:
                 server_cmd.extend(["--grpc", "--port", str(port)])
             cmd.extend(server_cmd)
