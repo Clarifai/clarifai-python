@@ -398,8 +398,13 @@ class ModelRunLocally:
             cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
             if self._gpu_is_available():
                 cmd.extend(["--gpus", "all"])
-            # Add volume mappings
-            cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
+            # Add volume mappings (use --mount to handle paths with colons, e.g. "gemma3:1b")
+            cmd.extend(
+                [
+                    "--mount",
+                    f"type=bind,source={self.model_path},target=/home/nonroot/main",
+                ]
+            )
             # Add environment variables
             if env_vars:
                 for key, value in env_vars.items():
@@ -480,8 +485,13 @@ class ModelRunLocally:
                 cmd.extend(["--gpus", "all"])
             # update the entrypoint for testing the model
             cmd.extend(["--entrypoint", "python"])
-            # Add volume mappings
-            cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
+            # Add volume mappings (use --mount to handle paths with colons, e.g. "gemma3:1b")
+            cmd.extend(
+                [
+                    "--mount",
+                    f"type=bind,source={self.model_path},target=/home/nonroot/main",
+                ]
+            )
             # Add environment variables
             if env_vars:
                 for key, value in env_vars.items():
