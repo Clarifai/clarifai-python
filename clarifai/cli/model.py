@@ -14,6 +14,7 @@ import yaml
 from clarifai.cli.base import cli
 from clarifai.errors import UserError
 from clarifai.utils.cli import (
+    AliasedGroup,
     check_lmstudio_installed,
     check_ollama_installed,
     check_requirements_installed,
@@ -486,7 +487,9 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
 
 
 @cli.group(
-    ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
+    ['model'],
+    cls=AliasedGroup,
+    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def model():
     """Build, test, and deploy models.
@@ -1231,7 +1234,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
         _do_cleanup()
 
 
-@model.command(name="serve")
+@model.command(name="serve", aliases=["local-runner"])
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
