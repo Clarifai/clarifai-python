@@ -2207,10 +2207,11 @@ def upload_model(
     click.echo()
     out.success("Model uploaded successfully!")
     click.echo()
-    out.info("Model", builder.model_ui_url)
+    out.link("Model", builder.model_ui_url)
     out.info("Version", model_version_id)
 
     # Client script
+    method_signatures = None
     try:
         method_signatures = builder.get_method_signatures()
         snippet = code_script.generate_client_script(
@@ -2228,15 +2229,19 @@ def upload_model(
     except Exception:
         pass
 
-    # Deploy hint
-    click.echo()
-    out.status("Deploy this model:")
-    out.status(
-        f'  clarifai model deploy --model-url "{builder.model_ui_url}" --instance <instance-type>'
+    user_id = builder.client.user_app_id.user_id
+    app_id = builder.client.user_app_id.app_id
+    model_id = builder.model_proto.id
+    model_ref = f"{user_id}/{app_id}/models/{model_id}"
+    predict_cmd = code_script.generate_predict_hint(method_signatures or [], model_ref)
+
+    out.phase_header("Next Steps")
+    out.hint(
+        "Deploy",
+        f'clarifai model deploy --model-url "{builder.model_ui_url}" --instance <instance-type>',
     )
-    click.echo()
-    out.status("See available instance types:")
-    out.status("  clarifai model deploy --instance-info")
+    out.hint("GPU info", "clarifai model deploy --instance-info")
+    out.hint("Predict", predict_cmd)
 
 
 def deploy_model(

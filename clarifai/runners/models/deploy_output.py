@@ -47,6 +47,20 @@ def warning(message):
     click.echo(click.style(f"  [warning] {message}", fg="yellow"))
 
 
+def hint(label, command):
+    """Print a CLI command hint: '  Label:  command' with yellow command."""
+    styled_label = click.style(f"{label}:", fg="white", bold=True)
+    styled_cmd = click.style(command, fg="yellow")
+    click.echo(f"  {styled_label:30s} {styled_cmd}")
+
+
+def link(label, url):
+    """Print a clickable URL: '  Label:  url' with OSC 8 hyperlink."""
+    styled_label = click.style(f"{label}:", fg="white", bold=True)
+    styled_url = f"\033]8;;{url}\033\\{click.style(url, fg='cyan', underline=True)}\033]8;;\033\\"
+    click.echo(f"  {styled_label:30s} {styled_url}")
+
+
 def event(message):
     """Print a deployment event (dimmed)."""
     click.echo(click.style(f"  {message}", fg="bright_black"))

@@ -273,11 +273,12 @@ class ModelDeployer:
 
         self.model_version_id = model_version_id
 
-        # Capture client script for display after deployment
+        # Capture client script and method signatures for display after deployment
         try:
             from clarifai.runners.utils import code_script
 
             method_signatures = self._builder.get_method_signatures()
+            self._method_signatures = method_signatures
             self._client_script = code_script.generate_client_script(
                 method_signatures,
                 user_id=self.user_id,
@@ -286,6 +287,7 @@ class ModelDeployer:
                 colorize=True,
             )
         except Exception:
+            self._method_signatures = None
             self._client_script = None
 
         # ── Deploy ──
@@ -791,6 +793,7 @@ class ModelDeployer:
             "user_id": self.user_id,
             "app_id": self.app_id,
             "client_script": getattr(self, '_client_script', None),
+            "method_signatures": getattr(self, '_method_signatures', None),
         }
 
     def _tail_runner_logs(self, stub, user_app_id, compute_cluster_id, nodepool_id, runner_id):

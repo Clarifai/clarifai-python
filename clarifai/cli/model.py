@@ -679,7 +679,9 @@ def init(
 
         # Patch config LAST to ensure sanitized model_id and checkpoint override
         config_path = os.path.join(model_path, "config.yaml")
-        _patch_config(config_path, model_id=model_id, checkpoints_repo_id=model_name)
+        # Only set checkpoints for HF-based toolkits; ollama/lmstudio use toolkit.model instead
+        hf_repo = model_name if toolkit in ('huggingface', 'vllm', 'sglang') else None
+        _patch_config(config_path, model_id=model_id, checkpoints_repo_id=hf_repo)
 
     else:
         # Template-based initialization (mcp, openai, python, or no toolkit)
@@ -970,7 +972,7 @@ def _print_deploy_result(result):
     click.echo()
     out.success("Model deployed successfully!")
     click.echo()
-    out.info("Model", model_url)
+    out.link("Model", model_url)
     out.info("Version", result['model_version_id'])
     out.info("Deployment", result['deployment_id'])
     if result.get('instance_type'):
@@ -988,15 +990,19 @@ def _print_deploy_result(result):
         click.echo("=" * 60)
         click.echo(client_script)
         click.echo("=" * 60)
-    else:
-        click.echo("\n  Predict:")
-        click.echo('    from clarifai.client import Model')
-        click.echo(f'    model = Model(url="{model_url}")')
-        click.echo('    model.predict(...)  # see model.method_signatures for available methods')
 
-    click.echo("\n  Check the Model Logs:")
-    click.echo(f'    clarifai model logs --model-url "{model_url}"')
-    click.echo("")
+    from clarifai.runners.utils.code_script import generate_predict_hint
+
+    model_ref = f'{result["user_id"]}/{result["app_id"]}/models/{result["model_id"]}'
+    predict_cmd = generate_predict_hint(
+        result.get('method_signatures') or [],
+        model_ref,
+        deployment_id=result.get('deployment_id'),
+    )
+
+    out.phase_header("Next Steps")
+    out.hint("Predict", predict_cmd)
+    out.hint("Logs", f'clarifai model logs --model-url "{model_url}"')
 
 
 @model.command()
@@ -1646,23 +1652,24 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             base_url=base_url,
             colorize=True,
         )
-        out.status("Code snippet:")
         click.echo(snippet)
-        click.echo()
 
-        # Playground URL
         ui_base = getattr(ctx.obj.current, 'ui', None) or "https://clarifai.com"
-        out.status("Playground:")
-        out.status(
-            f"  {ui_base}/playground?model={model_id}__{version_id}&user_id={user_id}&app_id={app_id}"
+        playground_url = (
+            f"{ui_base}/playground?model={model_id}__{version_id}"
+            f"&user_id={user_id}&app_id={app_id}"
         )
-        click.echo()
+        model_url = f"{ui_base}/{user_id}/{app_id}/models/{model_id}"
+        model_ref = f"{user_id}/{app_id}/models/{model_id}"
+        predict_cmd = code_script.generate_predict_hint(
+            method_signatures or [], model_ref, deployment_id=deployment_id
+        )
 
-        # Model URL
-        out.status("Model URL:")
-        out.status(f"  {ui_base}/{user_id}/{app_id}/models/{model_id}")
+        out.phase_header("Next Steps")
+        out.hint("Predict", predict_cmd)
+        out.link("Playground", playground_url)
+        out.link("Model URL", model_url)
         click.echo()
-
         out.status("Press Ctrl+C to stop.")
         click.echo()
 
@@ -1817,112 +1824,485 @@ def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
             raise click.Abort()
 
 
-@model.command(help="Perform a prediction using the model.")
+def _resolve_model_ref(model_ref, ui_base=None):
+    """Resolve a model reference to a full Clarifai URL.
+
+    Accepts:
+      - Full URL: https://clarifai.com/user/app/models/model → passthrough
+      - Shorthand: user/app/models/model → prepend UI base
+
+    Args:
+        model_ref: Model reference string.
+        ui_base: UI base URL. Defaults to DEFAULT_UI.
+
+    Returns:
+        str: Full Clarifai model URL.
+
+    Raises:
+        click.UsageError: If format is invalid.
+    """
+    from clarifai.utils.constants import DEFAULT_UI
+
+    if not model_ref:
+        return None
+
+    if model_ref.startswith(("http://", "https://")):
+        return model_ref
+
+    parts = model_ref.split("/")
+    if len(parts) == 4 and parts[2] == "models":
+        base = ui_base or DEFAULT_UI
+        return f"{base.rstrip('/')}/{model_ref}"
+
+    raise click.UsageError(
+        f"Invalid model reference: '{model_ref}'. "
+        "Use user_id/app_id/models/model_id or a full URL."
+    )
+
+
+def _get_first_str_param(model_client, method_name):
+    """Find the first string-typed input parameter name for a method.
+
+    Args:
+        model_client: ModelClient instance with fetched signatures.
+        method_name: Method name to inspect.
+
+    Returns:
+        str or None: The parameter name, or None if no string param found.
+    """
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    if not model_client._defined:
+        model_client.fetch()
+    method_sig = model_client._method_signatures.get(method_name)
+    if not method_sig:
+        return None
+    for field in method_sig.input_fields:
+        if field.type == resources_pb2.ModelTypeField.DataType.STR:
+            return field.name
+    return None
+
+
+def _get_first_media_param(model_client, method_name):
+    """Find the first Image/Video/Audio-typed input parameter name and its type.
+
+    Args:
+        model_client: ModelClient instance with fetched signatures.
+        method_name: Method name to inspect.
+
+    Returns:
+        tuple: (param_name, data_type_enum) or (None, None).
+    """
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    media_types = {
+        resources_pb2.ModelTypeField.DataType.IMAGE: 'image',
+        resources_pb2.ModelTypeField.DataType.VIDEO: 'video',
+        resources_pb2.ModelTypeField.DataType.AUDIO: 'audio',
+    }
+    if not model_client._defined:
+        model_client.fetch()
+    method_sig = model_client._method_signatures.get(method_name)
+    if not method_sig:
+        return None, None
+    for field in method_sig.input_fields:
+        if field.type in media_types:
+            return field.name, media_types[field.type]
+    return None, None
+
+
+def _coerce_input_value(value, model_client, method_name, param_name):
+    """Coerce a string value to the correct type based on the method signature.
+
+    Args:
+        value: String value to coerce.
+        model_client: ModelClient instance.
+        method_name: Method name.
+        param_name: Parameter name.
+
+    Returns:
+        Coerced value.
+    """
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    if not model_client._defined:
+        model_client.fetch()
+    method_sig = model_client._method_signatures.get(method_name)
+    if not method_sig:
+        return value
+    type_map = {
+        resources_pb2.ModelTypeField.DataType.INT: int,
+        resources_pb2.ModelTypeField.DataType.FLOAT: float,
+        resources_pb2.ModelTypeField.DataType.BOOL: lambda v: v.lower() in ('true', '1', 'yes'),
+    }
+    for field in method_sig.input_fields:
+        if field.name == param_name and field.type in type_map:
+            try:
+                return type_map[field.type](value)
+            except (ValueError, TypeError):
+                return value
+    return value
+
+
+def _parse_kv_inputs(input_params, model_client, method_name):
+    """Parse key=value input parameters into a dict with type coercion.
+
+    Args:
+        input_params: Tuple of "key=value" strings.
+        model_client: ModelClient instance for type coercion.
+        method_name: Method name for signature lookup.
+
+    Returns:
+        dict: Parsed parameters.
+    """
+    result = {}
+    for kv in input_params:
+        if '=' not in kv:
+            raise click.UsageError(f"Invalid input format: '{kv}'. Use key=value.")
+        key, value = kv.split('=', 1)
+        result[key] = _coerce_input_value(value, model_client, method_name, key)
+    return result
+
+
+def _detect_media_type_from_ext(path):
+    """Detect media type from file extension.
+
+    Returns:
+        str: 'image', 'video', or 'audio'.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    video_exts = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv'}
+    audio_exts = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a', '.wma'}
+    if ext in video_exts:
+        return 'video'
+    elif ext in audio_exts:
+        return 'audio'
+    return 'image'
+
+
+def _is_streaming_method(model_client, method_name):
+    """Check if a method returns a streaming (Iterator) response.
+
+    Args:
+        model_client: ModelClient instance.
+        method_name: Method name.
+
+    Returns:
+        bool: True if the method returns an Iterator type.
+    """
+    sig_str = model_client.method_signature(method_name)
+    # Signature looks like: "def name(...) -> Iterator[str]:"
+    return_part = sig_str.split('->')[-1].strip() if '->' in sig_str else ''
+    return return_part.lower().startswith('iterator')
+
+
+def _select_method(model_methods, model_client, explicit_method, is_chat, has_text_input):
+    """Select the best method to call based on available methods and flags.
+
+    Priority:
+      1. --chat → openai_stream_transport
+      2. --method explicit → use that
+      3. OpenAI auto-detection (has text input + model has openai_stream_transport)
+      4. Streaming method (generate, or any Iterator-returning method)
+      5. Fallback to predict
+
+    Returns:
+        tuple: (method_name, is_openai_chat_path)
+    """
+    methods = list(model_methods)
+
+    # 1. --chat flag
+    if is_chat:
+        if 'openai_stream_transport' in methods:
+            return 'openai_stream_transport', True
+        elif 'openai_transport' in methods:
+            return 'openai_transport', True
+        else:
+            raise click.UsageError(
+                "This model does not support OpenAI chat. Available methods: " + ", ".join(methods)
+            )
+
+    # 2. Explicit --method
+    if explicit_method:
+        if explicit_method in methods:
+            return explicit_method, False
+        raise click.UsageError(
+            f"Method '{explicit_method}' not available. Available methods: " + ", ".join(methods)
+        )
+
+    # 3. OpenAI auto-detection for text input
+    if has_text_input and 'openai_stream_transport' in methods:
+        return 'openai_stream_transport', True
+
+    # 4. Prefer streaming method
+    for m in methods:
+        if m in ('openai_stream_transport', 'openai_transport'):
+            continue
+        if _is_streaming_method(model_client, m):
+            return m, False
+
+    # 5. Fallback to predict or first available
+    if 'predict' in methods:
+        return 'predict', False
+    return methods[0] if methods else 'predict', False
+
+
+def _build_chat_request(message):
+    """Build an OpenAI-compatible chat request JSON string."""
+    return json.dumps(
+        {
+            "messages": [{"role": "user", "content": message}],
+            "stream": True,
+        }
+    )
+
+
+def _display_openai_stream(stream_response, output_format):
+    """Display streaming OpenAI chat response, handling reasoning_content and content.
+
+    Args:
+        stream_response: Iterator of streaming chunks.
+        output_format: 'text' or 'json'.
+    """
+    full_reasoning = []
+    full_content = []
+    in_reasoning = False
+
+    for chunk in stream_response:
+        try:
+            if isinstance(chunk, str):
+                data = json.loads(chunk) if chunk.strip() else {}
+            else:
+                data = chunk
+        except (json.JSONDecodeError, TypeError):
+            if output_format == 'text':
+                click.echo(chunk, nl=False)
+            full_content.append(str(chunk))
+            continue
+
+        if not isinstance(data, dict):
+            if output_format == 'text':
+                click.echo(str(data), nl=False)
+            full_content.append(str(data))
+            continue
+
+        # Handle OpenAI SSE format: data contains choices[0].delta
+        choices = data.get('choices', [])
+        if not choices:
+            # Might be raw text content
+            if output_format == 'text':
+                click.echo(str(data), nl=False)
+            full_content.append(str(data))
+            continue
+
+        delta = choices[0].get('delta', {})
+        reasoning = delta.get('reasoning_content', '')
+        content = delta.get('content', '')
+
+        if reasoning and output_format == 'text':
+            if not in_reasoning:
+                click.echo('<think>', nl=True)
+                in_reasoning = True
+            click.echo(reasoning, nl=False)
+            full_reasoning.append(reasoning)
+
+        if content:
+            if in_reasoning and output_format == 'text':
+                click.echo('\n</think>', nl=True)
+                in_reasoning = False
+            if output_format == 'text':
+                click.echo(content, nl=False)
+            full_content.append(content)
+
+    if in_reasoning and output_format == 'text':
+        click.echo('\n</think>', nl=True)
+
+    if output_format == 'text':
+        click.echo()  # Final newline
+    elif output_format == 'json':
+        result = {}
+        if full_reasoning:
+            result['reasoning'] = ''.join(full_reasoning)
+        result['result'] = ''.join(full_content)
+        click.echo(json.dumps(result))
+
+
+@model.command()
+@click.argument('model_ref', required=False, default=None)
+@click.argument('text_input', required=False, default=None)
 @click.option(
-    '--config',
+    '-i',
+    '--input',
+    'input_params',
+    multiple=True,
+    help='Named parameter as key=value (repeatable).',
+)
+@click.option(
+    '--inputs',
+    required=False,
+    help='All parameters as JSON string.',
+)
+@click.option(
+    '--file',
+    'input_file',
     type=click.Path(exists=True),
     required=False,
-    help='Path to the model predict config file.',
+    help='Input file (image, audio, video).',
 )
-@click.option('--model_id', required=False, help='Model ID of the model used to predict.')
-@click.option('--user_id', required=False, help='User ID of the model used to predict.')
-@click.option('--app_id', required=False, help='App ID of the model used to predict.')
-@click.option('--model_url', required=False, help='Model URL of the model used to predict.')
+@click.option(
+    '--url',
+    'input_url',
+    required=False,
+    help='Input URL (image, audio, video).',
+)
+@click.option(
+    '--chat',
+    'chat_message',
+    required=False,
+    help='OpenAI chat message (auto-uses OpenAI client).',
+)
+@click.option(
+    '--method',
+    'explicit_method',
+    required=False,
+    default=None,
+    help='Method to call. Overrides auto-selection.',
+)
+@click.option(
+    '--info',
+    is_flag=True,
+    default=False,
+    help='Show available methods and their signatures, then exit.',
+)
+@click.option(
+    '-o',
+    '--output',
+    'output_format',
+    type=click.Choice(['text', 'json']),
+    default='text',
+    help='Output format (default: text).',
+)
+@click.option(
+    '--deployment',
+    'deployment_id',
+    required=False,
+    help='Route to a specific deployment.',
+)
+@click.option(
+    '--model-url',
+    'model_url_opt',
+    required=False,
+    help='Full model URL (alternative to positional MODEL).',
+)
+# Hidden legacy flags — still functional
+@click.option('--model_id', required=False, hidden=True, help='Model ID.')
+@click.option('--user_id', required=False, hidden=True, help='User ID.')
+@click.option('--app_id', required=False, hidden=True, help='App ID.')
+@click.option('--model_url', 'model_url_legacy', required=False, hidden=True, help='Model URL.')
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
     required=False,
-    help='Compute Cluster ID to use for the model',
+    hidden=True,
+    help='Compute Cluster ID.',
 )
-@click.option('-np_id', '--nodepool_id', required=False, help='Nodepool ID to use for the model')
 @click.option(
-    '-dpl_id', '--deployment_id', required=False, help='Deployment ID to use for the model'
+    '-np_id',
+    '--nodepool_id',
+    required=False,
+    hidden=True,
+    help='Nodepool ID.',
+)
+@click.option(
+    '-dpl_id',
+    '--deployment_id',
+    'deployment_id_legacy',
+    required=False,
+    hidden=True,
+    help='Deployment ID.',
 )
 @click.option(
     '-dpl_usr_id',
     '--deployment_user_id',
     required=False,
-    help='User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.',
+    hidden=True,
+    help='Deployment user ID.',
 )
-@click.option(
-    '--inputs',
-    required=False,
-    help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')',
-)
-@click.option('--method', required=False, default='predict', help='Method to call on the model.')
 @click.pass_context
 def predict(
     ctx,
-    config,
+    model_ref,
+    text_input,
+    input_params,
+    inputs,
+    input_file,
+    input_url,
+    chat_message,
+    explicit_method,
+    info,
+    output_format,
+    deployment_id,
+    model_url_opt,
     model_id,
     user_id,
     app_id,
-    model_url,
+    model_url_legacy,
     compute_cluster_id,
     nodepool_id,
-    deployment_id,
+    deployment_id_legacy,
     deployment_user_id,
-    inputs,
-    method,
 ):
-    """Predict using a Clarifai model.
+    """Run a prediction against a Clarifai model.
 
     \b
-    Model Identification:
-        Use either --model_url OR the combination of --model_id, --user_id, and --app_id
-
-    \b
-    Input Methods:
-        --inputs: JSON string with parameters (e.g., '{"prompt": "Hello", "max_tokens": 100}')
-        --method: Method to call on the model (default is 'predict')
-
-    \b
-    Compute Options:
-        Use either --deployment_id OR both --compute_cluster_id and --nodepool_id
+    Arguments:
+      MODEL   Model as user_id/app_id/models/model_id or full URL.
+      INPUT   Text input (for text models). Use --file or --url for media.
 
     \b
     Examples:
-        Text model:
-            clarifai model predict --model_url <url> --inputs '{"prompt": "Hello world"}'
-
-        With compute cluster:
-            clarifai model predict --model_id <id> --user_id <uid> --app_id <aid> \\
-                                  --compute_cluster_id <cc_id> --nodepool_id <np_id> \\
-                                  --inputs '{"prompt": "Hello"}'
+      clarifai model predict openai/chat-completion/models/GPT-4 "Hello world"
+      clarifai model predict openai/chat-completion/models/GPT-4 --info
+      echo "Hello" | clarifai model predict openai/chat-completion/models/GPT-4
+      clarifai model predict my/app/models/detector --file photo.jpg
+      clarifai model predict my/app/models/detector --url https://example.com/img.jpg
+      clarifai model predict my/app/models/m -i prompt="Hello" -i max_tokens=200
+      clarifai model predict openai/chat-completion/models/GPT-4 --chat "What is AI?"
+      clarifai model predict openai/chat-completion/models/GPT-4 "Hello" -o json
     """
+    import sys
+
     from clarifai.client.model import Model
     from clarifai.urls.helper import ClarifaiUrlHelper
-    from clarifai.utils.cli import from_yaml, validate_context
+    from clarifai.utils.cli import validate_context
 
     validate_context(ctx)
 
-    # Load configuration from file if provided
-    if config:
-        config_data = from_yaml(config)
-        # Override None values with config data
-        model_id = model_id or config_data.get('model_id')
-        user_id = user_id or config_data.get('user_id')
-        app_id = app_id or config_data.get('app_id')
-        model_url = model_url or config_data.get('model_url')
-        compute_cluster_id = compute_cluster_id or config_data.get('compute_cluster_id')
-        nodepool_id = nodepool_id or config_data.get('nodepool_id')
-        deployment_id = deployment_id or config_data.get('deployment_id')
-        deployment_user_id = deployment_user_id or config_data.get('deployment_user_id')
-        inputs = inputs or config_data.get('inputs')
-        method = method or config_data.get('method', 'predict')
+    # --- Merge legacy flags ---
+    model_url = model_url_opt or model_url_legacy
+    deployment_id = deployment_id or deployment_id_legacy
 
-    # Validate parameters
-    _validate_model_params(model_id, user_id, app_id, model_url)
-    _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id)
+    # --- Resolve model URL ---
+    # Priority: positional model_ref > --model-url/--model_url > --model_id triple > config
+    if model_ref:
+        model_url = _resolve_model_ref(model_ref, ui_base=ctx.obj.current.ui)
+    elif not model_url:
+        # Try legacy triple
+        if all([model_id, user_id, app_id]):
+            model_url = ClarifaiUrlHelper.clarifai_url(
+                user_id=user_id, app_id=app_id, resource_type="models", resource_id=model_id
+            )
+        else:
+            raise click.UsageError(
+                "No model specified. Use: clarifai model predict <user/app/models/model> ..."
+            )
 
-    # Generate model URL if not provided
-    if not model_url:
-        model_url = ClarifaiUrlHelper.clarifai_url(
-            user_id=user_id, app_id=app_id, resource_type="models", resource_id=model_id
-        )
     logger.debug(f"Using model at URL: {model_url}")
 
-    # Create model instance
+    # --- Validate compute params ---
+    _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id)
+
+    # --- Create model instance ---
     model = Model(
         url=model_url,
         pat=ctx.obj.current.pat,
@@ -1933,27 +2313,123 @@ def predict(
         deployment_user_id=deployment_user_id,
     )
 
-    model_methods = model.client.available_methods()
-    stream_method = (
-        model.client.method_signature(method).split()[-1][:-1].lower().startswith('iter')
+    model_methods = list(model.client.available_methods())
+
+    # --- --info: display methods and exit ---
+    if info:
+        click.echo(f"Model: {model.id} ({model.user_id}/{model.app_id})\n")
+        click.echo("Methods:")
+        for m in model_methods:
+            sig = model.client.method_signature(m)
+            click.echo(f"  {sig}")
+        return
+
+    # --- Determine if we have text input (for OpenAI auto-detection) ---
+    has_text = bool(text_input or chat_message)
+    if not has_text and not input_file and not input_url and not inputs and not input_params:
+        # Check stdin
+        if not sys.stdin.isatty():
+            text_input = sys.stdin.read().strip()
+            has_text = bool(text_input)
+
+    # --- Select method ---
+    method_name, is_openai_path = _select_method(
+        model_methods, model.client, explicit_method, bool(chat_message), has_text
     )
+    is_stream = _is_streaming_method(model.client, method_name)
 
-    # Determine prediction method and execute
-    if inputs and (method in model_methods):
-        # Pythonic model prediction with JSON inputs
+    # --- Build inputs ---
+    if is_openai_path:
+        # OpenAI chat path
+        chat_text = chat_message or text_input
+        if not chat_text:
+            raise click.UsageError("No input provided for chat. Pass a text argument or --chat.")
+        request_body = _build_chat_request(chat_text)
+        model_prediction = getattr(model, method_name)(msg=request_body)
+        _display_openai_stream(model_prediction, output_format)
+        return
+
+    # Build inputs dict from various sources
+    inputs_dict = {}
+
+    # --inputs JSON
+    if inputs:
         inputs_dict = _parse_json_param(inputs, "inputs")
-        inputs_dict = _process_multimodal_inputs(inputs_dict)
-        model_prediction = getattr(model, method)(**inputs_dict)
-    else:
-        logger.error(
-            f"ValueError: The model does not support the '{method}' method. Please check the model's capabilities."
-        )
-        raise click.Abort()
 
-    if stream_method:
-        for chunk in model_prediction:
-            click.echo(chunk, nl=False)
-        click.echo()  # Ensure a newline after the stream ends
+    # -i key=value pairs (override JSON keys)
+    if input_params:
+        kv_dict = _parse_kv_inputs(input_params, model.client, method_name)
+        inputs_dict.update(kv_dict)
+
+    # --file
+    if input_file:
+        from clarifai.runners.utils.data_types import Audio, Image, Video
+
+        param_name, media_type = _get_first_media_param(model.client, method_name)
+        if not param_name:
+            # Fallback: detect from extension, use generic name
+            media_type = _detect_media_type_from_ext(input_file)
+            param_name = media_type
+
+        with open(input_file, 'rb') as f:
+            file_bytes = f.read()
+
+        type_cls = {'image': Image, 'video': Video, 'audio': Audio}[media_type]
+        inputs_dict[param_name] = type_cls(bytes=file_bytes)
+
+    # --url
+    if input_url:
+        from clarifai.runners.utils.data_types import Audio, Image, Video
+
+        param_name, media_type = _get_first_media_param(model.client, method_name)
+        if not param_name:
+            media_type = _detect_media_type_from_ext(input_url)
+            param_name = media_type
+
+        type_cls = {'image': Image, 'video': Video, 'audio': Audio}[media_type]
+        inputs_dict[param_name] = type_cls(url=input_url)
+
+    # Positional text input or stdin
+    if not inputs_dict and text_input:
+        param_name = _get_first_str_param(model.client, method_name)
+        if param_name:
+            inputs_dict[param_name] = text_input
+        else:
+            # If no str param found, try passing as first positional
+            inputs_dict = {'text': text_input}
+
+    if not inputs_dict:
+        raise click.UsageError(
+            "No input provided. Pass text, --file, --url, --inputs, or -i key=value.\n"
+            "Use --info to see available methods and their parameters."
+        )
+
+    # Process multimodal inputs (URL/file strings in dict values)
+    inputs_dict = _process_multimodal_inputs(inputs_dict)
+
+    # --- Execute prediction ---
+    if method_name not in model_methods:
+        raise click.UsageError(
+            f"Method '{method_name}' not available. Available methods: " + ", ".join(model_methods)
+        )
+
+    model_prediction = getattr(model, method_name)(**inputs_dict)
+
+    # --- Display output ---
+    if is_stream:
+        if output_format == 'json':
+            chunks = []
+            for chunk in model_prediction:
+                if isinstance(chunk, str):
+                    chunks.append(chunk)
+            click.echo(json.dumps({"result": ''.join(chunks)}))
+        else:
+            for chunk in model_prediction:
+                if isinstance(chunk, str):
+                    click.echo(chunk, nl=False)
+            click.echo()
+    elif output_format == 'json':
+        click.echo(json.dumps({"result": str(model_prediction)}))
     else:
         click.echo(model_prediction)
 

@@ -7,6 +7,55 @@ from clarifai.runners.utils import data_utils
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import MCP_TRANSPORT_NAME, OPENAI_TRANSPORT_NAME
 
+_SAMPLE_URLS = {
+    resources_pb2.ModelTypeField.DataType.IMAGE: "https://s3.amazonaws.com/samples.clarifai.com/featured-models/image-captioning-statue-of-liberty.jpeg",
+    resources_pb2.ModelTypeField.DataType.AUDIO: "https://s3.amazonaws.com/samples.clarifai.com/GoodMorning.wav",
+    resources_pb2.ModelTypeField.DataType.VIDEO: "https://s3.amazonaws.com/samples.clarifai.com/beer.mp4",
+}
+
+
+def generate_predict_hint(
+    method_signatures: List[resources_pb2.MethodSignature],
+    model_ref: str,
+    deployment_id: str = None,
+) -> str:
+    """Build a concrete ``clarifai model predict`` command from method signatures.
+
+    Returns a ready-to-copy CLI string like::
+
+        clarifai model predict user/app/models/m "Hello world"
+        clarifai model predict user/app/models/m --url https://...jpg
+    """
+    deployment_flag = f" --deployment {deployment_id}" if deployment_id else ""
+    base = f"clarifai model predict {model_ref}{deployment_flag}"
+
+    if not method_signatures:
+        return f"{base} --info"
+
+    # OpenAI-style model — positional text auto-routes to OpenAI client
+    if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
+        return f'{base} "Hello world"'
+
+    # MCP model → --info (no direct predict)
+    if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):
+        return f"{base} --info"
+
+    # Pick the first user-facing method
+    sig = method_signatures[0]
+    if not sig.input_fields:
+        return f"{base} --info"
+
+    first_field = sig.input_fields[0]
+    dt = first_field.type
+    DT = resources_pb2.ModelTypeField.DataType
+
+    if dt in (DT.STR, DT.TEXT):
+        return f'{base} "Hello world"'
+    elif dt in _SAMPLE_URLS:
+        return f"{base} --url {_SAMPLE_URLS[dt]}"
+    else:
+        return f"{base} --info"
+
 
 def has_signature_method(
     name: str, method_signatures: List[resources_pb2.MethodSignature]
