@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -122,6 +122,47 @@ def _parse_and_validate_path(path, require_artifact=True, operation_type="genera
             raise UserError("Path must include user_id, app_id, and artifact_id")
 
     return parsed
+
+
+def _resolve_latest_version(artifact) -> Optional[Any]:
+    """Resolve latest artifact version"""
+    return getattr(artifact, 'artifact_version', None)
+
+
+def _resolve_latest_version_id(artifact) -> str:
+    """Resolve latest artifact version ID from different response shapes."""
+    artifact_version = _resolve_latest_version(artifact)
+    if artifact_version and getattr(artifact_version, 'id', None):
+        return artifact_version.id
+
+    for field_name in ('artifact_version_id', 'latest_version_id', 'version_id'):
+        value = getattr(artifact, field_name, None)
+        if value:
+            return value
+
+    return 'N/A'
+
+
+def _resolve_visibility(resources_pb2, artifact) -> str:
+    """Resolve visibility display value from latest artifact version"""
+    artifact_version = _resolve_latest_version(artifact)
+    if not artifact_version:
+        return ''
+
+    visibility = getattr(artifact_version, 'visibility', None)
+    if not visibility:
+        return ''
+
+    gettable = getattr(visibility, 'gettable', None)
+    if gettable is None:
+        return ''
+
+    try:
+        return resources_pb2.Visibility.Gettable.Name(gettable)
+    except ValueError:
+        return ''
+
+    return ''
 
 
 def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: dict, **kwargs):
@@ -311,9 +352,8 @@ def list(ctx, path, versions):
                 artifacts_list,
                 custom_columns={
                     'ARTIFACT': lambda a: a.id,
-                    'LATEST_VERSION': lambda a: a.artifact_version.id
-                    if a.artifact_version and a.artifact_version.id
-                    else 'N/A',
+                    'LATEST_VERSION': lambda a: _resolve_latest_version_id(a),
+                    'VISIBILITY': lambda a: _resolve_visibility(resources_pb2, a),
                     'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
                 },
             )
