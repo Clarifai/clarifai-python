@@ -604,12 +604,12 @@ spec:
             os.unlink(temp_path)
 
     def test_pipeline_builder_no_step_directories(self, temp_config_file_no_dirs):
-        """Test PipelineBuilder with config that has no step_directories."""
+        """Test PipelineBuilder with config that has no step_directories but all templateRefs have versions."""
         builder = PipelineBuilder(temp_config_file_no_dirs)
 
-        # Should handle missing step_directories gracefully
+        # Should succeed when step_directories is missing but all templateRefs already have versions
         result = builder.upload_pipeline_steps()
-        assert result is False
+        assert result is True
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
