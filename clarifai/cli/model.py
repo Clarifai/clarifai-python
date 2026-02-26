@@ -1110,7 +1110,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     # Validate requirements for none mode only (env creates its own venv, container builds image)
     if mode not in ("container", "env"):
         dependencies = parse_requirements(model_path)
-        if not check_requirements_installed(dependencies=dependencies):
+        if not check_requirements_installed(model_path=model_path, dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
         if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
@@ -1376,8 +1376,8 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     # Skip for container (builds image) and env (creates its own venv)
     dependencies = parse_requirements(model_path)
     if mode not in ("container", "env"):
-        if not check_requirements_installed(dependencies=dependencies):
-            raise UserError(f"Requirements not installed for model at {model_path}.")
+        if not check_requirements_installed(model_path=model_path, dependencies=dependencies):
+            raise click.Abort()
 
     if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
         if not check_ollama_installed():
@@ -1546,7 +1546,39 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         try:
             customize_lmstudio_model(model_path=model_path, user_id=user_id)
         except Exception as e:
-            raise UserError(f"Failed to customize LM Studio model: {e}")
+            logger.error(f"Failed to customize LM Studio model: {e}")
+            raise click.Abort()
+
+    logger.info("✅ Starting local runner...")
+
+    def print_code_snippet():
+        if ctx.obj.current is None:
+            logger.debug("Context is None. Skipping code snippet generation.")
+        else:
+            from clarifai.runners.utils import code_script
+
+            snippet = code_script.generate_client_script(
+                method_signatures,
+                user_id=ctx.obj.current.user_id,
+                app_id=ctx.obj.current.app_id,
+                model_id=ctx.obj.current.model_id,
+                deployment_id=ctx.obj.current.deployment_id,
+                base_url=ctx.obj.current.api_base,
+                colorize=True,
+            )
+            logger.info(
+                "✅ Your model is running locally and is ready for requests from the API...\n"
+            )
+            logger.info(
+                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+            )
+            playground_url = f"{ctx.obj.current.ui}/playground?model={ctx.obj.current.model_id}__{ctx.obj.current.model_version_id}&user_id={ctx.obj.current.user_id}&app_id={ctx.obj.current.app_id}"
+            logger.info("> Playground:   To chat with your model, visit:")
+            click.echo(f"  {playground_url}\n")
+            api_url = f"{ctx.obj.current.ui}/{ctx.obj.current.user_id}/{ctx.obj.current.app_id}/models/{ctx.obj.current.model_id}"
+            logger.info("> API URL:      To call your model via the API, use this model URL:")
+            click.echo(f"  {api_url}\n")
+            logger.info("Press CTRL+C to stop the runner.\n")
 
     serving_args = {
         "pool_size": concurrency,
