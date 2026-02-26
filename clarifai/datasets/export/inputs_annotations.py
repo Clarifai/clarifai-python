@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import threading
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
@@ -126,9 +127,11 @@ class InputAnnotationDownloader:
         self.num_workers = min(num_workers, 10)  # Max 10 threads
         self.num_inputs = 0
         self.num_annotations = 0
+        self.num_annotation_files = 0
         self.split_prefix = None
         self.session = session
         self.input_ext = dict(image=".png", text=".txt", audio=".mp3", video=".mp4")
+        self.zip_lock = threading.Lock()  # Lock to protect concurrent ZIP file writes
         if isinstance(self.input_iterator, DatasetExportReader):
             self.split_prefix = self.input_iterator.split_dir
 
@@ -136,41 +139,76 @@ class InputAnnotationDownloader:
         self, new_archive: zipfile.ZipFile, hosted_url: str, file_name: str
     ) -> None:
         """Use PIL ImageFile to return image parsed from the response bytestring (from requests) and append to zip file."""
-        p = ImageFile.Parser()
-        p.feed(self.session.get(hosted_url).content)
-        image = p.close()
-        image_file = BytesIO()
-        image.save(image_file, 'PNG')
-        new_archive.writestr(file_name, image_file.getvalue())
+        try:
+            response = self.session.get(hosted_url, timeout=60)
+            response.raise_for_status()
+            p = ImageFile.Parser()
+            p.feed(response.content)
+            image = p.close()
+            image_file = BytesIO()
+            image.save(image_file, 'PNG')
+            # Thread-safe write to ZIP archive
+            with self.zip_lock:
+                new_archive.writestr(file_name, image_file.getvalue())
+        except requests.exceptions.Timeout:
+            raise Exception(f"Timeout downloading image from {hosted_url}")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error downloading image from {hosted_url}: {e}")
+        except Exception as e:
+            raise Exception(f"Error processing image from {hosted_url}: {e}")
 
     def _save_text_to_archive(
         self, new_archive: zipfile.ZipFile, hosted_url: str, file_name: str
     ) -> None:
         """Gets the text response bytestring (from requests) and append to zip file."""
-        text_content = self.session.get(hosted_url).content
-        new_archive.writestr(file_name, text_content)
+        try:
+            response = self.session.get(hosted_url, timeout=60)
+            response.raise_for_status()
+            # Thread-safe write to ZIP archive
+            with self.zip_lock:
+                new_archive.writestr(file_name, response.content)
+        except requests.exceptions.Timeout:
+            raise Exception(f"Timeout downloading text from {hosted_url}")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error downloading text from {hosted_url}: {e}")
 
     def _save_audio_to_archive(
         self, new_archive: zipfile.ZipFile, hosted_url: str, file_name: str
     ) -> None:
         """Gets the audio response bytestring (from requests) as chunks and append to zip file."""
-        audio_response = self.session.get(hosted_url, stream=True)
-        audio_stream = BytesIO()
-        # Retrieve the audio content in chunks and write to the BytesIO object
-        for chunk in audio_response.iter_content(chunk_size=128):
-            audio_stream.write(chunk)
-        new_archive.writestr(file_name, audio_stream.getvalue())
+        try:
+            audio_response = self.session.get(hosted_url, stream=True, timeout=60)
+            audio_response.raise_for_status()
+            audio_stream = BytesIO()
+            # Retrieve the audio content in chunks and write to the BytesIO object
+            for chunk in audio_response.iter_content(chunk_size=128):
+                audio_stream.write(chunk)
+            # Thread-safe write to ZIP archive
+            with self.zip_lock:
+                new_archive.writestr(file_name, audio_stream.getvalue())
+        except requests.exceptions.Timeout:
+            raise Exception(f"Timeout downloading audio from {hosted_url}")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error downloading audio from {hosted_url}: {e}")
 
     def _save_video_to_archive(
         self, new_archive: zipfile.ZipFile, hosted_url: str, file_name: str
     ) -> None:
         """Gets the video response bytestring (from requests) as chunks and append to zip file."""
-        video_response = self.session.get(hosted_url)
-        video_stream = BytesIO()
-        # Retrieve the video content in chunks and write to the BytesIO object
-        for chunk in video_response.iter_content(chunk_size=128):
-            video_stream.write(chunk)
-        new_archive.writestr(file_name, video_stream.getvalue())
+        try:
+            video_response = self.session.get(hosted_url, stream=True, timeout=120)
+            video_response.raise_for_status()
+            video_stream = BytesIO()
+            # Retrieve the video content in chunks and write to the BytesIO object
+            for chunk in video_response.iter_content(chunk_size=128):
+                video_stream.write(chunk)
+            # Thread-safe write to ZIP archive
+            with self.zip_lock:
+                new_archive.writestr(file_name, video_stream.getvalue())
+        except requests.exceptions.Timeout:
+            raise Exception(f"Timeout downloading video from {hosted_url}")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error downloading video from {hosted_url}: {e}")
 
     def _save_annotation_to_archive(
         self, new_archive: zipfile.ZipFile, annot_data: List[Dict], file_name: str
@@ -189,19 +227,31 @@ class InputAnnotationDownloader:
         # Convert the JSON string to bytes
         bytes_object = json_str.encode()
 
-        new_archive.writestr(file_name, bytes_object)
+        # Thread-safe write to ZIP archive
+        with self.zip_lock:
+            new_archive.writestr(file_name, bytes_object)
 
-    def _write_archive(self, input_, new_archive, split: Optional[str] = None) -> None:
-        """Writes the input, annotation archive into prefix dir."""
-        data_dict = MessageToDict(input_.data)
-        input_type = list(
-            filter(lambda x: x in list(data_dict.keys()), list(self.input_ext.keys()))
-        )[0]
-        hosted = getattr(input_.data, input_type).hosted
-        if hosted.prefix:
+    def _write_archive(self, input_, new_archive, split: Optional[str] = None) -> Dict[str, any]:
+        """Writes the input, annotation archive into prefix dir.
+
+        Returns:
+            Dict with status and counts: {"status": "skipped"|"success", "annot_count": int, "has_annotation_file": bool}
+        """
+        try:
+            data_dict = MessageToDict(input_.data)
+            input_type = list(
+                filter(lambda x: x in list(data_dict.keys()), list(self.input_ext.keys()))
+            )[0]
+            hosted = getattr(input_.data, input_type).hosted
+
+            if not hosted.prefix:
+                logger.debug(f"Skipping input {input_.id} - missing hosted URL")
+                return {"status": "skipped", "annot_count": 0, "has_annotation_file": False}
+
             assert 'orig' in hosted.sizes
             hosted_url = f"{hosted.prefix}/orig/{hosted.suffix}"
             file_name = os.path.join(split, "inputs", input_.id + self.input_ext[input_type])
+
             if input_type == "image":
                 self._save_image_to_archive(new_archive, hosted_url, file_name)
             elif input_type == "text":
@@ -210,47 +260,101 @@ class InputAnnotationDownloader:
                 self._save_audio_to_archive(new_archive, hosted_url, file_name)
             elif input_type == "video":
                 self._save_video_to_archive(new_archive, hosted_url, file_name)
+
             self.num_inputs += 1
 
-        if data_dict.get("metadata") or data_dict.get("concepts") or data_dict.get("regions"):
-            file_name = os.path.join(split, "annotations", input_.id + ".json")
-            annot_data = (
-                [{"metadata": data_dict.get("metadata", {})}]
-                + data_dict.get("regions", [])
-                + data_dict.get("concepts", [])
-            )
+            annot_count = 0
+            has_annotation_file = False
+            if data_dict.get("metadata") or data_dict.get("concepts") or data_dict.get("regions"):
+                file_name = os.path.join(split, "annotations", input_.id + ".json")
 
-            self._save_annotation_to_archive(new_archive, annot_data, file_name)
-            self.num_annotations += 1
+                # Build annotation data - only include metadata if it's not empty
+                annot_data = []
+                metadata = data_dict.get("metadata", {})
+                if metadata:
+                    annot_data.append({"metadata": metadata})
+
+                regions = data_dict.get("regions", [])
+                concepts = data_dict.get("concepts", [])
+                annot_data.extend(regions)
+                annot_data.extend(concepts)
+
+                self._save_annotation_to_archive(new_archive, annot_data, file_name)
+                annot_count = len(annot_data)
+                has_annotation_file = True
+
+            return {"status": "success", "annot_count": annot_count, "has_annotation_file": has_annotation_file}
+
+        except Exception as e:
+            logger.error(f"Error processing input {input_.id}: {e}")
+            raise
 
     def _check_output_archive(self, save_path: str) -> None:
         try:
             archive = zipfile.ZipFile(save_path, 'r')
         except zipfile.BadZipFile as e:
             raise e
-        assert len(archive.namelist()) == self.num_inputs + self.num_annotations, (
-            "Archive has %d inputs+annotations | expecting %d inputs+annotations"
-            % (len(archive.namelist()), self.num_inputs + self.num_annotations)
+        assert len(archive.namelist()) == self.num_inputs + self.num_annotation_files, (
+            "Archive has %d files | expecting %d inputs + %d annotation files = %d total files"
+            % (len(archive.namelist()), self.num_inputs, self.num_annotation_files,
+               self.num_inputs + self.num_annotation_files)
         )
 
     def download_archive(self, save_path: str, split: Optional[str] = None) -> None:
         """Downloads the archive from the URL into an archive of inputs, annotations in the directory format
         {split}/inputs and {split}/annotations.
         """
+        failed_inputs = []
+        skipped_inputs = []
+
         with zipfile.ZipFile(save_path, "a") as new_archive:
             with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
                 with tqdm(total=len(self.input_iterator), desc='Downloading Dataset') as progress:
-                    # Submit all jobs to the executor and store the returned futures
-                    futures = [
-                        executor.submit(self._write_archive, input_, new_archive, split)
-                        for input_ in self.input_iterator
-                    ]
+                    # Submit all jobs to the executor and store the returned futures with input IDs
+                    future_to_input = {}
+                    for input_ in self.input_iterator:
+                        future = executor.submit(self._write_archive, input_, new_archive, split)
+                        future_to_input[future] = input_.id
 
-                    for _ in as_completed(futures):
+                    # Check each completed future for exceptions
+                    for future in as_completed(future_to_input):
+                        input_id = future_to_input[future]
+                        try:
+                            result = future.result()
+                            if result["status"] == "skipped":
+                                skipped_inputs.append(input_id)
+                            else:
+                                # Accumulate annotation count and file count in main thread (thread-safe)
+                                self.num_annotations += result["annot_count"]
+                                if result["has_annotation_file"]:
+                                    self.num_annotation_files += 1
+                        except Exception as e:
+                            failed_inputs.append((input_id, str(e)))
+                            logger.error(f"Failed to download input {input_id}: {e}")
                         progress.update()
+
+        # Log summary of failures and skips
+        if failed_inputs:
+            logger.warning(
+                f"Failed to download {len(failed_inputs)} inputs: "
+                f"{[input_id for input_id, _ in failed_inputs[:10]]}"
+                + (" ..." if len(failed_inputs) > 10 else "")
+            )
+        if skipped_inputs:
+            logger.warning(
+                f"Skipped {len(skipped_inputs)} inputs (missing hosted URL): "
+                f"{skipped_inputs[:10]}" + (" ..." if len(skipped_inputs) > 10 else "")
+            )
 
         self._check_output_archive(save_path)
         logger.info(
-            "Downloaded %d inputs and %d annotations to %s"
-            % (self.num_inputs, self.num_annotations, save_path)
+            "Downloaded %d inputs and %d annotation files (containing %d total annotations) to %s"
+            % (self.num_inputs, self.num_annotation_files, self.num_annotations, save_path)
         )
+        logger.info(f"Average annotations per input: {self.num_annotations / max(self.num_inputs, 1):.2f}")
+
+        if failed_inputs or skipped_inputs:
+            logger.warning(
+                f"Download completed with issues: {len(failed_inputs)} failed, "
+                f"{len(skipped_inputs)} skipped out of {len(self.input_iterator)} total inputs"
+            )
