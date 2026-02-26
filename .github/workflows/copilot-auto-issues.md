@@ -1,8 +1,7 @@
 ---
 on:
   push:
-    branches: [ "master" ]
-  workflow_dispatch:      
+    branches: [ "master" ]  
 
 runs-on: [self-hosted]
 
