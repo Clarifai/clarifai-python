@@ -127,6 +127,7 @@ class InputAnnotationDownloader:
         self.num_workers = min(num_workers, 10)  # Max 10 threads
         self.num_inputs = 0
         self.num_annotations = 0
+        self.num_annotation_files = 0
         self.split_prefix = None
         self.session = session
         self.input_ext = dict(image=".png", text=".txt", audio=".mp3", video=".mp4")
@@ -230,11 +231,11 @@ class InputAnnotationDownloader:
         with self.zip_lock:
             new_archive.writestr(file_name, bytes_object)
 
-    def _write_archive(self, input_, new_archive, split: Optional[str] = None) -> Optional[str]:
+    def _write_archive(self, input_, new_archive, split: Optional[str] = None) -> Dict[str, any]:
         """Writes the input, annotation archive into prefix dir.
 
         Returns:
-            "skipped" if input was skipped due to missing hosted URL, None otherwise
+            Dict with status and counts: {"status": "skipped"|"success", "annot_count": int, "has_annotation_file": bool}
         """
         try:
             data_dict = MessageToDict(input_.data)
@@ -245,7 +246,7 @@ class InputAnnotationDownloader:
 
             if not hosted.prefix:
                 logger.debug(f"Skipping input {input_.id} - missing hosted URL")
-                return "skipped"
+                return {"status": "skipped", "annot_count": 0, "has_annotation_file": False}
 
             assert 'orig' in hosted.sizes
             hosted_url = f"{hosted.prefix}/orig/{hosted.suffix}"
@@ -262,18 +263,27 @@ class InputAnnotationDownloader:
 
             self.num_inputs += 1
 
+            annot_count = 0
+            has_annotation_file = False
             if data_dict.get("metadata") or data_dict.get("concepts") or data_dict.get("regions"):
                 file_name = os.path.join(split, "annotations", input_.id + ".json")
-                annot_data = (
-                    [{"metadata": data_dict.get("metadata", {})}]
-                    + data_dict.get("regions", [])
-                    + data_dict.get("concepts", [])
-                )
+
+                # Build annotation data - only include metadata if it's not empty
+                annot_data = []
+                metadata = data_dict.get("metadata", {})
+                if metadata:
+                    annot_data.append({"metadata": metadata})
+
+                regions = data_dict.get("regions", [])
+                concepts = data_dict.get("concepts", [])
+                annot_data.extend(regions)
+                annot_data.extend(concepts)
 
                 self._save_annotation_to_archive(new_archive, annot_data, file_name)
-                self.num_annotations += 1
+                annot_count = len(annot_data)
+                has_annotation_file = True
 
-            return None
+            return {"status": "success", "annot_count": annot_count, "has_annotation_file": has_annotation_file}
 
         except Exception as e:
             logger.error(f"Error processing input {input_.id}: {e}")
@@ -284,9 +294,10 @@ class InputAnnotationDownloader:
             archive = zipfile.ZipFile(save_path, 'r')
         except zipfile.BadZipFile as e:
             raise e
-        assert len(archive.namelist()) == self.num_inputs + self.num_annotations, (
-            "Archive has %d inputs+annotations | expecting %d inputs+annotations"
-            % (len(archive.namelist()), self.num_inputs + self.num_annotations)
+        assert len(archive.namelist()) == self.num_inputs + self.num_annotation_files, (
+            "Archive has %d files | expecting %d inputs + %d annotation files = %d total files"
+            % (len(archive.namelist()), self.num_inputs, self.num_annotation_files,
+               self.num_inputs + self.num_annotation_files)
         )
 
     def download_archive(self, save_path: str, split: Optional[str] = None) -> None:
@@ -310,8 +321,13 @@ class InputAnnotationDownloader:
                         input_id = future_to_input[future]
                         try:
                             result = future.result()
-                            if result == "skipped":
+                            if result["status"] == "skipped":
                                 skipped_inputs.append(input_id)
+                            else:
+                                # Accumulate annotation count and file count in main thread (thread-safe)
+                                self.num_annotations += result["annot_count"]
+                                if result["has_annotation_file"]:
+                                    self.num_annotation_files += 1
                         except Exception as e:
                             failed_inputs.append((input_id, str(e)))
                             logger.error(f"Failed to download input {input_id}: {e}")
@@ -332,9 +348,10 @@ class InputAnnotationDownloader:
 
         self._check_output_archive(save_path)
         logger.info(
-            "Downloaded %d inputs and %d annotations to %s"
-            % (self.num_inputs, self.num_annotations, save_path)
+            "Downloaded %d inputs and %d annotation files (containing %d total annotations) to %s"
+            % (self.num_inputs, self.num_annotation_files, self.num_annotations, save_path)
         )
+        logger.info(f"Average annotations per input: {self.num_annotations / max(self.num_inputs, 1):.2f}")
 
         if failed_inputs or skipped_inputs:
             logger.warning(
