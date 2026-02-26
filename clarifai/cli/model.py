@@ -1113,12 +1113,23 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
-        if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+        import platform as _platform
+
+        toolkit_provider = config.get('toolkit', {}).get('provider')
+        if _platform.system() != "Linux":
+            for engine in ('vllm', 'sglang'):
+                if engine in dependencies or toolkit_provider == engine:
+                    raise UserError(
+                        f"{engine} is not supported on {_platform.system()}. It requires a Linux environment with GPU access.\n"
+                        "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama toolkit for local serving."
+                    )
+
+        if "ollama" in dependencies or toolkit_provider == 'ollama':
             if not check_ollama_installed():
                 raise UserError(
                     "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
                 )
-        elif "lmstudio" in dependencies or config.get('toolkit', {}).get('provider') == 'lmstudio':
+        elif "lmstudio" in dependencies or toolkit_provider == 'lmstudio':
             if not check_lmstudio_installed():
                 raise UserError(
                     "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
@@ -1379,7 +1390,18 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
-    if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+    import platform as _platform
+
+    toolkit_provider = config.get('toolkit', {}).get('provider')
+    if _platform.system() != "Linux":
+        for engine in ('vllm', 'sglang'):
+            if engine in dependencies or toolkit_provider == engine:
+                raise UserError(
+                    f"{engine} is not supported on {_platform.system()}. It requires a Linux environment with GPU access.\n"
+                    "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama toolkit for local serving."
+                )
+
+    if "ollama" in dependencies or toolkit_provider == 'ollama':
         if not check_ollama_installed():
             raise UserError(
                 "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
