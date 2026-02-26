@@ -1,3 +1,18 @@
+## [[12.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.2) - [PyPI](https://pypi.org/project/clarifai/12.2.2/) - 2026-02-26
+
+### Added
+- Added App CRUD commands and `clarifai whoami` to the CLI [(#958)](https://github.com/Clarifai/clarifai-python/pull/958)
+- Added health check configuration for `clarifai model local-runner` via `--health-check-port`, `--disable-health-check`, and `--auto-find-health-check-port` flags [(#957)](https://github.com/Clarifai/clarifai-python/pull/957)
+
+### Changed
+- Improved CLI performance by lazily loading modules and reducing startup overhead [(#958)](https://github.com/Clarifai/clarifai-python/pull/958)
+- Converted GitHub Copilot contributor instructions into modular agent skills with a symlink-based structure [(#935)](https://github.com/Clarifai/clarifai-python/pull/935)
+
+### Fixed
+- Fixed env var clobbering in tests by using `@patch.dict` and corrected test patch paths after the CLI lazy-loading refactor [(#959)](https://github.com/Clarifai/clarifai-python/pull/959)
+- Fixed `ModelRunner` health server startup being invoked twice, which could cause “Address already in use” errors; added support to disable the health server and optionally auto-select an available port [(#957)](https://github.com/Clarifai/clarifai-python/pull/957)
+- Reduced overhead in the admission control poll loop in `ModelRunner` to improve runner efficiency [(#956)](https://github.com/Clarifai/clarifai-python/pull/956)
+
 ## [[12.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.1) - [PyPI](https://pypi.org/project/clarifai/12.2.1/) - 2026-02-19
 
 ### Added
