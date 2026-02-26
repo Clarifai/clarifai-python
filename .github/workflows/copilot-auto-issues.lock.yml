@@ -30,7 +30,6 @@ name: "Copilot Auto Issues"
     branches:
     - master
   workflow_dispatch:
-
 permissions: {}
 
 concurrency:
@@ -1102,4 +1101,3 @@ jobs:
           name: safe-output-items
           path: /tmp/safe-output-items.jsonl
           if-no-files-found: warn
-

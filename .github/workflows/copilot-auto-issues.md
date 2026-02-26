@@ -20,7 +20,7 @@ safe-outputs:
 
 **Triggers:**
 - Every push to `master`
-- **Manually** — Actions tab → select this workflow → "Run workflow"  
+- **Manually** — Actions tab → select this workflow → "Run workflow"
   (or run `gh aw run copilot-auto-issues` from terminal)
 
 On every trigger, Copilot will automatically:
@@ -57,4 +57,3 @@ On every trigger, Copilot will automatically:
 5. **Summary**
 - If nothing found → create a short "✅ All clear on master" issue (or just log it)
 - Always link back to the triggering commit / workflow run
-
