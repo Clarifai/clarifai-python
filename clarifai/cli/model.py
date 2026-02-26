@@ -1121,7 +1121,7 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
                 if engine in dependencies or toolkit_provider == engine:
                     raise UserError(
                         f"{engine} is not supported on {_platform.system()}. It requires a Linux environment with GPU access.\n"
-                        "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama toolkit for local serving."
+                        "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama or LM Studio toolkit for local serving."
                     )
 
         if "ollama" in dependencies or toolkit_provider == 'ollama':
@@ -1398,7 +1398,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             if engine in dependencies or toolkit_provider == engine:
                 raise UserError(
                     f"{engine} is not supported on {_platform.system()}. It requires a Linux environment with GPU access.\n"
-                    "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama toolkit for local serving."
+                    "  Use 'clarifai model deploy .' to run on cloud GPU, or switch to the Ollama or LM Studio toolkit for local serving."
                 )
 
     if "ollama" in dependencies or toolkit_provider == 'ollama':
