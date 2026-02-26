@@ -134,13 +134,31 @@ class PipelineBuilder:
             raise ValueError(f"Error saving config file {self.config_path}: {e}")
 
     def upload_pipeline_steps(self) -> bool:
-        """Upload all pipeline steps listed in step_directories."""
+        """Upload all pipeline steps listed in step_directories.
+
+        If step_directories is empty but all templateRefs in the orchestration spec
+        already have version IDs, this is not an error - it means we're reusing
+        existing pipeline step versions.
+        """
         pipeline_config = self.config["pipeline"]
         step_directories = pipeline_config.get("step_directories", [])
 
         if not step_directories:
-            logger.info("No pipeline steps to upload (step_directories is empty)")
-            return False  # treat this as an error.
+            # Check if all templateRefs already have versions
+            steps_without_versions = self.validator.get_pipeline_steps_without_versions(
+                self.config
+            )
+            if not steps_without_versions:
+                logger.info(
+                    "No step_directories specified, but all templateRefs have versions. "
+                    "Skipping pipeline step upload (reusing existing step versions)."
+                )
+                return True  # Not an error - using existing versioned steps
+            else:
+                logger.error(
+                    f"step_directories is empty but these steps need versions: {steps_without_versions}"
+                )
+                return False  # Error: need to upload steps but no directories provided
 
         logger.info(f"Uploading {len(step_directories)} pipeline steps...")
 
