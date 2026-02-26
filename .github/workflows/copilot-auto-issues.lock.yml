@@ -29,7 +29,6 @@ name: "Copilot Auto Issues"
   push:
     branches:
     - master
-  workflow_dispatch:
 permissions: {}
 
 concurrency:
