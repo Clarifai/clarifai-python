@@ -410,6 +410,7 @@ class TemplateManager:
                                         if (
                                             isinstance(current_value, str)
                                             and '/pipeline_steps/' in current_value
+                                            and '/versions/' not in current_value
                                         ):
                                             parts = current_value.split('/pipeline_steps/')
                                             if len(parts) == 2:
