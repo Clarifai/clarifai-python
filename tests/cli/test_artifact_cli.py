@@ -140,6 +140,40 @@ class TestArtifactCLI:
         assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.cli.artifact.display_co_resources')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_command_latest_version_and_visibility(
+        self, mock_artifact_class, mock_display_co_resources, mock_validate
+    ):
+        """Test artifact listing resolves latest version and visibility columns."""
+        mock_validate.return_value = None
+
+        mock_artifact_instance = Mock()
+        mock_artifact = Mock()
+        mock_artifact.id = 'test-artifact'
+        mock_artifact.artifact_version = Mock()
+        mock_artifact.artifact_version.id = ''
+        mock_artifact.artifact_version.visibility.gettable = 10  # PRIVATE
+        mock_artifact.artifact_version_id = 'v1'
+        mock_artifact.created_at = None
+
+        mock_artifact_instance.list.return_value = [mock_artifact]
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+        )
+
+        assert result.exit_code == 0
+        mock_display_co_resources.assert_called_once()
+
+        custom_columns = mock_display_co_resources.call_args.kwargs['custom_columns']
+        assert custom_columns['LATEST_VERSION'](mock_artifact) == 'v1'
+        assert custom_columns['VISIBILITY'](mock_artifact) == 'PRIVATE'
+
+    @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
         """Test list command with missing required parameters."""
         mock_obj = setup_context_mock(mock_validate)
@@ -472,18 +506,20 @@ class TestArtifactCLI:
             mock_instance.get.return_value = Mock(
                 id="test_artifact",
                 description="Test artifact",
-                visibility=Mock(gettable="PUBLIC"),
+                artifact_version=Mock(id="v1"),
                 created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
                 modified_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
             )
-            mock_instance.list.return_value = [
-                Mock(
-                    id="test_artifact",
-                    description="Test artifact",
-                    visibility=Mock(gettable="PUBLIC"),
-                    created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
-                )
-            ]
+
+            mock_list_item = Mock(
+                id="test_artifact",
+                description="Test artifact",
+                artifact_version_id="v1",
+                created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
+            )
+            mock_list_item.artifact_version = Mock(id="")
+            mock_list_item.artifact_version.visibility.gettable = 10  # PRIVATE
+            mock_instance.list.return_value = [mock_list_item]
 
             # Test multiple operations
             result1 = self.runner.invoke(
