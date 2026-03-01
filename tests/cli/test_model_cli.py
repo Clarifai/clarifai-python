@@ -20,7 +20,6 @@ def test_ensure_config_exists_for_upload_creates_file(monkeypatch, tmp_path):
     responses = iter(
         [
             "n",  # Do you want to create config.yaml yourself? No, create interactively
-            "",  # context selection (keep current)
             "custom-model",  # model id
             "",  # user id (default)
             "",  # app id (default)

@@ -245,12 +245,11 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
             raise click.Abort()
 
     if ctx_config is not None:
-        selected_context = _select_context(ctx_config)
-        if selected_context is not None:
-            current_context = selected_context
-        elif current_context is None:
-            contexts_map = getattr(ctx_config, "contexts", {}) or {}
-            current_context = contexts_map.get(getattr(ctx_config, "current_context", None))
+        # Use the active CLI context automatically (no interactive picker).
+        contexts_map = getattr(ctx_config, "contexts", {}) or {}
+        current_name = getattr(ctx_config, "current_context", None)
+        if current_name and current_name in contexts_map:
+            current_context = contexts_map[current_name]
 
     if current_context is None:
         click.echo(

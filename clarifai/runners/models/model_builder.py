@@ -1505,16 +1505,10 @@ class ModelBuilder:
                     )
                     should_create_dockerfile = False
                 else:
-                    logger.info("Dockerfile already exists with different content.")
-                    response = input(
-                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
-                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    logger.warning(
+                        "Custom Dockerfile differs from auto-generated one — keeping yours."
                     )
-                    if response.lower() != 'y':
-                        logger.info("Keeping existing custom Dockerfile.")
-                        should_create_dockerfile = False
-                    else:
-                        logger.info("Overwriting existing Dockerfile with generated content.")
+                    should_create_dockerfile = False
 
         if should_create_dockerfile:
             # Write Dockerfile
@@ -1686,15 +1680,9 @@ class ModelBuilder:
             # Not a git repository or git not available
             return None
 
-    def _check_git_status_and_prompt(self) -> bool:
-        """
-        Check for uncommitted changes in git repository within the model path and prompt user.
-
-        Returns:
-            True if should continue with upload, False if should abort
-        """
+    def _check_git_status(self) -> None:
+        """Check for uncommitted changes in model path and warn (non-blocking)."""
         try:
-            # Check for uncommitted changes within the model path only
             status_result = subprocess.run(
                 ['git', 'status', '--porcelain', '.'],
                 cwd=self.folder,
@@ -1704,21 +1692,16 @@ class ModelBuilder:
             )
 
             if status_result.stdout.strip():
-                logger.warning("Uncommitted changes detected in model path:")
-                logger.warning(status_result.stdout)
-
-                response = input(
-                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
+                logger.warning(
+                    "Uncommitted changes detected in model path — uploading working-tree state:"
                 )
-                return response.lower() in ['y', 'yes']
+                for line in status_result.stdout.strip().splitlines():
+                    logger.warning(f"  {line}")
             else:
                 logger.info("Model path has no uncommitted changes.")
-                return True
 
         except (subprocess.CalledProcessError, FileNotFoundError):
-            # Error checking git status, but we already know it's a git repo
-            logger.warning("Could not check git status, continuing with upload.")
-            return True
+            logger.debug("Could not check git status, continuing with upload.")
 
     def get_model_version_proto(self, git_info: Optional[Dict[str, Any]] = None):
         """
@@ -1865,8 +1848,8 @@ class ModelBuilder:
                     if when != "upload" and not HuggingFaceLoader.validate_config(
                         self.checkpoint_path
                     ):
-                        input(
-                            "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+                        logger.info(
+                            "Downloading HuggingFace model config.json to infer concepts..."
                         )
                         loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
                         loader.download_config(self.checkpoint_path)
@@ -2191,16 +2174,12 @@ def upload_model(
     dockerfile_exists = os.path.exists(os.path.join(folder, 'Dockerfile'))
     out.info("Dockerfile", "existing" if dockerfile_exists else "auto-generated")
 
-    # Git info (keep uncommitted changes prompt — important safety gate)
     git_info = builder._get_git_info()
     if git_info:
         branch = git_info.get('branch', '')
         commit = git_info.get('commit', '')[:8]
         out.info("Git", f"{branch} @ {commit}")
-
-        if not builder._check_git_status_and_prompt():
-            out.warning("Upload cancelled due to uncommitted changes.")
-            return
+        builder._check_git_status()
 
     # ── Upload ──
     out.phase_header("Upload")

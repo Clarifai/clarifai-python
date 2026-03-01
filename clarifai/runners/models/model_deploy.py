@@ -242,9 +242,13 @@ class ModelDeployer:
             out.info("Checkpoints", checkpoints.get('repo_id', ''))
         out.info("Dockerfile", "existing" if has_dockerfile else "auto-generated")
 
-        # Download checkpoints and create dockerfile
+        # Only download checkpoints locally when config says when: upload
+        # (they must be bundled in the tarball). when: runtime or when: build
+        # means they'll be fetched inside the container in the cloud.
+        checkpoint_when = checkpoints.get('when', 'runtime') if has_checkpoints else None
         with _quiet_sdk_logger(suppress):
-            self._builder.download_checkpoints(stage=self.stage)
+            if checkpoint_when and checkpoint_when != 'runtime':
+                self._builder.download_checkpoints(stage=self.stage)
             if has_dockerfile:
                 pass  # Use existing
             else:
