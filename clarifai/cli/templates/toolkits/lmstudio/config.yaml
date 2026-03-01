@@ -1,0 +1,8 @@
+model:
+  id: "my-model"
+
+build_info:
+  python_version: "3.12"
+
+toolkit:
+  provider: lmstudio

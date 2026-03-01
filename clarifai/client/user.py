@@ -1,6 +1,7 @@
 import os
 from typing import Any, Dict, Generator, List, Optional
 
+import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -524,6 +525,29 @@ class User(Lister, BaseClient):
 
         return response
 
+    def list_organizations(self) -> List[Dict[str, str]]:
+        """List organizations the user belongs to via REST API.
+
+        Returns:
+            list: List of dicts with 'id' and 'name' keys for each organization.
+        """
+        base = self.auth_helper.base
+        user_id = self.id
+        url = f"{base}/v2/users/{user_id}/organizations"
+        headers = {"Authorization": f"Key {self.auth_helper.pat}"}
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            orgs = []
+            for uo in data.get("organizations", []):
+                org = uo.get("organization", {})
+                orgs.append({"id": org.get("id", ""), "name": org.get("name", "")})
+            return orgs
+        except Exception as e:
+            self.logger.debug(f"Failed to list organizations: {e}")
+            return []
+
     def __getattr__(self, name):
         return getattr(self.user_info, name)
 
@@ -707,6 +731,70 @@ class User(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
         self.logger.info("\nSecrets Deleted\n%s", response.status)
+
+    def list_cloud_providers(self) -> list:
+        """List available cloud providers (e.g. aws, gcp, azure, vultr).
+
+        Returns:
+            list: List of CloudProvider protobuf objects with id, name, special_handling fields.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> providers = client.list_cloud_providers()
+        """
+        request = service_pb2.ListCloudProvidersRequest()
+        response = self._grpc_request(self.STUB.ListCloudProviders, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        return list(response.cloud_providers)
+
+    def list_cloud_regions(self, cloud_provider_id: str) -> list:
+        """List available regions for a cloud provider.
+
+        Args:
+            cloud_provider_id (str): The cloud provider ID (e.g. 'aws', 'gcp').
+
+        Returns:
+            list: List of CloudRegion protobuf objects with id field.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> regions = client.list_cloud_regions("aws")
+        """
+        request = service_pb2.ListCloudRegionsRequest(
+            cloud_provider=resources_pb2.CloudProvider(id=cloud_provider_id)
+        )
+        response = self._grpc_request(self.STUB.ListCloudRegions, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        return list(response.cloud_regions)
+
+    def list_instance_types(self, cloud_provider_id: str, region: str) -> list:
+        """List available GPU/instance types for a cloud provider and region.
+
+        Args:
+            cloud_provider_id (str): The cloud provider ID (e.g. 'aws', 'gcp').
+            region (str): The region ID (e.g. 'us-east-1').
+
+        Returns:
+            list: List of InstanceType protobuf objects with id, description, compute_info,
+                  price, cloud_provider, region fields.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> instance_types = client.list_instance_types("aws", "us-east-1")
+        """
+        request = service_pb2.ListInstanceTypesRequest(
+            cloud_provider=resources_pb2.CloudProvider(id=cloud_provider_id),
+            region=region,
+        )
+        response = self._grpc_request(self.STUB.ListInstanceTypes, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        return list(response.instance_types)
 
     def list_models(
         self,

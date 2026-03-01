@@ -1,0 +1,6 @@
+clarifai
+torch>=2.6.0
+transformers>=4.47.0
+accelerate>=1.2.0
+optimum>=1.23.3
+scipy>=1.10.1

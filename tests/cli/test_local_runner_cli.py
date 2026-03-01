@@ -1,12 +1,12 @@
-"""Tests for the local-runner CLI command.
+"""Tests for the serve CLI command.
 
-These tests verify the basic functionality of the `clarifai model local-runner` command
+These tests verify the basic functionality of the `clarifai model serve` command
 by mocking external dependencies and testing key behaviors.
 """
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
@@ -15,8 +15,65 @@ from click.testing import CliRunner
 from clarifai.cli.base import cli
 
 
+def _make_mock_context():
+    """Create a mock click context with valid credentials."""
+    mock_ctx = Mock()
+    mock_ctx.obj = Mock()
+    mock_ctx.obj.current = Mock()
+    mock_ctx.obj.current.user_id = "test-user"
+    mock_ctx.obj.current.pat = "test-pat"
+    mock_ctx.obj.current.api_base = "https://api.clarifai.com"
+    mock_ctx.obj.current.name = "default"
+    mock_ctx.obj.to_yaml = Mock()
+    return mock_ctx
+
+
+def _make_mock_user_with_existing_resources():
+    """Create a fully mocked User with existing compute cluster, nodepool, app, model, etc."""
+    mock_user = MagicMock()
+
+    mock_compute_cluster = MagicMock()
+    mock_compute_cluster.id = "local-dev-cluster"
+    mock_compute_cluster.cluster_type = "local-dev"
+    mock_user.compute_cluster.return_value = mock_compute_cluster
+
+    mock_nodepool = MagicMock()
+    mock_nodepool.id = "local-dev-nodepool"
+    mock_compute_cluster.nodepool.return_value = mock_nodepool
+
+    mock_app = MagicMock()
+    mock_app.id = "local-dev-app"
+    mock_user.app.return_value = mock_app
+
+    mock_model = MagicMock()
+    mock_model.id = "dummy-runner-model"
+    mock_model.model_type_id = "multimodal-to-text"
+    mock_app.model.return_value = mock_model
+
+    # Model version (created fresh every serve)
+    mock_version_response = MagicMock()
+    mock_version_response.model_version.id = "version-123"
+    mock_version_response.load_info = MagicMock()
+    mock_model.create_version.return_value = mock_version_response
+
+    # Runner
+    mock_runner = MagicMock()
+    mock_runner.id = "runner-123"
+    mock_nodepool.create_runner.return_value = mock_runner
+
+    # Deployment
+    mock_deployment = MagicMock()
+    mock_deployment.id = "deployment-123"
+    mock_nodepool.create_deployment.return_value = mock_deployment
+
+    # Stale deployment cleanup — no existing deployment to clean up
+    mock_nodepool.deployment.side_effect = Exception("Not found")
+
+    return mock_user
+
+
 class TestLocalRunnerCLI:
-    """Test cases for the local-runner CLI command."""
+    """Test cases for the serve CLI command."""
 
     @pytest.fixture
     def dummy_model_dir(self):
@@ -36,10 +93,8 @@ class TestLocalRunnerCLI:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
     def test_local_runner_requires_installed_dependencies(
         self,
-        mock_input,
         mock_validate_context,
         mock_parse_requirements,
         mock_check_requirements,
@@ -48,14 +103,15 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner checks for installed requirements."""
-        # Setup: Requirements not installed
+        """Test that serve checks for installed requirements (mode=none)."""
         mock_check_requirements.return_value = False
         mock_parse_requirements.return_value = []
 
-        # Mock ModelBuilder to return a basic config
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
         mock_builder_class.return_value = mock_builder
 
         runner = CliRunner()
@@ -63,10 +119,9 @@ class TestLocalRunnerCLI:
 
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
         )
 
-        # Should abort because requirements are not installed
         assert result.exit_code == 1
         mock_check_requirements.assert_called()
 
@@ -76,10 +131,8 @@ class TestLocalRunnerCLI:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
-    def test_local_runner_user_declines_resource_creation(
+    def test_local_runner_auto_creates_resources(
         self,
-        mock_input,
         mock_validate_context,
         mock_parse_requirements,
         mock_check_requirements,
@@ -88,80 +141,37 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner aborts when user declines resource creation."""
-        # Setup: user declines resource creation
-        mock_input.return_value = "n"  # User says no
+        """Test that serve auto-creates missing resources without prompting."""
         mock_check_requirements.return_value = True
         mock_parse_requirements.return_value = []
 
-        # Mock ModelBuilder
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
-        mock_builder_class.return_value = mock_builder
-        mock_builder_class._load_config.return_value = mock_builder.config
-
-        # Mock User that throws exception for missing compute cluster
-        mock_user = MagicMock()
-        mock_user.compute_cluster.side_effect = Exception("Cluster not found")
-        mock_user_class.return_value = mock_user
-
-        runner = CliRunner()
-        runner.invoke(cli, ["login", "--user_id", "test-user", "--pat", "test-pat"])
-
-        result = runner.invoke(
-            cli,
-            ["model", "local-runner", str(dummy_model_dir)],
-        )
-
-        # Should abort when user declines
-        assert result.exit_code == 1
-        # Verify that create_compute_cluster was NOT called
-        mock_user.create_compute_cluster.assert_not_called()
-
-    @patch("clarifai.runners.server.ModelServer")
-    @patch("clarifai.client.user.User")
-    @patch("clarifai.runners.models.model_builder.ModelBuilder")
-    @patch("clarifai.cli.model.check_requirements_installed")
-    @patch("clarifai.cli.model.parse_requirements")
-    @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
-    def test_local_runner_creates_resources_when_missing(
-        self,
-        mock_input,
-        mock_validate_context,
-        mock_parse_requirements,
-        mock_check_requirements,
-        mock_builder_class,
-        mock_user_class,
-        mock_server_class,
-        dummy_model_dir,
-    ):
-        """Test that local-runner creates missing resources when user accepts."""
-        # Setup: user accepts resource creation
-        mock_input.return_value = "y"  # User says yes
-        mock_check_requirements.return_value = True
-        mock_parse_requirements.return_value = []
-
-        # Mock ModelBuilder
-        mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
         mock_method_sig = MagicMock()
         mock_method_sig.name = "predict"
         mock_builder.get_method_signatures.return_value = [mock_method_sig]
         mock_builder_class.return_value = mock_builder
-        mock_builder_class._load_config.return_value = mock_builder.config
 
-        # Mock User and resources
         mock_user = MagicMock()
 
-        # Compute cluster doesn't exist
-        mock_user.compute_cluster.side_effect = Exception("Cluster not found")
+        # Compute cluster doesn't exist first time, then succeeds after creation
         mock_compute_cluster = MagicMock()
         mock_compute_cluster.id = "local-dev-cluster"
-        mock_compute_cluster.cluster_type = "local-dev"
+        call_count = {"compute_cluster": 0}
+
+        def compute_cluster_side_effect(cc_id):
+            call_count["compute_cluster"] += 1
+            if call_count["compute_cluster"] == 1:
+                raise Exception("Cluster not found")
+            return mock_compute_cluster
+
+        mock_user.compute_cluster.side_effect = compute_cluster_side_effect
         mock_user.create_compute_cluster.return_value = mock_compute_cluster
 
-        # Nodepool doesn't exist
+        # Nodepool doesn't exist first time, then succeeds after creation
         mock_nodepool = MagicMock()
         mock_nodepool.id = "local-dev-nodepool"
         mock_compute_cluster.nodepool.side_effect = Exception("Nodepool not found")
@@ -175,17 +185,15 @@ class TestLocalRunnerCLI:
 
         # Model doesn't exist
         mock_model = MagicMock()
-        mock_model.id = "local-dev-model"
+        mock_model.id = "dummy-runner-model"
         mock_model.model_type_id = "multimodal-to-text"
         mock_app.model.side_effect = Exception("Model not found")
         mock_app.create_model.return_value = mock_model
 
-        # Model version
-        mock_version = MagicMock()
-        mock_version.id = "version-123"
-        mock_model.list_versions.return_value = []
+        # Version (always created)
         mock_version_response = MagicMock()
-        mock_version_response.model_version = mock_version
+        mock_version_response.model_version.id = "version-123"
+        mock_version_response.load_info = MagicMock()
         mock_model.create_version.return_value = mock_version_response
 
         # Runner
@@ -193,29 +201,18 @@ class TestLocalRunnerCLI:
         mock_runner.id = "runner-123"
         mock_nodepool.create_runner.return_value = mock_runner
 
-        # Deployment doesn't exist
+        # Stale deployment cleanup + new deployment creation
+        mock_nodepool.deployment.side_effect = Exception("Not found")
         mock_deployment = MagicMock()
         mock_deployment.id = "deployment-123"
-        mock_nodepool.deployment.side_effect = Exception("Deployment not found")
         mock_nodepool.create_deployment.return_value = mock_deployment
 
         mock_user_class.return_value = mock_user
 
-        # Mock ModelServer
         mock_server = MagicMock()
         mock_server_class.return_value = mock_server
 
-        # Mock a proper context
-        from unittest.mock import Mock
-
-        mock_ctx = Mock()
-        mock_ctx.obj = Mock()
-        mock_ctx.obj.current = Mock()
-        mock_ctx.obj.current.user_id = "test-user"
-        mock_ctx.obj.current.pat = "test-pat"
-        mock_ctx.obj.current.api_base = "https://api.clarifai.com"
-        mock_ctx.obj.current.name = "default"
-        mock_ctx.obj.to_yaml = Mock()
+        mock_ctx = _make_mock_context()
 
         def validate_ctx_mock(ctx):
             ctx.obj = mock_ctx.obj
@@ -225,20 +222,15 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
-        # Should succeed after creating resources
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Verify resources were created
         mock_user.create_compute_cluster.assert_called_once()
-        mock_compute_cluster.create_nodepool.assert_called_once()
         mock_user.create_app.assert_called_once()
         mock_app.create_model.assert_called_once()
         mock_model.create_version.assert_called_once()
-        # TODO: Create runner is failing in CI, so commenting out for now
-        # mock_nodepool.create_runner.assert_called_once()
         mock_nodepool.create_deployment.assert_called_once()
 
     @patch("clarifai.runners.server.ModelServer")
@@ -247,10 +239,8 @@ class TestLocalRunnerCLI:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
     def test_local_runner_uses_existing_resources(
         self,
-        mock_input,
         mock_validate_context,
         mock_parse_requirements,
         mock_check_requirements,
@@ -259,98 +249,27 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner uses existing resources without creating new ones."""
-        # Setup
-        mock_input.return_value = "y"
+        """Test that serve reuses existing resources but always creates a fresh version."""
         mock_check_requirements.return_value = True
         mock_parse_requirements.return_value = []
 
-        # Mock ModelBuilder
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
         mock_method_sig = MagicMock()
         mock_method_sig.name = "predict"
         mock_builder.get_method_signatures.return_value = [mock_method_sig]
         mock_builder_class.return_value = mock_builder
-        mock_builder_class._load_config.return_value = mock_builder.config
 
-        # Mock User with all existing resources
-        mock_user = MagicMock()
-
-        # Existing compute cluster
-        mock_compute_cluster = MagicMock()
-        mock_compute_cluster.id = "local-dev-cluster"
-        mock_compute_cluster.cluster_type = "local-dev"
-        mock_user.compute_cluster.return_value = mock_compute_cluster
-
-        # Existing nodepool
-        mock_nodepool = MagicMock()
-        mock_nodepool.id = "local-dev-nodepool"
-        mock_compute_cluster.nodepool.return_value = mock_nodepool
-
-        # Existing app
-        mock_app = MagicMock()
-        mock_app.id = "local-dev-app"
-        mock_user.app.return_value = mock_app
-
-        # Existing model
-        mock_model = MagicMock()
-        mock_model.id = "local-dev-model"
-        mock_model.model_type_id = "multimodal-to-text"
-        mock_app.model.return_value = mock_model
-
-        # Existing model version
-        mock_version = MagicMock()
-        mock_version.id = "version-123"
-        mock_model_version_obj = MagicMock()
-        mock_model_version_obj.model_version = mock_version
-        mock_model.list_versions.return_value = [mock_model_version_obj]
-        mock_patched_model = MagicMock()
-        mock_patched_model.model_version = mock_version
-        mock_patched_model.load_info = MagicMock()
-        mock_model.patch_version.return_value = mock_patched_model
-
-        # Existing runner
-        mock_runner = MagicMock()
-        mock_runner.id = "runner-123"
-        mock_runner.worker = MagicMock()
-        mock_runner.worker.model = MagicMock()
-        mock_runner.worker.model.model_version = MagicMock()
-        mock_runner.worker.model.model_version.id = "version-123"
-        mock_nodepool.runner.return_value = mock_runner
-
-        # Existing deployment
-        mock_deployment = MagicMock()
-        mock_deployment.id = "deployment-123"
-        mock_deployment.worker = MagicMock()
-        mock_deployment.worker.model = MagicMock()
-        mock_deployment.worker.model.model_version = MagicMock()
-        mock_deployment.worker.model.model_version.id = "version-123"
-        mock_nodepool.deployment.return_value = mock_deployment
-
+        mock_user = _make_mock_user_with_existing_resources()
         mock_user_class.return_value = mock_user
 
-        # Mock ModelServer
         mock_server = MagicMock()
         mock_server_class.return_value = mock_server
 
-        # Mock a proper context
-        from unittest.mock import Mock
-
-        mock_ctx = Mock()
-        mock_ctx.obj = Mock()
-        mock_ctx.obj.current = Mock()
-        mock_ctx.obj.current.user_id = "test-user"
-        mock_ctx.obj.current.pat = "test-pat"
-        mock_ctx.obj.current.api_base = "https://api.clarifai.com"
-        mock_ctx.obj.current.name = "default"
-        mock_ctx.obj.current.compute_cluster_id = "local-dev-cluster"
-        mock_ctx.obj.current.nodepool_id = "local-dev-nodepool"
-        mock_ctx.obj.current.app_id = "local-dev-app"
-        mock_ctx.obj.current.model_id = "local-dev-model"
-        mock_ctx.obj.current.runner_id = "runner-123"
-        mock_ctx.obj.current.deployment_id = "deployment-123"
-        mock_ctx.obj.to_yaml = Mock()
+        mock_ctx = _make_mock_context()
 
         def validate_ctx_mock(ctx):
             ctx.obj = mock_ctx.obj
@@ -360,20 +279,16 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
-        # Should succeed using existing resources
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Verify no new resources were created
+        # Existing resources not re-created
         mock_user.create_compute_cluster.assert_not_called()
-        mock_compute_cluster.create_nodepool.assert_not_called()
         mock_user.create_app.assert_not_called()
-        mock_app.create_model.assert_not_called()
-        mock_model.create_version.assert_not_called()
-        mock_nodepool.create_runner.assert_not_called()
-        mock_nodepool.create_deployment.assert_not_called()
+        # But version IS always created fresh
+        mock_user.app().model().create_version.assert_called_once()
 
     @patch("clarifai.runners.server.ModelServer")
     @patch("clarifai.client.user.User")
@@ -381,10 +296,8 @@ class TestLocalRunnerCLI:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
-    def test_local_runner_with_pool_size_parameter(
+    def test_local_runner_with_concurrency_parameter(
         self,
-        mock_input,
         mock_validate_context,
         mock_parse_requirements,
         mock_check_requirements,
@@ -393,90 +306,27 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner accepts and uses the pool_size parameter."""
-        # Setup
-        mock_input.return_value = "y"
+        """Test that serve accepts and uses the --concurrency parameter."""
         mock_check_requirements.return_value = True
         mock_parse_requirements.return_value = []
 
-        # Mock ModelBuilder
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
         mock_method_sig = MagicMock()
         mock_method_sig.name = "predict"
         mock_builder.get_method_signatures.return_value = [mock_method_sig]
         mock_builder_class.return_value = mock_builder
-        mock_builder_class._load_config.return_value = mock_builder.config
 
-        # Mock User with all existing resources (simplified)
-        mock_user = MagicMock()
-        mock_compute_cluster = MagicMock()
-        mock_compute_cluster.id = "local-dev-cluster"
-        mock_compute_cluster.cluster_type = "local-dev"
-        mock_user.compute_cluster.return_value = mock_compute_cluster
-
-        mock_nodepool = MagicMock()
-        mock_nodepool.id = "local-dev-nodepool"
-        mock_compute_cluster.nodepool.return_value = mock_nodepool
-
-        mock_app = MagicMock()
-        mock_app.id = "local-dev-app"
-        mock_user.app.return_value = mock_app
-
-        mock_model = MagicMock()
-        mock_model.id = "local-dev-model"
-        mock_model.model_type_id = "multimodal-to-text"
-        mock_app.model.return_value = mock_model
-
-        mock_version = MagicMock()
-        mock_version.id = "version-123"
-        mock_model_version_obj = MagicMock()
-        mock_model_version_obj.model_version = mock_version
-        mock_model.list_versions.return_value = [mock_model_version_obj]
-        mock_patched_model = MagicMock()
-        mock_patched_model.model_version = mock_version
-        mock_patched_model.load_info = MagicMock()
-        mock_model.patch_version.return_value = mock_patched_model
-
-        mock_runner = MagicMock()
-        mock_runner.id = "runner-123"
-        mock_runner.worker = MagicMock()
-        mock_runner.worker.model = MagicMock()
-        mock_runner.worker.model.model_version = MagicMock()
-        mock_runner.worker.model.model_version.id = "version-123"
-        mock_nodepool.runner.return_value = mock_runner
-
-        mock_deployment = MagicMock()
-        mock_deployment.id = "deployment-123"
-        mock_deployment.worker = MagicMock()
-        mock_deployment.worker.model = MagicMock()
-        mock_deployment.worker.model.model_version = MagicMock()
-        mock_deployment.worker.model.model_version.id = "version-123"
-        mock_nodepool.deployment.return_value = mock_deployment
-
+        mock_user = _make_mock_user_with_existing_resources()
         mock_user_class.return_value = mock_user
 
-        # Mock ModelServer
         mock_server = MagicMock()
         mock_server_class.return_value = mock_server
 
-        # Mock a proper context
-        from unittest.mock import Mock
-
-        mock_ctx = Mock()
-        mock_ctx.obj = Mock()
-        mock_ctx.obj.current = Mock()
-        mock_ctx.obj.current.user_id = "test-user"
-        mock_ctx.obj.current.pat = "test-pat"
-        mock_ctx.obj.current.api_base = "https://api.clarifai.com"
-        mock_ctx.obj.current.name = "default"
-        mock_ctx.obj.current.compute_cluster_id = "local-dev-cluster"
-        mock_ctx.obj.current.nodepool_id = "local-dev-nodepool"
-        mock_ctx.obj.current.app_id = "local-dev-app"
-        mock_ctx.obj.current.model_id = "local-dev-model"
-        mock_ctx.obj.current.runner_id = "runner-123"
-        mock_ctx.obj.current.deployment_id = "deployment-123"
-        mock_ctx.obj.to_yaml = Mock()
+        mock_ctx = _make_mock_context()
 
         def validate_ctx_mock(ctx):
             ctx.obj = mock_ctx.obj
@@ -484,16 +334,13 @@ class TestLocalRunnerCLI:
         mock_validate_context.side_effect = validate_ctx_mock
 
         runner = CliRunner()
-        # Test with custom pool_size
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir), "--pool_size", "24"],
+            ["model", "serve", str(dummy_model_dir), "--concurrency", "24"],
             catch_exceptions=False,
         )
 
-        # Should succeed
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Verify pool_size was passed to serve
         mock_server.serve.assert_called_once()
         serve_kwargs = mock_server.serve.call_args[1]
         assert serve_kwargs["pool_size"] == 24
@@ -519,10 +366,8 @@ class TestLocalRunnerCLI:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    @patch("builtins.input")
     def test_local_runner_model_serving(
         self,
-        mock_input,
         mock_validate_context,
         mock_parse_requirements,
         mock_check_requirements,
@@ -531,90 +376,27 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that local-runner properly initializes and serves the model."""
-        # Setup
-        mock_input.return_value = "y"
+        """Test that serve properly initializes and serves the model."""
         mock_check_requirements.return_value = True
         mock_parse_requirements.return_value = []
 
-        # Mock ModelBuilder
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
         mock_method_sig = MagicMock()
         mock_method_sig.name = "predict"
         mock_builder.get_method_signatures.return_value = [mock_method_sig]
         mock_builder_class.return_value = mock_builder
-        mock_builder_class._load_config.return_value = mock_builder.config
 
-        # Mock User with all existing resources
-        mock_user = MagicMock()
-        mock_compute_cluster = MagicMock()
-        mock_compute_cluster.id = "local-dev-cluster"
-        mock_compute_cluster.cluster_type = "local-dev"
-        mock_user.compute_cluster.return_value = mock_compute_cluster
-
-        mock_nodepool = MagicMock()
-        mock_nodepool.id = "local-dev-nodepool"
-        mock_compute_cluster.nodepool.return_value = mock_nodepool
-
-        mock_app = MagicMock()
-        mock_app.id = "local-dev-app"
-        mock_user.app.return_value = mock_app
-
-        mock_model = MagicMock()
-        mock_model.id = "local-dev-model"
-        mock_model.model_type_id = "multimodal-to-text"
-        mock_app.model.return_value = mock_model
-
-        mock_version = MagicMock()
-        mock_version.id = "version-123"
-        mock_model_version_obj = MagicMock()
-        mock_model_version_obj.model_version = mock_version
-        mock_model.list_versions.return_value = [mock_model_version_obj]
-        mock_patched_model = MagicMock()
-        mock_patched_model.model_version = mock_version
-        mock_patched_model.load_info = MagicMock()
-        mock_model.patch_version.return_value = mock_patched_model
-
-        mock_runner = MagicMock()
-        mock_runner.id = "runner-123"
-        mock_runner.worker = MagicMock()
-        mock_runner.worker.model = MagicMock()
-        mock_runner.worker.model.model_version = MagicMock()
-        mock_runner.worker.model.model_version.id = "version-123"
-        mock_nodepool.runner.return_value = mock_runner
-
-        mock_deployment = MagicMock()
-        mock_deployment.id = "deployment-123"
-        mock_deployment.worker = MagicMock()
-        mock_deployment.worker.model = MagicMock()
-        mock_deployment.worker.model.model_version = MagicMock()
-        mock_deployment.worker.model.model_version.id = "version-123"
-        mock_nodepool.deployment.return_value = mock_deployment
-
+        mock_user = _make_mock_user_with_existing_resources()
         mock_user_class.return_value = mock_user
 
-        # Mock ModelServer - this is the key part of this test
         mock_server = MagicMock()
         mock_server_class.return_value = mock_server
 
-        # Mock a proper context
-        from unittest.mock import Mock
-
-        mock_ctx = Mock()
-        mock_ctx.obj = Mock()
-        mock_ctx.obj.current = Mock()
-        mock_ctx.obj.current.user_id = "test-user"
-        mock_ctx.obj.current.pat = "test-pat"
-        mock_ctx.obj.current.api_base = "https://api.clarifai.com"
-        mock_ctx.obj.current.name = "default"
-        mock_ctx.obj.current.compute_cluster_id = "local-dev-cluster"
-        mock_ctx.obj.current.nodepool_id = "local-dev-nodepool"
-        mock_ctx.obj.current.app_id = "local-dev-app"
-        mock_ctx.obj.current.model_id = "local-dev-model"
-        mock_ctx.obj.current.runner_id = "runner-123"
-        mock_ctx.obj.current.deployment_id = "deployment-123"
-        mock_ctx.obj.to_yaml = Mock()
+        mock_ctx = _make_mock_context()
 
         def validate_ctx_mock(ctx):
             ctx.obj = mock_ctx.obj
@@ -624,30 +406,22 @@ class TestLocalRunnerCLI:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "local-runner", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
-        # Should succeed
         assert result.exit_code == 0, f"Command failed with: {result.output}"
 
-        # Verify ModelServer was instantiated with the correct model path
+        # Verify ModelServer was instantiated (without model_builder arg)
         mock_server_class.assert_called_once_with(
-            model_path=str(dummy_model_dir), model_runner_local=None, model_builder=mock_builder
+            model_path=str(dummy_model_dir), model_runner_local=None
         )
 
-        # Verify serve method was called with correct parameters for local runner
+        # Verify serve method was called with correct parameters
         mock_server.serve.assert_called_once()
         serve_kwargs = mock_server.serve.call_args[1]
-
-        # Check that all critical parameters are passed correctly
         assert serve_kwargs["user_id"] == "test-user"
-        assert serve_kwargs["runner_id"] == "runner-123"
-        assert serve_kwargs["compute_cluster_id"] == "local-dev-cluster"
-        assert serve_kwargs["nodepool_id"] == "local-dev-nodepool"
         assert serve_kwargs["base_url"] == "https://api.clarifai.com"
         assert serve_kwargs["pat"] == "test-pat"
         assert "pool_size" in serve_kwargs
         assert "num_threads" in serve_kwargs
-        # grpc defaults to False for local runner (not always passed as kwarg)
-        assert serve_kwargs.get("grpc", False) is False

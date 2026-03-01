@@ -18,11 +18,11 @@ from clarifai.utils.logging import logger
 
 @click.group(cls=LazyAliasedGroup)
 @click.version_option(version=__version__)
-@click.option('--config', default=DEFAULT_CONFIG, help='Path to config file')
+@click.option('--config', default=DEFAULT_CONFIG, help='Path to config file.')
 @click.option('--context', default=None, help='Context to use for this command')
 @click.pass_context
 def cli(ctx, config, context):
-    """Clarifai CLI"""
+    """Build, deploy, and manage AI models on the Clarifai platform."""
     ctx.ensure_object(dict)
     if os.path.exists(config):
         cfg = Config.from_yaml(filename=config)
@@ -55,121 +55,190 @@ def cli(ctx, config, context):
         ctx.obj.context_override = context
 
 
-@cli.command()
+@cli.command(short_help='Generate shell completion script.')
 @click.argument('shell', type=click.Choice(['bash', 'zsh']))
 def shell_completion(shell):
-    """Shell completion script"""
+    """Generate shell completion script for bash or zsh."""
     os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
-@cli.group(cls=LazyAliasedGroup)
+@cli.group(cls=LazyAliasedGroup, short_help='Manage configuration profiles (contexts).')
 def config():
+    """Manage configuration profiles (contexts).
+
+    \b
+    Authentication Precedence:
+      1. Environment variables (e.g., CLARIFAI_PAT) are used first if set.
+      2. The active context settings are used as fallback.
     """
-    Manage multiple configuration profiles (contexts).
-
-    Authentication Precedence:\n
-      1. Environment variables (e.g., `CLARIFAI_PAT`) are used first if set.
-      2. The settings from the active context are used if no environment variables are provided.\n
-    """
 
 
-@cli.command()
-@click.argument('api_url', default=DEFAULT_BASE)
-@click.option('--user_id', required=False, help='User ID')
-@click.pass_context
-def login(ctx, api_url, user_id):
-    """Login command to set PAT and other configurations."""
-    from clarifai.utils.cli import validate_context_auth
-
-    # Input user_id if not supplied
-    if not user_id:
-        user_id = click.prompt('Enter your Clarifai user ID', type=str)
-
-    click.echo()  # Blank line for readability
-
-    # Check for environment variable first
+def _get_pat_interactive():
+    """Resolve PAT from --pat flag, env var, or interactive prompt. Returns (pat, source)."""
     env_pat = os.environ.get('CLARIFAI_PAT')
     if env_pat:
-        use_env = click.confirm('Use CLARIFAI_PAT from environment?', default=True)
-        if use_env:
-            pat = env_pat
-        else:
-            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/secrets')
-            pat = masked_input('Enter your Personal Access Token (PAT): ')
+        click.secho('Using PAT from CLARIFAI_PAT environment variable.', fg='cyan')
+        return env_pat
+
+    # Best-effort browser open to PAT page
+    pat_url = 'https://clarifai.com/me/settings/secrets'
+    try:
+        import webbrowser
+
+        click.secho(
+            'Opening browser to create/copy your Personal Access Token (PAT)...', fg='cyan'
+        )
+        click.echo(f'  {click.style(pat_url, underline=True)}')
+        webbrowser.open(pat_url)
+    except Exception:
+        click.echo(f'Get your PAT at: {click.style(pat_url, fg="cyan", underline=True)}')
+    return masked_input('Enter your PAT: ')
+
+
+def _verify_and_resolve_user(pat, api_url):
+    """Validate PAT and return the personal user_id via GET /v2/users/me."""
+    try:
+        from clarifai.client.user import User
+
+        user = User(user_id='me', pat=pat, base_url=api_url)
+        response = user.get_user_info(user_id='me')
+        return response.user.id
+    except Exception as e:
+        click.secho(f'Authentication failed: {e}', fg='red', err=True)
+        click.echo(
+            f'Create a PAT at: {click.style("https://clarifai.com/me/settings/secrets", fg="cyan", underline=True)}',
+            err=True,
+        )
+        raise click.Abort()
+
+
+def _list_user_orgs(pat, user_id, api_url):
+    """Return list of (org_id, org_name) tuples for the user. Returns [] on failure."""
+    try:
+        from clarifai.client.user import User
+
+        user = User(user_id=user_id, pat=pat, base_url=api_url)
+        orgs = user.list_organizations()
+        return [(org['id'], org['name']) for org in orgs if org.get('id')]
+    except Exception:
+        return []
+
+
+def _prompt_user_or_org(personal_user_id, orgs):
+    """Interactive org selection. Returns selected user_id."""
+    click.echo()
+    choices = [(personal_user_id, '(personal)')]
+    for org_id, org_name in orgs:
+        label = f'({org_name})' if org_name and org_name != org_id else '(org)'
+        choices.append((org_id, label))
+
+    for i, (uid, label) in enumerate(choices, 1):
+        num = click.style(f'[{i}]', fg='yellow', bold=True)
+        name = click.style(uid, bold=True)
+        tag = click.style(label, dim=True)
+        click.echo(f'  {num} {name} {tag}')
+    click.echo()
+
+    selection = click.prompt('Select user_id', default='1', type=str).strip()
+
+    # Accept number or exact user_id string
+    if selection.isdigit() and 1 <= int(selection) <= len(choices):
+        return choices[int(selection) - 1][0]
+    for uid, _ in choices:
+        if selection == uid:
+            return uid
+    return personal_user_id
+
+
+def _env_prefix(api_url):
+    """'https://api-dev.clarifai.com' -> 'dev', 'https://api-staging...' -> 'staging'."""
+    from urllib.parse import urlparse
+
+    host = urlparse(api_url).hostname or ''
+    if 'api-dev' in host:
+        return 'dev'
+    elif 'api-staging' in host:
+        return 'staging'
+    return 'prod'
+
+
+@cli.command(short_help='Authenticate and save credentials.')
+@click.argument('api_url', default=DEFAULT_BASE)
+@click.option('--pat', required=False, help='Personal Access Token (skips interactive prompt).')
+@click.option(
+    '--user-id', required=False, help='User or org ID. Auto-detected from PAT if omitted.'
+)
+@click.option(
+    '--context',
+    'context_name',
+    required=False,
+    help='Context name. Defaults to the selected user_id.',
+)
+@click.pass_context
+def login(ctx, api_url, pat, user_id, context_name):
+    """Authenticate and save credentials.
+
+    \b
+    Verifies your PAT, detects your user_id, and saves a named
+    context to ~/.config/clarifai/config.
+
+    \b
+    API_URL  Clarifai API base URL (default: https://api.clarifai.com).
+
+    \b
+    Examples:
+      clarifai login                                  # interactive
+      clarifai login --pat $MY_PAT                    # non-interactive
+      clarifai login --pat $PAT --user-id openai      # org user, skip selection
+      clarifai login https://api-dev.clarifai.com     # dev environment
+      clarifai login --context my-context              # custom context name
+    """
+    # 1. Get PAT: --pat flag > CLARIFAI_PAT env var > browser + interactive prompt
+    if not pat:
+        pat = _get_pat_interactive()
+
+    # 2. Validate PAT + resolve personal user_id
+    click.secho('Verifying...', dim=True)
+    personal_user_id = _verify_and_resolve_user(pat, api_url)
+
+    # 3. Resolve which user_id to use
+    if user_id:
+        selected_user_id = user_id
     else:
-        click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
-        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/secrets')
-        click.echo('> Tip: Set CLARIFAI_PAT environment variable to skip this prompt.\n')
-        pat = masked_input('Enter your Personal Access Token (PAT): ')
+        orgs = _list_user_orgs(pat, personal_user_id, api_url)
+        if orgs:
+            selected_user_id = _prompt_user_or_org(personal_user_id, orgs)
+        else:
+            selected_user_id = personal_user_id
 
-    # Progress indicator
-    click.echo('\n> Verifying token...')
-    validate_context_auth(pat, user_id, api_url)
+    # 4. Derive context name
+    if not context_name:
+        if api_url != DEFAULT_BASE:
+            prefix = _env_prefix(api_url)
+            context_name = f"{prefix}-{selected_user_id}"
+        else:
+            context_name = selected_user_id
 
-    # Save context with default name
-    context_name = 'default'
+    # 5. Save (update if exists, create if new)
+    action = "Updated" if context_name in ctx.obj.contexts else "Created"
     context = Context(
         context_name,
         CLARIFAI_API_BASE=api_url,
-        CLARIFAI_USER_ID=user_id,
+        CLARIFAI_USER_ID=selected_user_id,
         CLARIFAI_PAT=pat,
     )
-
     ctx.obj.contexts[context_name] = context
     ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
-    click.secho(f'✅ Success! You\'re logged in as {user_id}', fg='green')
-    click.echo('💡 Tip: Use `clarifai config` to manage multiple accounts or environments')
 
-    logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
-
-
-@cli.command()
-@click.pass_context
-def whoami(ctx):
-    """Display information about the current user."""
-    from clarifai_grpc.grpc.api.status import status_code_pb2
-
-    from clarifai.client.user import User
-
-    # Get the current context
-    cfg = ctx.obj
-    current_ctx = cfg.contexts[cfg.current_context]
-
-    # Get user_id from context
-    context_user_id = current_ctx.CLARIFAI_USER_ID
-    pat = current_ctx.CLARIFAI_PAT
-    base_url = current_ctx.CLARIFAI_API_BASE
-
-    # Display context user info
-    click.echo("Context User ID: " + click.style(context_user_id, fg='cyan', bold=True))
-
-    # Call GetUser RPC with "me" to get the actual authenticated user
-    try:
-        user_client = User(user_id="me", pat=pat, base_url=base_url)
-        response = user_client.get_user_info(user_id="me")
-
-        if response.status.code == status_code_pb2.SUCCESS:
-            actual_user_id = response.user.id
-            click.echo(
-                "Authenticated User ID: " + click.style(actual_user_id, fg='green', bold=True)
-            )
-
-            # Check if they differ
-            if context_user_id != actual_user_id:
-                click.echo()
-                click.secho(
-                    "��️  Warning: The context user ID differs from the authenticated user ID!",
-                    fg='yellow',
-                )
-                click.echo(
-                    "This means you as the caller will be calling different user or organization."
-                )
-        else:
-            click.secho(f"Error getting user info: {response.status.description}", fg='red')
-
-    except Exception as e:
-        click.secho(f"Error: Could not retrieve authenticated user info: {str(e)}", fg='red')
+    # 6. Output
+    click.echo()
+    click.echo(
+        click.style('Logged in as ', fg='green')
+        + click.style(selected_user_id, fg='green', bold=True)
+        + click.style(f' ({api_url})', dim=True)
+    )
+    click.echo(f'{action} context {click.style(context_name, bold=True)} and set as active.')
 
 
 def _warn_env_pat():
@@ -246,44 +315,37 @@ def _logout_all_contexts(cfg):
 
 @cli.command()
 @click.option(
-    '--current',
-    'flag_current',
-    is_flag=True,
-    default=False,
-    help='Clear credentials from the current context (non-interactive).',
-)
-@click.option(
     '--all',
     'flag_all',
     is_flag=True,
     default=False,
-    help='Clear credentials from all contexts (non-interactive).',
+    help='Clear credentials from all contexts.',
 )
 @click.option(
     '--context',
     'flag_context',
     default=None,
     type=str,
-    help='Clear credentials from a specific named context (non-interactive).',
+    help='Clear credentials from a specific named context.',
 )
 @click.option(
     '--delete',
     'flag_delete',
     is_flag=True,
     default=False,
-    help='Also delete the context entry (use with --current or --context).',
+    help='Also delete the context entry (use with --context).',
 )
 @click.pass_context
-def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
+def logout(ctx, flag_all, flag_context, flag_delete):
     """Log out by clearing saved credentials.
 
-    Without flags, an interactive menu is shown. Use flags for
-    programmatic / non-interactive usage.
+    \b
+    By default, clears credentials from the current context.
+    Use flags to target a specific or all contexts.
 
     \b
     Examples:
-      clarifai logout                        # Interactive
-      clarifai logout --current              # Clear current context PAT
+      clarifai logout                        # Log out of current context
       clarifai logout --context staging      # Clear 'staging' PAT
       clarifai logout --context staging --delete  # Remove 'staging' entirely
       clarifai logout --all                  # Clear every context PAT
@@ -292,97 +354,118 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
     if not cfg or not hasattr(cfg, 'contexts'):
         raise click.ClickException("Not logged in. Run `clarifai login` first.")
 
-    # --- Validation for flag combinations ---
-    if flag_all and (flag_current or flag_context or flag_delete):
-        raise click.UsageError("--all cannot be combined with --current, --context, or --delete.")
+    if flag_all and (flag_context or flag_delete):
+        raise click.UsageError("--all cannot be combined with --context or --delete.")
 
-    if flag_delete and not (flag_current or flag_context):
-        raise click.UsageError("--delete requires --current or --context.")
-
-    if flag_current and flag_context:
-        raise click.UsageError("Cannot use --current and --context together.")
-
-    # --- Non-interactive paths ---
     if flag_all:
         _logout_all_contexts(cfg)
-        _warn_env_pat()
-        return
-
-    if flag_current:
-        _logout_one_context(cfg, cfg.current_context, delete=flag_delete)
-        _warn_env_pat()
-        return
-
-    if flag_context:
+    elif flag_context:
         _logout_one_context(cfg, flag_context, delete=flag_delete)
-        _warn_env_pat()
-        return
-
-    # --- Interactive flow ---
-    cur_name = cfg.current_context
-    cur_ctx = cfg.contexts.get(cur_name)
-    if not cur_ctx:
-        raise click.ClickException("No active context found. Run `clarifai login` first.")
-
-    user_id = cur_ctx['env'].get('CLARIFAI_USER_ID', 'unknown')
-    api_base = cur_ctx['env'].get('CLARIFAI_API_BASE', DEFAULT_BASE)
-    click.echo(
-        f"\nCurrent context is configured for user '{user_id}' (context: '{cur_name}', api: {api_base})\n"
-    )
-
-    # Build menu
-    choices = []
-    choices.append(('switch', 'Switch to another context'))
-    choices.append(('logout_current', 'Log out of current context (clear credentials)'))
-    choices.append(('logout_delete', 'Log out and delete current context'))
-    choices.append(('logout_all', 'Log out of all contexts'))
-    choices.append(('cancel', 'Cancel'))
-
-    for i, (_, label) in enumerate(choices, 1):
-        click.echo(f"  {i}. {label}")
-
-    click.echo()
-    choice_num = click.prompt('Enter choice', type=click.IntRange(1, len(choices)))
-    action = choices[choice_num - 1][0]
-
-    if action == 'cancel':
-        click.echo('Cancelled. No changes made.')
-        return
-
-    if action == 'switch':
-        other_contexts = [n for n in cfg.contexts if n != cur_name]
-        if not other_contexts:
-            click.echo("No other contexts available. Use `clarifai login` to create one.")
-            return
-        click.echo('\nAvailable contexts:')
-        for i, name in enumerate(other_contexts, 1):
-            uid = cfg.contexts[name]['env'].get('CLARIFAI_USER_ID', 'unknown')
-            click.echo(f"  {i}. {name} (user: {uid})")
-        click.echo()
-        idx = click.prompt('Switch to', type=click.IntRange(1, len(other_contexts)))
-        target_name = other_contexts[idx - 1]
-        cfg.current_context = target_name
-        cfg.to_yaml()
-        click.secho(
-            f"Switched to context '{target_name}'. No credentials were cleared.", fg='green'
-        )
-        return
-
-    if action == 'logout_current':
-        _logout_one_context(cfg, cur_name)
-
-    elif action == 'logout_delete':
-        _logout_one_context(cfg, cur_name, delete=True)
-
-    elif action == 'logout_all':
-        _logout_all_contexts(cfg)
+    else:
+        # Default: log out of current context
+        _logout_one_context(cfg, cfg.current_context, delete=flag_delete)
 
     _warn_env_pat()
-    click.echo("\nRun 'clarifai login' to re-authenticate.")
+    click.echo("Run 'clarifai login' to re-authenticate.")
 
 
 def pat_display(pat):
     return pat[:5] + "****"
+
+
+@cli.command(short_help='Show current user and context.')
+@click.option('--orgs', is_flag=True, help='Show organizations you belong to.')
+@click.option('--all', 'show_all', is_flag=True, help='Show full profile (email, name, orgs).')
+@click.option(
+    '-o',
+    '--output-format',
+    default='wide',
+    type=click.Choice(['wide', 'json']),
+    help='Output format.',
+)
+@click.pass_context
+def whoami(ctx, orgs, show_all, output_format):
+    """Show current user and context.
+
+    \b
+    Examples:
+      clarifai whoami                # user + context (local only)
+      clarifai whoami --orgs         # include organizations (API call)
+      clarifai whoami --all          # full profile + orgs (API call)
+      clarifai whoami -o json        # JSON output for scripting
+    """
+    cfg = ctx.obj
+    context = cfg.current
+
+    # Check if logged in
+    pat = context.get('pat')
+    user_id = context.get('user_id')
+    api_base = context.get('api_base', DEFAULT_BASE)
+
+    if not pat or not user_id or user_id == '_empty_':
+        click.secho("Not logged in. Run 'clarifai login' to authenticate.", fg='red', err=True)
+        raise SystemExit(1)
+
+    data = {
+        'user_id': user_id,
+        'context': cfg.current_context,
+        'api_base': api_base,
+    }
+
+    # Fetch full profile and/or orgs if requested
+    org_list = []
+    if show_all or orgs:
+        try:
+            org_list = _list_user_orgs(pat, user_id, api_base)
+            data['organizations'] = [{'id': oid, 'name': oname} for oid, oname in org_list]
+        except Exception:
+            org_list = []
+
+    if show_all:
+        try:
+            from clarifai.client.user import User
+
+            user = User(user_id='me', pat=pat, base_url=api_base)
+            response = user.get_user_info(user_id=user_id)
+            u = response.user
+            if u.full_name:
+                data['name'] = u.full_name
+            if u.primary_email:
+                data['email'] = u.primary_email
+            if u.company_name:
+                data['company'] = u.company_name
+        except Exception:
+            if output_format == 'wide':
+                click.secho(
+                    'Warning: could not fetch full profile from API.', fg='yellow', err=True
+                )
+
+    # Output
+    if output_format == 'json':
+        click.echo(json.dumps(data))
+    else:
+        click.echo(
+            click.style('User:     ', bold=True) + click.style(user_id, fg='green', bold=True)
+        )
+        if data.get('name'):
+            click.echo(click.style('Name:     ', bold=True) + data['name'])
+        if data.get('email'):
+            click.echo(click.style('Email:    ', bold=True) + data['email'])
+        if data.get('company'):
+            click.echo(click.style('Company:  ', bold=True) + data['company'])
+        click.echo(
+            click.style('Context:  ', bold=True)
+            + f'{cfg.current_context} @ '
+            + click.style(api_base, dim=True)
+        )
+
+        if org_list:
+            click.echo()
+            click.echo(click.style('Organizations:', bold=True))
+            for org_id, org_name in org_list:
+                click.echo(
+                    f'  {click.style(org_id, bold=True)}   {click.style(org_name, dim=True)}'
+                )
 
 
 def input_or_default(prompt, default):
@@ -420,10 +503,14 @@ def get_contexts(ctx, output_format):
     """List all available contexts."""
     if output_format == 'wide':
         columns = {
-            '': lambda c: '*' if c.name == ctx.obj.current_context else '',
-            'NAME': lambda c: c.name,
+            '': lambda c: click.style('*', fg='green', bold=True)
+            if c.name == ctx.obj.current_context
+            else '',
+            'NAME': lambda c: click.style(c.name, bold=True)
+            if c.name == ctx.obj.current_context
+            else c.name,
             'USER_ID': lambda c: c.user_id,
-            'API_BASE': lambda c: c.api_base,
+            'API_BASE': lambda c: click.style(c.api_base, dim=True),
             'PAT': lambda c: pat_display(c.pat),
         }
         additional_columns = set()
@@ -461,10 +548,12 @@ def get_contexts(ctx, output_format):
 def use_context(ctx, name):
     """Set the current context."""
     if name not in ctx.obj.contexts:
-        raise click.UsageError('Context not found')
+        raise click.UsageError(f'Context "{name}" not found')
     ctx.obj.current_context = name
     ctx.obj.to_yaml()
-    print(f'Set {name} as the current context')
+    click.echo(
+        click.style('Switched to context ', fg='green') + click.style(name, fg='green', bold=True)
+    )
 
 
 @config.command(aliases=['current-context', 'current'])
@@ -482,46 +571,48 @@ def current_context(ctx, output_format):
 
 @config.command(aliases=['create-context', 'create'])
 @click.argument('name')
-@click.option('--user-id', required=False, help='User ID')
-@click.option('--base-url', required=False, help='Base URL')
-@click.option('--pat', required=False, help='Personal access token')
+@click.option(
+    '--user-id', required=False, help='User or org ID. Auto-detected from PAT if omitted.'
+)
+@click.option('--base-url', required=False, default=DEFAULT_BASE, help='API base URL.')
+@click.option('--pat', required=False, help='Personal Access Token.')
 @click.pass_context
-def create_context(
-    ctx,
-    name,
-    user_id=None,
-    base_url=None,
-    pat=None,
-):
-    """Create a new context."""
-    from clarifai.utils.cli import validate_context_auth
-
+def create_context(ctx, name, user_id, base_url, pat):
+    """Create a new named context."""
     if name in ctx.obj.contexts:
-        click.secho(f'Error: Context "{name}" already exists', fg='red', err=True)
-        sys.exit(1)
-    if not user_id:
-        user_id = input('user id: ')
-    if not base_url:
-        base_url = input_or_default(
-            'base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com'
+        click.secho(
+            f'Context "{name}" already exists. Use "clarifai login" to update it.',
+            fg='red',
+            err=True,
         )
+        raise SystemExit(1)
+
+    # Same PAT resolution as login: flag > env > browser + prompt
     if not pat:
-        # Check for environment variable first
-        env_pat = os.environ.get('CLARIFAI_PAT')
-        if env_pat:
-            use_env = click.confirm('Found CLARIFAI_PAT in environment. Use it?', default=True)
-            if use_env:
-                pat = env_pat
-            else:
-                pat = masked_input('Enter your Personal Access Token (PAT): ')
+        pat = _get_pat_interactive()
+
+    # Same user_id resolution: flag > auto-detect + org selection
+    if not user_id:
+        click.secho('Verifying...', dim=True)
+        personal_user_id = _verify_and_resolve_user(pat, base_url)
+        orgs = _list_user_orgs(pat, personal_user_id, base_url)
+        if orgs:
+            user_id = _prompt_user_or_org(personal_user_id, orgs)
         else:
-            click.echo('Tip: Set CLARIFAI_PAT environment variable to skip this step.')
-            pat = masked_input('Enter your Personal Access Token (PAT): ')
-    validate_context_auth(pat, user_id, base_url)
+            user_id = personal_user_id
+    else:
+        click.secho('Verifying...', dim=True)
+        _verify_and_resolve_user(pat, base_url)
+
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
-    ctx.obj.contexts[context.name] = context
+    ctx.obj.contexts[name] = context
     ctx.obj.to_yaml()
-    click.secho(f"✅ Context '{name}' created successfully", fg='green')
+    click.echo(
+        click.style('Context ', fg='green')
+        + click.style(name, fg='green', bold=True)
+        + click.style(' created ', fg='green')
+        + click.style(f'({user_id} @ {base_url})', dim=True)
+    )
 
 
 @config.command(aliases=['e'])
@@ -540,11 +631,13 @@ def edit(
 def delete_context(ctx, name):
     """Delete a context."""
     if name not in ctx.obj.contexts:
-        print(f'{name} is not a valid context')
+        click.secho(f'Context "{name}" not found.', fg='red', err=True)
         sys.exit(1)
     ctx.obj.contexts.pop(name)
     ctx.obj.to_yaml()
-    print(f'{name} deleted')
+    click.echo(
+        click.style('Deleted context ', fg='yellow') + click.style(name, fg='yellow', bold=True)
+    )
 
 
 @config.command(aliases=['get-env'])
@@ -572,12 +665,12 @@ def view(ctx, output_format):
         print(yaml.safe_dump(config_dict, default_flow_style=False))
 
 
-@cli.command()
+@cli.command(short_help='Run a script with context env vars.')
 @click.argument('script', type=str)
 @click.option('--context', type=str, help='Context to use')
 @click.pass_context
 def run(ctx, script, context=None):
-    """Execute a script with the current context's environment"""
+    """Run a script with the current context's environment variables injected."""
     # Get the effective context - either from --context flag or current context
     if context:
         context_obj = validate_and_get_context(ctx.obj, context)
@@ -592,6 +685,16 @@ def run(ctx, script, context=None):
 
 # Import the CLI commands to register them
 # load_command_modules() - Now handled lazily by LazyLazyAliasedGroupp
+
+# Define section ordering for `clarifai --help`
+cli.command_sections = [
+    ('Auth', ['login', 'whoami']),
+    ('Config', ['config']),
+    ('Models', ['model']),
+    ('Pipelines', ['pipeline', 'pipeline-step', 'pipelinerun', 'pipelinetemplate']),
+    ('Compute', ['computecluster', 'nodepool', 'deployment']),
+    ('Other', ['artifact', 'run', 'shell-completion']),
+]
 
 
 def main():

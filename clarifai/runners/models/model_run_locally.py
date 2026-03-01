@@ -191,8 +191,18 @@ class ModelRunLocally:
                     process.kill()
 
     # run the model server
-    def run_model_server(self, port=8080):
-        """Run the Clarifai Runners's model server."""
+    def run_model_server(self, port=8080, grpc=True, **kwargs):
+        """Run the Clarifai Runner's model server.
+
+        Args:
+            port: Port to run the server on.
+            grpc: If True, start a standalone gRPC server. If False, start a
+                runner that connects to the Clarifai API (requires kwargs like
+                user_id, compute_cluster_id, nodepool_id, runner_id, base_url, pat).
+            **kwargs: Additional arguments passed to clarifai.runners.server
+                (e.g. user_id, compute_cluster_id, nodepool_id, runner_id,
+                base_url, pat, num_threads, pool_size).
+        """
 
         command = [
             self.python_executable,
@@ -200,10 +210,17 @@ class ModelRunLocally:
             "clarifai.runners.server",
             "--model_path",
             self.model_path,
-            "--grpc",
             "--port",
             str(port),
         ]
+        if grpc:
+            command.append("--grpc")
+        # Pass additional runner args
+        for key, value in kwargs.items():
+            if value is None:
+                continue
+            command.extend([f"--{key}", str(value)])
+
         try:
             logger.info(
                 f"Starting model server at localhost:{port} with the model at {self.model_path}..."
@@ -252,10 +269,15 @@ class ModelRunLocally:
             with open(dockerfile_path, 'r') as file:
                 lines = file.readlines()
 
-            # Comment out the COPY instruction that copies the current folder
+            # Comment out lines not needed for local container builds:
+            # - download-checkpoints: checkpoints are mounted at runtime, not baked in
+            # - downloader/unused.yaml: only exists in cloud build context
             modified_lines = []
             for line in lines:
+                stripped = line.strip()
                 if 'download-checkpoints' in line and '/home/nonroot/main' in line:
+                    modified_lines.append(f'# {line}')
+                elif stripped.startswith('COPY') and 'downloader/' in line:
                     modified_lines.append(f'# {line}')
                 else:
                     modified_lines.append(line)
@@ -307,7 +329,7 @@ class ModelRunLocally:
         Validate that the current environment supports model testing.
         Provides immediate feedback for unsupported configurations.
         This function runs only during CLI commands:
-            1. clarifai model local-grpc
+            1. clarifai model serve
             2. clarifai model local-test
         """
         warnings = []
@@ -395,8 +417,13 @@ class ModelRunLocally:
             cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
             if self._gpu_is_available():
                 cmd.extend(["--gpus", "all"])
-            # Add volume mappings
-            cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
+            # Add volume mappings (use --mount to handle paths with colons, e.g. "gemma3:1b")
+            cmd.extend(
+                [
+                    "--mount",
+                    f"type=bind,source={self.model_path},target=/home/nonroot/main",
+                ]
+            )
             # Add environment variables
             if env_vars:
                 for key, value in env_vars.items():
@@ -405,13 +432,18 @@ class ModelRunLocally:
             cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
-            # update the CMD to run the server
+            # Override CMD to run the server (ENTRYPOINT is tini, so we need the full command)
+            server_cmd = [
+                "python",
+                "-m",
+                "clarifai.runners.server",
+                "--model_path",
+                "/home/nonroot/main",
+            ]
             if is_local_runner:
                 kwargs.pop("pool_size", None)  # remove pool_size if exists
-                cmd.extend(
+                server_cmd.extend(
                     [
-                        "--model_path",
-                        "/home/nonroot/main",
                         "--compute_cluster_id",
                         str(kwargs.get("compute_cluster_id", None)),
                         "--user_id",
@@ -426,12 +458,16 @@ class ModelRunLocally:
                         str(kwargs.get("pat", None)),
                         "--num_threads",
                         str(kwargs.get("num_threads", 0)),
-                        "--health_check_port",
-                        str(kwargs.get("health_check_port", 8080)),
                     ]
                 )
+                # Only pass health_check_port if non-zero (avoids compat issues with
+                # older clarifai versions inside the container that lack the flag)
+                hcp = kwargs.get("health_check_port", 8080)
+                if hcp and hcp > 0:
+                    server_cmd.extend(["--health_check_port", str(hcp)])
             else:
-                cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
+                server_cmd.extend(["--grpc", "--port", str(port)])
+            cmd.extend(server_cmd)
             # Run the container
             logger.info(f"Running docker commands: {cmd}")
             process = subprocess.Popen(
@@ -473,8 +509,13 @@ class ModelRunLocally:
                 cmd.extend(["--gpus", "all"])
             # update the entrypoint for testing the model
             cmd.extend(["--entrypoint", "python"])
-            # Add volume mappings
-            cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
+            # Add volume mappings (use --mount to handle paths with colons, e.g. "gemma3:1b")
+            cmd.extend(
+                [
+                    "--mount",
+                    f"type=bind,source={self.model_path},target=/home/nonroot/main",
+                ]
+            )
             # Add environment variables
             if env_vars:
                 for key, value in env_vars.items():

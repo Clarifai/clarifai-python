@@ -7,6 +7,55 @@ from clarifai.runners.utils import data_utils
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import MCP_TRANSPORT_NAME, OPENAI_TRANSPORT_NAME
 
+_SAMPLE_URLS = {
+    resources_pb2.ModelTypeField.DataType.IMAGE: "https://s3.amazonaws.com/samples.clarifai.com/featured-models/image-captioning-statue-of-liberty.jpeg",
+    resources_pb2.ModelTypeField.DataType.AUDIO: "https://s3.amazonaws.com/samples.clarifai.com/GoodMorning.wav",
+    resources_pb2.ModelTypeField.DataType.VIDEO: "https://s3.amazonaws.com/samples.clarifai.com/beer.mp4",
+}
+
+
+def generate_predict_hint(
+    method_signatures: List[resources_pb2.MethodSignature],
+    model_ref: str,
+    deployment_id: str = None,
+) -> str:
+    """Build a concrete ``clarifai model predict`` command from method signatures.
+
+    Returns a ready-to-copy CLI string like::
+
+        clarifai model predict user/app/models/m "Hello world"
+        clarifai model predict user/app/models/m --url https://...jpg
+    """
+    deployment_flag = f" --deployment {deployment_id}" if deployment_id else ""
+    base = f"clarifai model predict {model_ref}{deployment_flag}"
+
+    if not method_signatures:
+        return f"{base} --info"
+
+    # OpenAI-style model — positional text auto-routes to OpenAI client
+    if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
+        return f'{base} "Hello world"'
+
+    # MCP model → --info (no direct predict)
+    if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):
+        return f"{base} --info"
+
+    # Pick the first user-facing method
+    sig = method_signatures[0]
+    if not sig.input_fields:
+        return f"{base} --info"
+
+    first_field = sig.input_fields[0]
+    dt = first_field.type
+    DT = resources_pb2.ModelTypeField.DataType
+
+    if dt in (DT.STR, DT.TEXT):
+        return f'{base} "Hello world"'
+    elif dt in _SAMPLE_URLS:
+        return f"{base} --url {_SAMPLE_URLS[dt]}"
+    else:
+        return f"{base} --info"
+
 
 def has_signature_method(
     name: str, method_signatures: List[resources_pb2.MethodSignature]
@@ -23,6 +72,78 @@ def has_signature_method(
     )
 
 
+def _colorize_script(script: str) -> str:
+    """Apply Python syntax highlighting to a script string using pygments."""
+    try:
+        from pygments import highlight  # type: ignore
+        from pygments.formatters import TerminalFormatter  # type: ignore
+        from pygments.lexers import PythonLexer  # type: ignore
+
+        return highlight(script, PythonLexer(), TerminalFormatter())
+    except Exception:
+        return script
+
+
+def _generate_local_grpc_script(
+    method_signatures: List[resources_pb2.MethodSignature],
+    port: int,
+    colorize: bool = False,
+) -> str:
+    """Generate a Python snippet for calling a model on a local gRPC server.
+
+    Uses ModelClient.from_local_grpc() which auto-discovers method signatures
+    and provides the same SDK interface as cloud models.
+    """
+    lines = [
+        "from clarifai.client.model_client import ModelClient",
+        "",
+        f"client = ModelClient.from_local_grpc(port={port})",
+        "",
+    ]
+
+    for method_signature in method_signatures:
+        if method_signature is None:
+            continue
+        method_name = method_signature.name
+        # Skip bidirectional streaming — too complex for a quick snippet
+        if method_signature.method_type == resources_pb2.RunnerMethodType.STREAMING_STREAMING:
+            continue
+
+        annotations = _get_annotations_source(method_signature)
+        # Build sample kwargs from input params
+        param_parts = []
+        for param_name, (param_type, default_value, _required) in annotations.items():
+            if param_name == "return":
+                continue
+            if default_value is None:
+                default_value = _set_default_value(param_type)
+            if default_value is not None:
+                if param_type == "str":
+                    param_parts.append(f'{param_name}={json.dumps(str(default_value))}')
+                else:
+                    param_parts.append(f"{param_name}={default_value}")
+            break  # Just show the first param for brevity
+
+        call_args = ", ".join(param_parts) if param_parts else ""
+
+        is_streaming = (
+            method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING
+        )
+
+        lines.append(f"# Method: {method_name}")
+        if is_streaming:
+            lines.append(f"for chunk in client.{method_name}({call_args}):")
+            lines.append("    print(chunk, end='')")
+            lines.append("print()")
+        else:
+            lines.append(f"response = client.{method_name}({call_args})")
+            lines.append("print(response)")
+        lines.append("")
+
+    script = "\n".join(lines)
+    return _colorize_script(script) if colorize else script
+
+
 def generate_client_script(
     method_signatures: List[resources_pb2.MethodSignature],
     user_id,
@@ -35,7 +156,12 @@ def generate_client_script(
     deployment_user_id: str = None,
     use_ctx: bool = False,
     colorize: bool = False,
+    local_grpc_port: int = None,
 ) -> str:
+    # ── Local gRPC mode ────────────────────────────────────────────────
+    if local_grpc_port is not None:
+        return _generate_local_grpc_script(method_signatures, local_grpc_port, colorize=colorize)
+
     url_helper = ClarifaiUrlHelper()
 
     # Provide an mcp client config if there is a method named "mcp_transport"
@@ -69,7 +195,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 """
-        return _CLIENT_TEMPLATE
+        return _colorize_script(_CLIENT_TEMPLATE) if colorize else _CLIENT_TEMPLATE
 
     if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
         openai_api_base = url_helper.openai_api_url()
@@ -98,7 +224,7 @@ response = client.chat.completions.create(
 )
 print(response)
 """
-        return _CLIENT_TEMPLATE
+        return _colorize_script(_CLIENT_TEMPLATE) if colorize else _CLIENT_TEMPLATE
     # Generate client template
     _CLIENT_TEMPLATE = (
         "import os\n\n"
@@ -224,17 +350,7 @@ model = Model.from_current_context()
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
-    if colorize:
-        try:
-            from pygments import highlight  # type: ignore
-            from pygments.formatters import TerminalFormatter  # type: ignore
-            from pygments.lexers import PythonLexer  # type: ignore
-
-            return highlight(script, PythonLexer(), TerminalFormatter())
-        except Exception:
-            # Fallback to plain text if pygments is unavailable
-            return script
-    return script
+    return _colorize_script(script) if colorize else script
 
 
 # get annotations source with default values

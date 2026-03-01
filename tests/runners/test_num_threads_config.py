@@ -63,7 +63,9 @@ def test_num_threads(my_tmp_path, num_threads, monkeypatch):
         assert builder.config.get("num_threads") == num_threads
 
     elif num_threads in [-1, 0, "a", 1.5]:
-        with pytest.raises(AssertionError):
+        from clarifai.errors import UserError
+
+        with pytest.raises(UserError):
             builder = ModelBuilder(target_folder, validate_api_ids=False)
 
 

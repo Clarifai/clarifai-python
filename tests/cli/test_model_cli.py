@@ -20,7 +20,6 @@ def test_ensure_config_exists_for_upload_creates_file(monkeypatch, tmp_path):
     responses = iter(
         [
             "n",  # Do you want to create config.yaml yourself? No, create interactively
-            "",  # context selection (keep current)
             "custom-model",  # model id
             "",  # user id (default)
             "",  # app id (default)
@@ -97,7 +96,7 @@ class TestModelCliOllama:
     """Test CLI model commands with Ollama toolkit integration."""
 
     def test_customize_ollama_model_function_call(self):
-        """Test that customize_ollama_model is called with correct parameters."""
+        """Test that customize_ollama_model initializes the toolkit section."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create a mock config.yaml file
             config_file = os.path.join(tmp_dir, 'config.yaml')
@@ -117,8 +116,9 @@ class TestModelCliOllama:
             with open(config_file, 'r', encoding='utf-8') as f:
                 updated_config = yaml.safe_load(f)
 
-            assert updated_config['model']['user_id'] == test_user_id
+            # customize_ollama_model doesn't update model.user_id — that's injected from CLI context
             assert 'toolkit' in updated_config
+            assert isinstance(updated_config['toolkit'], dict)
 
     def test_customize_ollama_model_missing_user_id_raises_error(self):
         """Test that customize_ollama_model raises TypeError when user_id is missing."""
@@ -174,7 +174,7 @@ context_length = '8192'
             with open(config_file, 'r', encoding='utf-8') as f:
                 updated_config = yaml.safe_load(f)
 
-            assert updated_config['model']['user_id'] == 'new-user-id'
+            # customize_ollama_model doesn't update model.user_id — that's injected from CLI context
             assert updated_config['toolkit']['model'] == 'mistral'
             assert updated_config['toolkit']['port'] == '8080'
             assert updated_config['toolkit']['context_length'] == '8192'

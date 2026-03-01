@@ -1,0 +1,9 @@
+model:
+  id: "my-model"
+
+build_info:
+  python_version: "3.12"
+  image: "ollama/ollama:latest"
+
+toolkit:
+  provider: ollama

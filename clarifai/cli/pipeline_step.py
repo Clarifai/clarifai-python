@@ -19,7 +19,7 @@ from clarifai.utils.logging import logger
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipeline_step():
-    """Manage pipeline steps: upload, test, list, etc"""
+    """Manage pipeline steps."""
 
 
 @pipeline_step.command()
