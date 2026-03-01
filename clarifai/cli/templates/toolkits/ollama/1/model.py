@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import time
 from typing import Iterator, List
 
 from openai import OpenAI
@@ -8,7 +9,9 @@ from openai import OpenAI
 from clarifai.runners.models.openai_class import OpenAIModelClass
 from clarifai.runners.utils.data_types import Image
 from clarifai.runners.utils.data_utils import Param
+from clarifai.runners.utils.model_utils import execute_shell_command
 from clarifai.runners.utils.openai_convertor import build_openai_messages
+from clarifai.utils.logging import logger
 
 if not os.environ.get('OLLAMA_HOST'):
     PORT = '23333'
@@ -18,24 +21,37 @@ OLLAMA_HOST = os.environ.get('OLLAMA_HOST')
 if not os.environ.get('OLLAMA_CONTEXT_LENGTH'):
     os.environ["OLLAMA_CONTEXT_LENGTH"] = '8192'
 
-VERBOSE_OLLAMA = False
-
 
 def run_ollama_server(model_name: str = 'llama3.2'):
     """Start Ollama server and pull the model."""
-    from clarifai.runners.utils.model_utils import execute_shell_command
-
     try:
+        # Start server in the background
         execute_shell_command(
             "ollama serve",
-            stdout=None if VERBOSE_OLLAMA else subprocess.DEVNULL,
-            stderr=subprocess.STDOUT if VERBOSE_OLLAMA else subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
-        execute_shell_command(
-            f"ollama pull {model_name}",
-            stdout=None if VERBOSE_OLLAMA else subprocess.DEVNULL,
-            stderr=subprocess.STDOUT if VERBOSE_OLLAMA else subprocess.DEVNULL,
+        # Wait for server to be ready
+        start = time.time()
+        while time.time() - start < 30:
+            try:
+                r = subprocess.run(["ollama", "list"], capture_output=True, timeout=5, check=False)
+                if r.returncode == 0:
+                    break
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+            time.sleep(1)
+        else:
+            raise RuntimeError("Ollama server did not start within 30s")
+
+        # Pull model (blocking — must finish before we accept requests)
+        logger.info(f"Pulling ollama model '{model_name}'...")
+        result = subprocess.run(
+            ["ollama", "pull", model_name], capture_output=True, text=True, check=False
         )
+        if result.returncode != 0:
+            raise RuntimeError(f"ollama pull failed: {result.stderr}")
+        logger.info(f"Model '{model_name}' ready.")
     except Exception as e:
         raise RuntimeError(f"Failed to start Ollama server: {e}")
 

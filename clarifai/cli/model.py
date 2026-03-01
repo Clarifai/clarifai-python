@@ -1018,8 +1018,18 @@ def _print_deploy_result(result):
         deployment_id=result.get('deployment_id'),
     )
 
+    # Build playground URL from model_url (e.g. https://clarifai.com/user/app/models/id)
+    from urllib.parse import urlparse
+
+    ui_base = f"{urlparse(model_url).scheme}://{urlparse(model_url).netloc}"
+    playground_url = (
+        f"{ui_base}/playground?model={result['model_id']}__{result['model_version_id']}"
+        f"&user_id={result['user_id']}&app_id={result['app_id']}"
+    )
+
     out.phase_header("Next Steps")
     out.hint("Predict", predict_cmd)
+    out.link("Playground", playground_url)
     out.hint("Logs", f'clarifai model logs --model-url "{model_url}"')
 
 
