@@ -675,14 +675,17 @@ def prompt_required_field(message: str, default: Optional[str] = None) -> str:
     Returns:
         str: The value entered by the user.
     """
+    if default:
+        logger.info(f"{message} [Using default: {default}]")
+        return default
+
+    if not sys.stdin.isatty():
+        logger.error(f"{message} [Non-interactive: required field missing, aborting]")
+        raise click.Abort()
+
     while True:
-        prompt = f"{message}"
-        if default:
-            prompt += f" [{default}]"
-        prompt += ": "
+        prompt = f"{message}: "
         value = input(prompt).strip()
-        if not value and default:
-            return default
         if value:
             return value
         click.echo("❌ This field is required. Please enter a value.")
@@ -698,10 +701,14 @@ def prompt_optional_field(message: str, default: Optional[str] = None) -> Option
     Returns:
         Optional[str]: The value entered by the user.
     """
-    prompt = f"{message}"
-    if default:
-        prompt += f" [{default}]"
-    prompt += ": "
+    if default is not None:
+        logger.info(f"{message} [Using default: {default}]")
+        return default
+
+    if not sys.stdin.isatty():
+        return default
+
+    prompt = f"{message}: "
     value = input(prompt).strip()
     if not value:
         return default
@@ -718,11 +725,15 @@ def prompt_int_field(message: str, default: Optional[int] = None) -> int:
     Returns:
         int: The value entered by the user.
     """
+    if default is not None:
+        logger.info(f"{message} [Using default: {default}]")
+        return default
+
+    if not sys.stdin.isatty():
+        raise click.Abort()
+
     while True:
-        prompt = f"{message}"
-        if default is not None:
-            prompt += f" [{default}]"
-        prompt += ": "
+        prompt = f"{message}: "
         raw = input(prompt).strip()
         if not raw and default is not None:
             return default
@@ -742,17 +753,19 @@ def prompt_yes_no(message: str, default: Optional[bool] = None) -> bool:
     Returns:
         bool: The value entered by the user.
     """
-    if default is True:
-        suffix = " [Y/n]"
-    elif default is False:
-        suffix = " [y/N]"
-    else:
-        suffix = " [y/n]"
+    if default is not None:
+        logger.info(f"{message} [Using default: {'Y/n' if default else 'y/N'}]")
+        return default
+
+    if not sys.stdin.isatty():
+        res = default if default is not None else True
+        logger.info(f"{message} [Non-interactive: using {res}]")
+        return res
+
+    suffix = " [y/n]"
     prompt = f"{message}{suffix}: "
     while True:
         response = input(prompt).strip().lower()
-        if not response and default is not None:
-            return default
         if response in ("y", "yes"):
             return True
         if response in ("n", "no"):

@@ -83,6 +83,9 @@ def login(ctx, api_url, user_id):
 
     # Input user_id if not supplied
     if not user_id:
+        if not sys.stdin.isatty():
+            logger.error("User ID is required for login in non-interactive mode.")
+            raise click.Abort()
         user_id = click.prompt('Enter your Clarifai user ID', type=str)
 
     click.echo()  # Blank line for readability
@@ -106,8 +109,13 @@ def login(ctx, api_url, user_id):
     click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
 
-    # Save context with default name
-    context_name = 'default'
+    # Context naming
+    default_context_name = 'default'
+    click.echo('\n> Let\'s save these credentials to a new context.')
+    click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
+    context_name = click.prompt("Enter a name for this context", default=default_context_name)
+
+    # Save context
     context = Context(
         context_name,
         CLARIFAI_API_BASE=api_url,
@@ -386,6 +394,11 @@ def pat_display(pat):
 
 
 def input_or_default(prompt, default):
+    if default is not None:
+        logger.info(f"{prompt} [Using default: {default}]")
+        return default
+    if not sys.stdin.isatty():
+        raise click.Abort()
     value = input(prompt)
     return value if value else default
 
@@ -411,7 +424,7 @@ def validate_and_get_context(config, context_name):
 
 
 # Context management commands under config group
-@config.command(aliases=['get-contexts', 'list-contexts', 'ls'])
+@config.command(aliases=['get-contexts', 'list-contexts', 'ls', 'list'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
@@ -425,6 +438,7 @@ def get_contexts(ctx, output_format):
             'USER_ID': lambda c: c.user_id,
             'API_BASE': lambda c: c.api_base,
             'PAT': lambda c: pat_display(c.pat),
+            'HF_TOKEN': lambda c: pat_display(c.hf_token) if hasattr(c, 'hf_token') else "",
         }
         additional_columns = set()
         for cont in ctx.obj.contexts.values():
@@ -500,6 +514,9 @@ def create_context(
         click.secho(f'Error: Context "{name}" already exists', fg='red', err=True)
         sys.exit(1)
     if not user_id:
+        if not sys.stdin.isatty():
+            click.echo("Error: user-id is required in non-interactive mode.", err=True)
+            sys.exit(1)
         user_id = input('user id: ')
     if not base_url:
         base_url = input_or_default(

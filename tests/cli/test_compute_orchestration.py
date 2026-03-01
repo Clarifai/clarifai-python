@@ -159,8 +159,6 @@ class TestComputeOrchestration:
             [
                 "deployment",
                 "create",
-                CREATE_NODEPOOL_ID,
-                CREATE_DEPLOYMENT_ID,
                 "--config",
                 DEPLOYMENT_CONFIG_FILE,
             ],
@@ -175,13 +173,43 @@ class TestComputeOrchestration:
 
     def test_list_nodepools(self, cli_runner):
         cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = cli_runner.invoke(cli, ["nodepool", "list", CREATE_COMPUTE_CLUSTER_ID])
+        result = cli_runner.invoke(
+            cli, ["nodepool", "list", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID]
+        )
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output
 
     def test_list_deployments(self, cli_runner):
         cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = cli_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
+        result = cli_runner.invoke(
+            cli, ["deployment", "list", "--nodepool_id", CREATE_NODEPOOL_ID]
+        )
+
+        assert result.exit_code == 0, logger.exception(result)
+        assert "USER_ID" in result.output
+
+    def test_list_deployments_with_cluster_id(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
+            cli, ["deployment", "list", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID]
+        )
+
+        assert result.exit_code == 0, logger.exception(result)
+        assert "USER_ID" in result.output
+
+    def test_list_deployments_with_nodepool_and_cluster_id(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
+            cli,
+            [
+                "deployment",
+                "list",
+                "--nodepool_id",
+                CREATE_NODEPOOL_ID,
+                "--compute_cluster_id",
+                CREATE_COMPUTE_CLUSTER_ID,
+            ],
+        )
 
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output

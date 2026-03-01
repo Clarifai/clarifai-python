@@ -467,7 +467,11 @@ def delete(ctx, path, force):
                 prompt_msg = f"Are you sure you want to delete artifact version '{version_id}'?"
             else:
                 prompt_msg = f"Are you sure you want to delete artifact '{parsed['artifact_id']}'?"
-            if not click.confirm(prompt_msg):
+
+            # Using prompt_yes_no for better automation support
+            from clarifai.utils.cli import prompt_yes_no
+
+            if not prompt_yes_no(prompt_msg, default=False):
                 click.echo("Operation cancelled")
                 return
 

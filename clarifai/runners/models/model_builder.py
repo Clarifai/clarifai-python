@@ -81,30 +81,43 @@ def is_related(object_class, main_class):
 
 def get_user_input(prompt, required=True, default=None):
     """Get user input with optional default value."""
-    if default:
-        prompt = f"{prompt} [{default}]: "
+    if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Using default: {default}]")
+            return default
+        if not required:
+            return ""
+        else:
+            raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
+
+    if default is not None:
+        prompt_text = f"{prompt} [{default}]: "
     else:
-        prompt = f"{prompt}: "
+        prompt_text = f"{prompt}: "
 
     while True:
-        value = input(prompt).strip()
-        if not value and default:
-            return default
-        if not value and required:
-            print("❌ This field is required. Please enter a value.")
-            continue
+        value = input(prompt_text).strip()
+        if not value:
+            if default is not None:
+                return default
+            if required:
+                print("❌ This field is required. Please enter a value.")
+                continue
+            return ""
         return value
 
 
 def get_yes_no_input(prompt, default=None):
     """Get yes/no input from user."""
-    if default is not None:
-        prompt = f"{prompt} [{'Y/n' if default else 'y/N'}]: "
-    else:
-        prompt = f"{prompt} [y/n]: "
+    if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Using default: {'Y/n' if default else 'y/N'}]")
+            return default
+        raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
 
+    full_prompt = f"{prompt} [{'Y/n' if default else 'y/N' if default is not None else 'y/n'}]: "
     while True:
-        response = input(prompt).strip().lower()
+        response = input(full_prompt).strip().lower()
         if not response and default is not None:
             return default
         if response in ['y', 'yes']:
@@ -119,9 +132,7 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     Dynamically list compute-clusters and node-pools that belong to `user_id`
     and return a dict with nodepool_id, compute_cluster_id, cluster_user_id.
     """
-    user = User(
-        user_id=user_id, pat=pat, base_url=base_url
-    )  # PAT / BASE URL are picked from env-vars
+    user = User(user_id=user_id, pat=pat, base_url=base_url)
     clusters = list(user.list_compute_clusters())
     if not clusters:
         print("❌ No compute clusters found for this user.")
@@ -130,15 +141,14 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     for idx, cc in enumerate(clusters, 1):
         desc = getattr(cc, "description", "") or "No description"
         print(f"{idx}. {cc.id}  –  {desc}")
-    while True:
-        try:
-            sel = int(input("Select compute cluster (number): ")) - 1
-            if 0 <= sel < len(clusters):
-                cluster = clusters[sel]
-                break
-            print("❌ Invalid selection.")
-        except ValueError:
-            print("❌ Please enter a number.")
+
+    if len(clusters) > 1:
+        cluster_idx = int(get_user_input("Select compute cluster (enter number)", default="1"))
+        cluster = clusters[cluster_idx - 1]
+    else:
+        cluster = clusters[0]
+        logger.info(f"Selecting compute cluster: {cluster.id}")
+
     nodepools = list(cluster.list_nodepools())
     if not nodepools:
         print("❌ No nodepools in selected cluster.")
@@ -147,15 +157,14 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     for idx, np in enumerate(nodepools, 1):
         desc = getattr(np, "description", "") or "No description"
         print(f"{idx}. {np.id}  –  {desc}")
-    while True:
-        try:
-            sel = int(input("Select nodepool (number): ")) - 1
-            if 0 <= sel < len(nodepools):
-                nodepool = nodepools[sel]
-                break
-            print("❌ Invalid selection.")
-        except ValueError:
-            print("❌ Please enter a number.")
+
+    if len(nodepools) > 1:
+        nodepool_idx = int(get_user_input("Select nodepool (enter number)", default="1"))
+        nodepool = nodepools[nodepool_idx - 1]
+    else:
+        nodepool = nodepools[0]
+        logger.info(f"Selecting nodepool: {nodepool.id}")
+
     return {
         "nodepool_id": nodepool.id,
         "compute_cluster_id": cluster.id,
@@ -427,19 +436,31 @@ class ModelBuilder:
         )
         assert loader_type == "huggingface", "Only huggingface loader supported for now"
         if loader_type == "huggingface":
-            assert "repo_id" in self.config.get("checkpoints"), (
-                "No repo_id specified in the config file"
-            )
-            repo_id = self.config.get("checkpoints").get("repo_id")
+            assert "repo_id" in checkpoints, "No repo_id specified in the config file"
+            repo_id = checkpoints.get("repo_id")
 
-            # get from config.yaml otherwise fall back to HF_TOKEN env var.
-            hf_token = self.config.get("checkpoints").get(
-                "hf_token", os.environ.get("HF_TOKEN", None)
-            )
+            # Priority: 1. config.yaml, 2. HF_TOKEN env var, 3. User prompt
+            hf_token = checkpoints.get("hf_token")
+            if not hf_token:
+                hf_token = os.environ.get("HF_TOKEN")
+                if hf_token:
+                    logger.info("Using HF_TOKEN from environment variable.")
+                elif sys.stdin.isatty():
+                    hf_token = get_user_input(
+                        "Hugging Face token not found. Please enter it (optional, press enter to skip)",
+                        required=False,
+                    )
 
-            allowed_file_patterns = self.config.get("checkpoints").get(
-                'allowed_file_patterns', None
-            )
+            # Update config file if a token was found elsewhere.
+            if hf_token and hf_token != checkpoints.get("hf_token"):
+                self.config["checkpoints"]["hf_token"] = hf_token
+                try:
+                    self._save_config(os.path.join(self.folder, "config.yaml"), self.config)
+                    logger.info("Updated config.yaml with Hugging Face token.")
+                except Exception as e:
+                    logger.warning(f"Could not update config.yaml with Hugging Face token: {e}")
+
+            allowed_file_patterns = checkpoints.get("allowed_file_patterns", None)
             if isinstance(allowed_file_patterns, str):
                 allowed_file_patterns = [allowed_file_patterns]
             ignore_file_patterns = self.config.get("checkpoints").get('ignore_file_patterns', None)
@@ -492,8 +513,7 @@ class ModelBuilder:
             logger.info(f"App {app_id} not found for user {user_id}.")
 
             if self.app_not_found_action == "prompt":
-                create_app_prompt = input(f"Do you want to create App `{app_id}`? (y/n): ")
-                if create_app_prompt.lower() == 'y':
+                if get_yes_no_input(f"Do you want to create App `{app_id}`?", True):
                     create_app()
                     return True
                 else:
@@ -1382,16 +1402,13 @@ class ModelBuilder:
                     )
                     should_create_dockerfile = False
                 else:
-                    logger.info("Dockerfile already exists with different content.")
-                    response = input(
-                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
-                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
-                    )
-                    if response.lower() != 'y':
-                        logger.info("Keeping existing custom Dockerfile.")
-                        should_create_dockerfile = False
+                    logger.warning("A different Dockerfile already exists.")
+                    if get_yes_no_input(
+                        "Do you want to overwrite the existing Dockerfile?", False
+                    ):
+                        should_create_dockerfile = True
                     else:
-                        logger.info("Overwriting existing Dockerfile with generated content.")
+                        should_create_dockerfile = False
 
         if should_create_dockerfile:
             # Write Dockerfile
@@ -1584,11 +1601,7 @@ class ModelBuilder:
             if status_result.stdout.strip():
                 logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
-
-                response = input(
-                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
-                )
-                return response.lower() in ['y', 'yes']
+                return True
             else:
                 logger.info("Model path has no uncommitted changes.")
                 return True
@@ -1726,8 +1739,8 @@ class ModelBuilder:
                     if when != "upload" and not HuggingFaceLoader.validate_config(
                         self.checkpoint_path
                     ):
-                        input(
-                            "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+                        logger.info(
+                            "Downloading the HuggingFace model's config.json file to infer the concepts."
                         )
                         loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
                         loader.download_config(self.checkpoint_path)
@@ -1940,6 +1953,7 @@ def upload_model(
     stage,
     skip_dockerfile,
     platform: Optional[str] = None,
+    autodeploy: bool = False,
     pat: Optional[str] = None,
     base_url: Optional[str] = None,
 ):
@@ -1950,6 +1964,7 @@ def upload_model(
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
+    :param autodeploy: If True, will automatically setup deployment for the model after upload.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
@@ -1987,18 +2002,18 @@ def upload_model(
         if not builder._check_git_status_and_prompt():
             logger.info("Upload cancelled by user due to uncommitted changes.")
             return
-    input("Press Enter to continue...")
 
-    model_version = builder.upload_model_version(git_info)
+    logger.info("Ready to upload. Starting model version upload.")
+    builder.upload_model_version(git_info)
 
-    # Ask user if they want to deploy the model
-    if model_version is not None:  # if it comes back None then it failed.
-        if get_yes_no_input("\n🔶 Do you want to deploy the model?", True):
-            # Setup deployment for the uploaded model
-            setup_deployment_for_model(builder)
-        else:
-            logger.info("Model uploaded successfully. Skipping deployment setup.")
-            return
+    if autodeploy:
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
+    else:
+        logger.info(
+            "Model uploaded successfully. Skipping deployment setup, you can create a deployment in UI or CLI."
+        )
+        return
 
 
 def deploy_model(
@@ -2139,6 +2154,7 @@ def setup_deployment_for_model(builder):
     deployment_id = get_user_input(
         "Enter deployment ID", default=f"deploy-{state['model_id']}-{uuid.uuid4().hex[:6]}"
     )
+
     min_replicas = int(get_user_input("Enter minimum replicas", default="1"))
     max_replicas = int(get_user_input("Enter maximum replicas", default="5"))
 
