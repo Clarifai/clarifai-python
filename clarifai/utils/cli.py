@@ -585,17 +585,14 @@ def check_requirements_installed(model_path: str = None, dependencies: dict = No
         True if all dependencies are installed, False otherwise
     """
 
-    if model_path and dependencies:
-        logger.warning(
-            "model_path and dependencies cannot be provided together, using dependencies instead"
-        )
-        dependencies = parse_requirements(model_path)
-
     try:
         if not dependencies:
+            if not model_path:
+                logger.error("No model_path or dependencies provided to check requirements.")
+                return False
             dependencies = parse_requirements(model_path)
         missing = [
-            full_req
+            f"{package_name}{full_req}" if full_req else package_name
             for package_name, full_req in dependencies.items()
             if not _is_package_installed(package_name)
         ]
@@ -609,8 +606,16 @@ def check_requirements_installed(model_path: str = None, dependencies: dict = No
             f"❌ {len(missing)} of {len(dependencies)} required packages are missing in the current environment"
         )
         logger.error("\n".join(f"  - {pkg}" for pkg in missing))
-        requirements_path = Path(model_path) / "requirements.txt"
-        logger.warning(f"To install: pip install -r {requirements_path}")
+        if model_path:
+            try:
+                requirements_path = (Path(model_path) / "requirements.txt").relative_to(Path.cwd())
+            except ValueError:
+                requirements_path = Path(model_path) / "requirements.txt"
+            logger.warning(f"To install: pip install -r {requirements_path}")
+        logger.warning(
+            "Tip: use '--mode env' to auto-install deps in a virtualenv, "
+            "or '--mode container' to run in Docker."
+        )
         return False
 
     except Exception as e:

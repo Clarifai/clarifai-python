@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -1082,6 +1083,35 @@ def logs(
         raise SystemExit(1)
 
 
+def _detect_toolkit(config, dependencies):
+    """Detect the inference toolkit from config or requirements.txt deps.
+
+    Returns the toolkit name (e.g. 'vllm', 'sglang', 'ollama', 'lmstudio')
+    or None if no known toolkit is detected.
+    """
+    provider = (
+        config.get('toolkit', {}).get('provider', '').lower() if config.get('toolkit') else ''
+    )
+    if provider:
+        return provider
+    for name in ('vllm', 'sglang', 'ollama', 'lmstudio'):
+        if name in dependencies:
+            return name
+    return None
+
+
+def _check_platform_for_toolkit(toolkit):
+    """Raise UserError if toolkit requires Linux and we're not on Linux."""
+    if toolkit in ('vllm', 'sglang') and platform.system() != 'Linux':
+        raise UserError(
+            f"'{toolkit}' requires a Linux environment with GPU access.\n"
+            "  Options:\n"
+            "    clarifai model serve --mode container   # run in Docker locally\n"
+            "    clarifai model deploy .                 # deploy to cloud GPU\n"
+            "    clarifai model init --toolkit ollama    # switch to local-friendly toolkit"
+        )
+
+
 def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     """Run a model locally via a standalone gRPC server (no PAT, no API)."""
     import signal
@@ -1107,17 +1137,22 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     model_type_id = model_config.get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
 
     # Validate requirements for none mode only (env creates its own venv, container builds image)
+    dependencies = parse_requirements(model_path)
+    toolkit = _detect_toolkit(config, dependencies)
+
+    # vLLM/SGLang need Linux + GPU — block early with clear alternatives
+    _check_platform_for_toolkit(toolkit)
+
     if mode not in ("container", "env"):
-        dependencies = parse_requirements(model_path)
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
-        if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+        if toolkit == 'ollama':
             if not check_ollama_installed():
                 raise UserError(
                     "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
                 )
-        elif "lmstudio" in dependencies or config.get('toolkit', {}).get('provider') == 'lmstudio':
+        elif toolkit == 'lmstudio':
             if not check_lmstudio_installed():
                 raise UserError(
                     "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
@@ -1374,16 +1409,21 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     # Validate requirements before loading method signatures
     # Skip for container (builds image) and env (creates its own venv)
     dependencies = parse_requirements(model_path)
+    toolkit = _detect_toolkit(config, dependencies)
+
+    # vLLM/SGLang need Linux + GPU — block early with clear alternatives
+    _check_platform_for_toolkit(toolkit)
+
     if mode not in ("container", "env"):
         if not check_requirements_installed(dependencies=dependencies):
             raise UserError(f"Requirements not installed for model at {model_path}.")
 
-    if "ollama" in dependencies or config.get('toolkit', {}).get('provider') == 'ollama':
+    if toolkit == 'ollama':
         if not check_ollama_installed():
             raise UserError(
                 "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
             )
-    elif "lmstudio" in dependencies or config.get('toolkit', {}).get('provider') == 'lmstudio':
+    elif toolkit == 'lmstudio':
         if not check_lmstudio_installed():
             raise UserError(
                 "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
