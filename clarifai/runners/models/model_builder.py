@@ -538,9 +538,9 @@ class ModelBuilder:
             model['user_id'] = user_id
         if app_id and 'app_id' not in model:
             model['app_id'] = app_id
-        # Default app_id to "app" if still missing (auto-created on deploy/upload)
+        # Default app_id to "main" if still missing (auto-created on deploy/upload)
         if 'app_id' not in model:
-            model['app_id'] = 'app'
+            model['app_id'] = 'main'
         # Default model_type_id to "any-to-any" if not specified
         if 'model_type_id' not in model:
             model['model_type_id'] = 'any-to-any'
@@ -2104,11 +2104,30 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             else:
                 if quiet:
                     out.clear_inline()
-                    from clarifai.runners.models import deploy_output as out_err
-
-                    out_err.warning(
+                    out.warning(
                         f"Model build failed with status: {resp.model_version.status.description}"
                     )
+                    # Always show build logs on failure so users can diagnose
+                    page = 1
+                    has_logs = False
+                    while True:
+                        logs = self.get_model_build_logs(page)
+                        if not logs.log_entries:
+                            break
+                        if not has_logs:
+                            out.status("Build logs:")
+                            has_logs = True
+                        for log_entry in logs.log_entries:
+                            msg = log_entry.message.strip()
+                            if msg:
+                                out.status(f"  {msg}")
+                        if len(logs.log_entries) < 50:
+                            break
+                        page += 1
+                    if not has_logs:
+                        out.status(
+                            "No build logs available yet. Check the platform UI for details."
+                        )
                 else:
                     logger.info(
                         f"\nModel build failed with status: {resp.model_version.status} and response {resp}"
@@ -2192,7 +2211,7 @@ def upload_model(
         model_version_id = builder.upload_model_version(
             git_info,
             show_client_script=False,
-            quiet_build=True,
+            quiet_build=not verbose,
             post_upload_callback=_on_upload_complete,
         )
 

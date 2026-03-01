@@ -85,8 +85,11 @@ def _get_pat_interactive():
     try:
         import webbrowser
 
+        click.secho(
+            'Opening browser to create/copy your Personal Access Token (PAT)...', fg='cyan'
+        )
+        click.echo(f'  {click.style(pat_url, underline=True)}')
         webbrowser.open(pat_url)
-        click.secho(f'Opening browser to {pat_url} ...', fg='cyan')
     except Exception:
         click.echo(f'Get your PAT at: {click.style(pat_url, fg="cyan", underline=True)}')
     return masked_input('Enter your PAT: ')
@@ -165,9 +168,14 @@ def _env_prefix(api_url):
 @click.option(
     '--user-id', required=False, help='User or org ID. Auto-detected from PAT if omitted.'
 )
-@click.option('--name', required=False, help='Context name. Defaults to the selected user_id.')
+@click.option(
+    '--context',
+    'context_name',
+    required=False,
+    help='Context name. Defaults to the selected user_id.',
+)
 @click.pass_context
-def login(ctx, api_url, pat, user_id, name):
+def login(ctx, api_url, pat, user_id, context_name):
     """Authenticate and save credentials.
 
     \b
@@ -183,7 +191,7 @@ def login(ctx, api_url, pat, user_id, name):
       clarifai login --pat $MY_PAT                    # non-interactive
       clarifai login --pat $PAT --user-id openai      # org user, skip selection
       clarifai login https://api-dev.clarifai.com     # dev environment
-      clarifai login --name my-context                # custom context name
+      clarifai login --context my-context              # custom context name
     """
     # 1. Get PAT: --pat flag > CLARIFAI_PAT env var > browser + interactive prompt
     if not pat:
@@ -204,23 +212,23 @@ def login(ctx, api_url, pat, user_id, name):
             selected_user_id = personal_user_id
 
     # 4. Derive context name
-    if not name:
+    if not context_name:
         if api_url != DEFAULT_BASE:
             prefix = _env_prefix(api_url)
-            name = f"{prefix}-{selected_user_id}"
+            context_name = f"{prefix}-{selected_user_id}"
         else:
-            name = selected_user_id
+            context_name = selected_user_id
 
     # 5. Save (update if exists, create if new)
-    action = "Updated" if name in ctx.obj.contexts else "Created"
+    action = "Updated" if context_name in ctx.obj.contexts else "Created"
     context = Context(
-        name,
+        context_name,
         CLARIFAI_API_BASE=api_url,
         CLARIFAI_USER_ID=selected_user_id,
         CLARIFAI_PAT=pat,
     )
-    ctx.obj.contexts[name] = context
-    ctx.obj.current_context = name
+    ctx.obj.contexts[context_name] = context
+    ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
 
     # 6. Output
@@ -230,7 +238,7 @@ def login(ctx, api_url, pat, user_id, name):
         + click.style(selected_user_id, fg='green', bold=True)
         + click.style(f' ({api_url})', dim=True)
     )
-    click.echo(f'{action} context {click.style(name, bold=True)} and set as active.')
+    click.echo(f'{action} context {click.style(context_name, bold=True)} and set as active.')
 
 
 def _warn_env_pat():
@@ -307,44 +315,37 @@ def _logout_all_contexts(cfg):
 
 @cli.command()
 @click.option(
-    '--current',
-    'flag_current',
-    is_flag=True,
-    default=False,
-    help='Clear credentials from the current context (non-interactive).',
-)
-@click.option(
     '--all',
     'flag_all',
     is_flag=True,
     default=False,
-    help='Clear credentials from all contexts (non-interactive).',
+    help='Clear credentials from all contexts.',
 )
 @click.option(
     '--context',
     'flag_context',
     default=None,
     type=str,
-    help='Clear credentials from a specific named context (non-interactive).',
+    help='Clear credentials from a specific named context.',
 )
 @click.option(
     '--delete',
     'flag_delete',
     is_flag=True,
     default=False,
-    help='Also delete the context entry (use with --current or --context).',
+    help='Also delete the context entry (use with --context).',
 )
 @click.pass_context
-def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
+def logout(ctx, flag_all, flag_context, flag_delete):
     """Log out by clearing saved credentials.
 
-    Without flags, an interactive menu is shown. Use flags for
-    programmatic / non-interactive usage.
+    \b
+    By default, clears credentials from the current context.
+    Use flags to target a specific or all contexts.
 
     \b
     Examples:
-      clarifai logout                        # Interactive
-      clarifai logout --current              # Clear current context PAT
+      clarifai logout                        # Log out of current context
       clarifai logout --context staging      # Clear 'staging' PAT
       clarifai logout --context staging --delete  # Remove 'staging' entirely
       clarifai logout --all                  # Clear every context PAT
@@ -353,93 +354,19 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
     if not cfg or not hasattr(cfg, 'contexts'):
         raise click.ClickException("Not logged in. Run `clarifai login` first.")
 
-    # --- Validation for flag combinations ---
-    if flag_all and (flag_current or flag_context or flag_delete):
-        raise click.UsageError("--all cannot be combined with --current, --context, or --delete.")
+    if flag_all and (flag_context or flag_delete):
+        raise click.UsageError("--all cannot be combined with --context or --delete.")
 
-    if flag_delete and not (flag_current or flag_context):
-        raise click.UsageError("--delete requires --current or --context.")
-
-    if flag_current and flag_context:
-        raise click.UsageError("Cannot use --current and --context together.")
-
-    # --- Non-interactive paths ---
     if flag_all:
         _logout_all_contexts(cfg)
-        _warn_env_pat()
-        return
-
-    if flag_current:
-        _logout_one_context(cfg, cfg.current_context, delete=flag_delete)
-        _warn_env_pat()
-        return
-
-    if flag_context:
+    elif flag_context:
         _logout_one_context(cfg, flag_context, delete=flag_delete)
-        _warn_env_pat()
-        return
-
-    # --- Interactive flow ---
-    cur_name = cfg.current_context
-    cur_ctx = cfg.contexts.get(cur_name)
-    if not cur_ctx:
-        raise click.ClickException("No active context found. Run `clarifai login` first.")
-
-    user_id = cur_ctx['env'].get('CLARIFAI_USER_ID', 'unknown')
-    api_base = cur_ctx['env'].get('CLARIFAI_API_BASE', DEFAULT_BASE)
-    click.echo(
-        f"\nCurrent context is configured for user '{user_id}' (context: '{cur_name}', api: {api_base})\n"
-    )
-
-    # Build menu
-    choices = []
-    choices.append(('switch', 'Switch to another context'))
-    choices.append(('logout_current', 'Log out of current context (clear credentials)'))
-    choices.append(('logout_delete', 'Log out and delete current context'))
-    choices.append(('logout_all', 'Log out of all contexts'))
-    choices.append(('cancel', 'Cancel'))
-
-    for i, (_, label) in enumerate(choices, 1):
-        click.echo(f"  {i}. {label}")
-
-    click.echo()
-    choice_num = click.prompt('Enter choice', type=click.IntRange(1, len(choices)))
-    action = choices[choice_num - 1][0]
-
-    if action == 'cancel':
-        click.echo('Cancelled. No changes made.')
-        return
-
-    if action == 'switch':
-        other_contexts = [n for n in cfg.contexts if n != cur_name]
-        if not other_contexts:
-            click.echo("No other contexts available. Use `clarifai login` to create one.")
-            return
-        click.echo('\nAvailable contexts:')
-        for i, name in enumerate(other_contexts, 1):
-            uid = cfg.contexts[name]['env'].get('CLARIFAI_USER_ID', 'unknown')
-            click.echo(f"  {i}. {name} (user: {uid})")
-        click.echo()
-        idx = click.prompt('Switch to', type=click.IntRange(1, len(other_contexts)))
-        target_name = other_contexts[idx - 1]
-        cfg.current_context = target_name
-        cfg.to_yaml()
-        click.secho(
-            f"Switched to context '{target_name}'. No credentials were cleared.", fg='green'
-        )
-        return
-
-    if action == 'logout_current':
-        _logout_one_context(cfg, cur_name)
-
-    elif action == 'logout_delete':
-        _logout_one_context(cfg, cur_name, delete=True)
-
-    elif action == 'logout_all':
-        _logout_all_contexts(cfg)
+    else:
+        # Default: log out of current context
+        _logout_one_context(cfg, cfg.current_context, delete=flag_delete)
 
     _warn_env_pat()
-    click.echo("\nRun 'clarifai login' to re-authenticate.")
+    click.echo("Run 'clarifai login' to re-authenticate.")
 
 
 def pat_display(pat):

@@ -2,19 +2,32 @@
 
 FROM --platform=$TARGETPLATFORM ${IMAGE}
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python if not already available in the base image
+RUN command -v python3 >/dev/null 2>&1 || \
+    (apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-venv && \
+    rm -rf /var/lib/apt/lists/*) && \
+    # Ensure 'python' points to python3
+    (command -v python >/dev/null 2>&1 || ln -sf "$(command -v python3)" /usr/bin/python) && \
+    # Ensure 'pip' is available
+    (command -v pip >/dev/null 2>&1 || command -v pip3 >/dev/null 2>&1 || python3 -m ensurepip 2>/dev/null || true) && \
+    (command -v pip >/dev/null 2>&1 || ln -sf "$(command -v pip3)" /usr/bin/pip 2>/dev/null || true)
+
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
-# Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
-RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
-RUN ["pip", "show", "--no-cache-dir", "clarifai"]
+# Update clarifai package so we always have latest protocol to the API.
+RUN pip install --no-cache-dir --break-system-packages -r /home/nonroot/requirements.txt || \
+    pip install --no-cache-dir -r /home/nonroot/requirements.txt
+RUN pip show clarifai
 
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
-# The CLARIFAI* will be set by the templaing system.
+# The CLARIFAI* will be set by the templating system.
 ENV NUMBA_CACHE_DIR=/tmp/numba_cache \
     TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor_cache \
-    HOME=/tmp \
-    DEBIAN_FRONTEND=noninteractive
+    HOME=/tmp
 
 #####
 # Download checkpoints if config.yaml has checkpoints.when = "build"

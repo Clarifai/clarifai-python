@@ -88,12 +88,12 @@ class TestLoginCommand:
         assert 'Logged in as openai' in result.output
         assert 'context' in result.output and 'openai' in result.output
 
-    def test_login_with_name_flag(self):
-        """--name sets a custom context name."""
+    def test_login_with_context_flag(self):
+        """--context sets a custom context name."""
         with self.runner.isolated_filesystem():
             result = self.runner.invoke(
                 cli,
-                ['login', '--pat', 'test_pat', '--name', 'my-custom'],
+                ['login', '--pat', 'test_pat', '--context', 'my-custom'],
                 catch_exceptions=False,
             )
 

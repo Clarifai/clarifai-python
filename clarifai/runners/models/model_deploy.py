@@ -254,6 +254,20 @@ class ModelDeployer:
             else:
                 self._builder.create_dockerfile(generate_dockerfile=True)
 
+        # If the builder has no inference_compute_info (e.g. ollama config with
+        # no compute section), resolve it from the --instance flag so the upload
+        # has the required compute metadata.
+        if self._builder.inference_compute_info is None and self.instance_type:
+            from clarifai.utils.compute_presets import get_inference_compute_for_gpu
+
+            ici = get_inference_compute_for_gpu(
+                self.instance_type, pat=self.pat, base_url=self.base_url
+            )
+            if ici.get('num_accelerators', 0) > 0:
+                ici.setdefault('accelerator_type', ['NVIDIA-*'])
+            self._builder.config['inference_compute_info'] = ici
+            self._builder.inference_compute_info = self._builder._get_inference_compute_info()
+
         # ── Upload ──
         out.phase_header("Upload")
         git_info = self._builder._get_git_info()
@@ -268,7 +282,7 @@ class ModelDeployer:
             model_version_id = self._builder.upload_model_version(
                 git_info,
                 show_client_script=False,
-                quiet_build=True,
+                quiet_build=not self.verbose,
                 post_upload_callback=_on_upload_complete,
             )
 

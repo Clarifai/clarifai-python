@@ -70,40 +70,44 @@ def _load_config(config_path):
     return Config.from_yaml(filename=config_path)
 
 
-class TestLogoutNonInteractive:
-    """Tests for flag-based (non-interactive) logout."""
+class TestLogoutDefault:
+    """Tests for default logout (no flags = log out of current context)."""
 
-    def test_logout_current_clears_pat(self, tmp_path):
-        """--current should clear PAT from the active context."""
+    def test_bare_logout_clears_pat(self, tmp_path):
+        """'clarifai logout' should clear PAT from the active context."""
         config_path = _make_config(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'])
+        result = runner.invoke(cli, ['--config', config_path, 'logout'])
         assert result.exit_code == 0
         assert "Logged out of context 'default'" in result.output
         cfg = _load_config(config_path)
         assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == ''
 
-    def test_logout_current_delete_single_context(self, tmp_path):
-        """--current --delete with only one context should clear PAT but keep context."""
+    def test_bare_logout_delete_single_context(self, tmp_path):
+        """'clarifai logout --delete' with only one context should clear PAT but keep context."""
         config_path = _make_config(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current', '--delete'])
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--delete'])
         assert result.exit_code == 0
         cfg = _load_config(config_path)
         assert 'default' in cfg.contexts  # context kept
         assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == ''
         assert "only context" in result.output
 
-    def test_logout_current_delete_multi_context(self, tmp_path):
-        """--current --delete with multiple contexts should delete and switch."""
+    def test_bare_logout_delete_multi_context(self, tmp_path):
+        """'clarifai logout --delete' with multiple contexts should delete and switch."""
         config_path = _multi_context_config(tmp_path=tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current', '--delete'])
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--delete'])
         assert result.exit_code == 0
         cfg = _load_config(config_path)
         assert 'default' not in cfg.contexts
         assert cfg.current_context == 'staging'
         assert "deleted" in result.output.lower()
+
+
+class TestLogoutNamedContext:
+    """Tests for --context flag."""
 
     def test_logout_named_context(self, tmp_path):
         """--context <name> should clear PAT from the named context only."""
@@ -125,6 +129,10 @@ class TestLogoutNonInteractive:
         assert result.exit_code != 0
         assert "not found" in result.output.lower()
 
+
+class TestLogoutAll:
+    """Tests for --all flag."""
+
     def test_logout_all(self, tmp_path):
         """--all should clear PATs from every context."""
         config_path = _multi_context_config(tmp_path=tmp_path)
@@ -140,30 +148,13 @@ class TestLogoutNonInteractive:
 class TestLogoutFlagValidation:
     """Tests for invalid flag combinations."""
 
-    def test_delete_without_current_or_context(self, tmp_path):
-        """--delete alone should error."""
-        config_path = _make_config(tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--delete'])
-        assert result.exit_code != 0
-        assert "--delete requires" in result.output
-
-    def test_current_and_context_together(self, tmp_path):
-        """--current and --context together should error."""
+    def test_all_with_other_flags(self, tmp_path):
+        """--all combined with --context or --delete should error."""
         config_path = _make_config(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
-            cli,
-            ['--config', config_path, 'logout', '--current', '--context', 'default'],
+            cli, ['--config', config_path, 'logout', '--all', '--context', 'default']
         )
-        assert result.exit_code != 0
-        assert "Cannot use --current and --context together" in result.output
-
-    def test_all_with_other_flags(self, tmp_path):
-        """--all combined with --current, --context, or --delete should error."""
-        config_path = _make_config(tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--all', '--current'])
         assert result.exit_code != 0
         assert "--all cannot be combined" in result.output
 
@@ -176,50 +167,6 @@ class TestLogoutEnvVarWarning:
         config_path = _make_config(tmp_path)
         runner = CliRunner()
         with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'env_pat_value'}):
-            result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'])
+            result = runner.invoke(cli, ['--config', config_path, 'logout'])
         assert result.exit_code == 0
         assert "CLARIFAI_PAT environment variable is still set" in result.output
-
-
-class TestLogoutInteractive:
-    """Tests for the interactive menu flow."""
-
-    def test_interactive_cancel(self, tmp_path):
-        """Choosing cancel should make no changes."""
-        config_path = _make_config(tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout'], input='5\n')
-        assert result.exit_code == 0
-        assert "Cancelled" in result.output
-        cfg = _load_config(config_path)
-        assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == 'test_pat_12345'
-
-    def test_interactive_logout_current(self, tmp_path):
-        """Choosing option 2 should clear current context PAT."""
-        config_path = _make_config(tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout'], input='2\n')
-        assert result.exit_code == 0
-        assert "Logged out of context 'default'" in result.output
-        cfg = _load_config(config_path)
-        assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == ''
-
-    def test_interactive_switch_context(self, tmp_path):
-        """Choosing option 1 should switch to another context."""
-        config_path = _multi_context_config(tmp_path=tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout'], input='1\n1\n')
-        assert result.exit_code == 0
-        cfg = _load_config(config_path)
-        assert cfg.current_context == 'staging'
-        assert "No credentials were cleared" in result.output
-
-    def test_interactive_logout_delete_multi(self, tmp_path):
-        """Choosing option 3 with multiple contexts should delete and switch."""
-        config_path = _multi_context_config(tmp_path=tmp_path)
-        runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout'], input='3\n')
-        assert result.exit_code == 0
-        cfg = _load_config(config_path)
-        assert 'default' not in cfg.contexts
-        assert cfg.current_context == 'staging'
