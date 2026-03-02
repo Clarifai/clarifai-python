@@ -22,6 +22,10 @@ RUN pip install --no-cache-dir --break-system-packages -r /home/nonroot/requirem
     pip install --no-cache-dir -r /home/nonroot/requirements.txt
 RUN pip show clarifai
 
+# Ensure the nonroot user (uid 65532) exists in /etc/passwd so getpass.getuser() works
+# (required by torch._inductor when the pod runs as uid 65532).
+RUN grep -q ':65532:' /etc/passwd 2>/dev/null || echo 'nonroot:x:65532:65532:nonroot:/home/nonroot:/usr/sbin/nologin' >> /etc/passwd
+
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
 # The CLARIFAI* will be set by the templating system.
