@@ -341,6 +341,9 @@ class ModelDeployer:
             if self.instance_type:
                 self._auto_update_compute_if_needed(model)
 
+            # Fetch method signatures from the model version for client script & predict hint
+            self._fetch_method_signatures(model)
+
         out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
         out.info("Version", self.model_version_id)
         out.info("Instance", self.instance_type or "cpu")
@@ -372,6 +375,43 @@ class ModelDeployer:
         except Exception as e:
             logger.debug(f"Failed to fetch model version compute info: {e}")
             return None
+
+    def _fetch_method_signatures(self, model):
+        """Fetch method signatures from the model version for client script & predict hint.
+
+        Populates self._method_signatures and self._client_script from the API
+        so that --model-url deployments show the same output as local deploys.
+        """
+        from clarifai_grpc.grpc.api import service_pb2
+
+        try:
+            resp = model._grpc_request(
+                model.STUB.GetModelVersion,
+                service_pb2.GetModelVersionRequest(
+                    user_app_id=model.user_app_id,
+                    model_id=model.id,
+                    version_id=self.model_version_id,
+                ),
+            )
+            sigs = list(resp.model_version.method_signatures)
+            if sigs:
+                self._method_signatures = sigs
+                from clarifai.runners.utils import code_script
+
+                self._client_script = code_script.generate_client_script(
+                    sigs,
+                    user_id=self.user_id,
+                    app_id=self.app_id,
+                    model_id=self.model_id,
+                    colorize=True,
+                )
+            else:
+                self._method_signatures = None
+                self._client_script = None
+        except Exception as e:
+            logger.debug(f"Failed to fetch method signatures: {e}")
+            self._method_signatures = None
+            self._client_script = None
 
     @staticmethod
     def _needs_compute_update(model_compute_info, instance_compute_info):
@@ -1192,3 +1232,128 @@ def stream_model_logs(
             time.sleep(poll_interval)
     except KeyboardInterrupt:
         print("\nStopped log streaming.", flush=True)
+
+
+def get_deployment(deployment_id, user_id, pat=None, base_url=None):
+    """Fetch a single deployment by ID.
+
+    Args:
+        deployment_id: The deployment ID.
+        user_id: User ID that owns the deployment.
+        pat: PAT for auth.
+        base_url: API base URL.
+
+    Returns:
+        Deployment proto object.
+
+    Raises:
+        UserError: If the deployment is not found.
+    """
+    from clarifai_grpc.grpc.api import service_pb2
+    from clarifai_grpc.grpc.api.status import status_code_pb2
+
+    from clarifai.client.auth import create_stub
+    from clarifai.client.auth.helper import ClarifaiAuthHelper
+
+    auth = ClarifaiAuthHelper.from_env(user_id=user_id, pat=pat, base=base_url, validate=False)
+    stub = create_stub(auth)
+    user_app_id = auth.get_user_app_id_proto(user_id=user_id, app_id="")
+
+    request = service_pb2.GetDeploymentRequest(
+        user_app_id=user_app_id, deployment_id=deployment_id
+    )
+    response = stub.GetDeployment(request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+        raise UserError(
+            f"Deployment '{deployment_id}' not found.\n"
+            f"  Status: {response.status.description}\n"
+            "  Check the deployment ID and try again."
+        )
+    return response.deployment
+
+
+def list_deployments_for_model(
+    model_id, user_id, app_id, model_version_id=None, pat=None, base_url=None
+):
+    """List deployments for a specific model.
+
+    Uses the ListDeployments API with model_version_ids filter to find
+    deployments without walking compute clusters/nodepools.
+
+    Args:
+        model_id: Model ID.
+        user_id: User ID.
+        app_id: App ID.
+        model_version_id: Specific version to filter (default: latest).
+        pat: PAT for auth.
+        base_url: API base URL.
+
+    Returns:
+        List of deployment proto objects.
+    """
+    from clarifai_grpc.grpc.api import service_pb2
+
+    from clarifai.client.auth import create_stub
+    from clarifai.client.auth.helper import ClarifaiAuthHelper
+
+    # Get latest version if not specified
+    if not model_version_id:
+        from clarifai.client import Model
+
+        model = Model(
+            model_id=model_id,
+            app_id=app_id,
+            user_id=user_id,
+            pat=pat,
+            base_url=base_url,
+        )
+        versions = list(model.list_versions())
+        if not versions:
+            raise UserError(f"No versions found for model '{model_id}'.")
+        model_version_id = versions[0].model_version.id
+
+    auth = ClarifaiAuthHelper.from_env(user_id=user_id, pat=pat, base=base_url, validate=False)
+    stub = create_stub(auth)
+    user_app_id = auth.get_user_app_id_proto(user_id=user_id, app_id="")
+
+    response = stub.ListDeployments(
+        service_pb2.ListDeploymentsRequest(
+            user_app_id=user_app_id,
+            model_version_ids=[model_version_id],
+            per_page=100,
+        )
+    )
+    return list(response.deployments)
+
+
+def delete_deployment(deployment_id, user_id, pat=None, base_url=None):
+    """Delete a deployment by ID. No nodepool needed.
+
+    Args:
+        deployment_id: The deployment ID to delete.
+        user_id: User ID that owns the deployment.
+        pat: PAT for auth.
+        base_url: API base URL.
+
+    Raises:
+        UserError: If the deletion fails.
+    """
+    from clarifai_grpc.grpc.api import service_pb2
+    from clarifai_grpc.grpc.api.status import status_code_pb2
+
+    from clarifai.client.auth import create_stub
+    from clarifai.client.auth.helper import ClarifaiAuthHelper
+
+    auth = ClarifaiAuthHelper.from_env(user_id=user_id, pat=pat, base=base_url, validate=False)
+    stub = create_stub(auth)
+    user_app_id = auth.get_user_app_id_proto(user_id=user_id, app_id="")
+
+    request = service_pb2.DeleteDeploymentsRequest(user_app_id=user_app_id, ids=[deployment_id])
+    response = stub.DeleteDeployments(request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+        raise UserError(
+            f"Failed to delete deployment '{deployment_id}'.\n"
+            f"  Status: {response.status.description}"
+        )

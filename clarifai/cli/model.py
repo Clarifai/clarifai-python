@@ -496,7 +496,8 @@ def model():
 
     \b
     Workflow:   init → serve → deploy
-    Observe:    logs, list, predict
+    Observe:    status, logs, predict
+    Lifecycle:  undeploy
     """
 
 
@@ -1030,12 +1031,17 @@ def _print_deploy_result(result):
     out.phase_header("Next Steps")
     out.hint("Predict", predict_cmd)
     out.link("Playground", playground_url)
-    out.hint("Logs", f'clarifai model logs --model-url "{model_url}"')
+    out.hint("Logs", f'clarifai model logs --deployment "{result["deployment_id"]}"')
+    out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
+    out.hint("Undeploy", f'clarifai model undeploy --deployment "{result["deployment_id"]}"')
 
 
 @model.command()
 @click.option('--model-url', default=None, help='Clarifai model URL.')
 @click.option('--model-id', default=None, help='Model ID (alternative to --model-url).')
+@click.option(
+    '--deployment', default=None, help='Deployment ID (resolves model/nodepool automatically).'
+)
 @click.option('--model-version-id', default=None, help='Specific version (default: latest).')
 @click.option(
     '--follow/--no-follow',
@@ -1052,7 +1058,15 @@ def _print_deploy_result(result):
 @click.option('--nodepool-id', default=None, help='[Advanced] Filter by nodepool.')
 @click.pass_context
 def logs(
-    ctx, model_url, model_id, model_version_id, follow, duration, compute_cluster_id, nodepool_id
+    ctx,
+    model_url,
+    model_id,
+    deployment,
+    model_version_id,
+    follow,
+    duration,
+    compute_cluster_id,
+    nodepool_id,
 ):
     """Stream logs from a deployed model's runner.
 
@@ -1062,6 +1076,7 @@ def logs(
 
     \b
     Examples:
+      clarifai model logs --deployment deploy-abc123
       clarifai model logs --model-url https://clarifai.com/user/app/models/id
       clarifai model logs --model-url <url> --no-follow
       clarifai model logs --model-url <url> --duration 60
@@ -1073,6 +1088,34 @@ def logs(
 
     user_id = ctx.obj.current.user_id
     app_id = getattr(ctx.obj.current, 'app_id', None)
+
+    # Resolve deployment ID → model/version/nodepool
+    if deployment:
+        from clarifai.runners.models.model_deploy import get_deployment
+
+        try:
+            dep = get_deployment(
+                deployment,
+                user_id=user_id,
+                pat=ctx.obj.current.pat,
+                base_url=ctx.obj.current.api_base,
+            )
+        except UserError as e:
+            click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+            raise SystemExit(1)
+
+        w = dep.worker
+        if w and w.model:
+            model_id = model_id or w.model.id
+            user_id = w.model.user_id or user_id
+            app_id = w.model.app_id or app_id
+            if w.model.model_version and w.model.model_version.id:
+                model_version_id = model_version_id or w.model.model_version.id
+        if dep.nodepools:
+            np = dep.nodepools[0]
+            nodepool_id = nodepool_id or np.id
+            if np.compute_cluster and np.compute_cluster.id:
+                compute_cluster_id = compute_cluster_id or np.compute_cluster.id
 
     try:
         stream_model_logs(
@@ -1088,6 +1131,244 @@ def logs(
             follow=follow,
             duration=duration,
         )
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+
+def _parse_model_ref(ref):
+    """Parse a model reference like 'user/app/models/model' into components.
+
+    Returns:
+        tuple: (user_id, app_id, model_id) or raises UserError.
+    """
+    parts = ref.strip('/').split('/')
+    if len(parts) == 4 and parts[2] == 'models':
+        return parts[0], parts[1], parts[3]
+    # Also accept user/app/model (without 'models' keyword)
+    if len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    raise UserError(
+        f"Invalid model reference: '{ref}'\n"
+        "  Expected format: user_id/app_id/models/model_id\n"
+        "  Example: luv_2261/main/models/my-model"
+    )
+
+
+def _resolve_deployment_id(deployment, model_ref, model_url, user_id, pat, base_url):
+    """Resolve to a single deployment ID from --deployment, model ref, or --model-url.
+
+    Returns:
+        tuple: (deployment_id, user_id) for the resolved deployment.
+
+    Raises:
+        UserError: If no deployment found, or ambiguous (multiple deployments).
+    """
+    from clarifai.runners.models.model_deploy import (
+        list_deployments_for_model,
+    )
+    from clarifai.urls.helper import ClarifaiUrlHelper
+
+    if deployment:
+        return deployment, user_id
+
+    # Resolve model identity
+    if model_ref:
+        ref_user, ref_app, ref_model = _parse_model_ref(model_ref)
+    elif model_url:
+        ref_user, ref_app, _, ref_model, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
+    else:
+        raise UserError(
+            "You must specify one of: MODEL_REF, --model-url, or --deployment.\n"
+            "  Examples:\n"
+            "    clarifai model status user/app/models/model\n"
+            "    clarifai model status --model-url <url>\n"
+            "    clarifai model status --deployment <id>"
+        )
+
+    deployments = list_deployments_for_model(
+        model_id=ref_model,
+        user_id=ref_user,
+        app_id=ref_app,
+        pat=pat,
+        base_url=base_url,
+    )
+
+    if len(deployments) == 0:
+        raise UserError(
+            f"No deployments found for model '{ref_user}/{ref_app}/models/{ref_model}'.\n"
+            "  Deploy it first:\n"
+            f"    clarifai model deploy --model-url https://clarifai.com/{ref_user}/{ref_app}/models/{ref_model} --instance <type>"
+        )
+    if len(deployments) == 1:
+        return deployments[0].id, ref_user
+    # Multiple deployments — list them and ask the user to pick
+    ids = [d.id for d in deployments]
+    raise UserError(
+        f"Multiple deployments found for model '{ref_user}/{ref_app}/models/{ref_model}'.\n"
+        "  Specify one with --deployment:\n" + "\n".join(f"    --deployment {did}" for did in ids)
+    )
+
+
+def _print_deployment_detail(dep):
+    """Print formatted details for a deployment proto."""
+    from clarifai.runners.models import deploy_output as out
+
+    dep_id = dep.id
+    bar = "\u2500" * max(1, 56 - len(dep_id) - 4)
+    click.echo(click.style(f"\n\u2500\u2500 Deployment: {dep_id} {bar}", fg="cyan", bold=True))
+
+    # Model info
+    worker = dep.worker
+    if worker and worker.model:
+        m = worker.model
+        model_ref = f"{m.user_id}/{m.app_id}/models/{m.id}"
+        out.info("Model", model_ref)
+        if m.model_version and m.model_version.id:
+            out.info("Version", m.model_version.id[:12])
+
+    # Autoscale
+    if dep.autoscale_config:
+        ac = dep.autoscale_config
+        if ac.min_replicas or ac.max_replicas:
+            out.info("Min replicas", str(ac.min_replicas))
+            out.info("Max replicas", str(ac.max_replicas))
+
+    # Nodepool / compute cluster
+    if dep.nodepools:
+        np = dep.nodepools[0]
+        out.info("Nodepool", np.id)
+        if np.compute_cluster and np.compute_cluster.id:
+            out.info("Compute cluster", np.compute_cluster.id)
+
+    # Created timestamp
+    if dep.created_at and dep.created_at.seconds:
+        from datetime import datetime, timezone
+
+        ts = datetime.fromtimestamp(dep.created_at.seconds, tz=timezone.utc)
+        out.info("Created", ts.strftime("%Y-%m-%d %H:%M:%S UTC"))
+
+
+@model.command()
+@click.argument('model_ref', required=False, default=None)
+@click.option('--model-url', default=None, help='Clarifai model URL.')
+@click.option('--deployment', default=None, help='Deployment ID to show status for.')
+@click.pass_context
+def status(ctx, model_ref, model_url, deployment):
+    """Show deployment status for a model.
+
+    \b
+    Shows replica count, instance type, cloud, nodepool, and timing
+    for each deployment.
+
+    \b
+    MODEL_REF  Model reference: user_id/app_id/models/model_id
+
+    \b
+    Examples:
+      clarifai model status user/app/models/model
+      clarifai model status --model-url https://clarifai.com/user/app/models/id
+      clarifai model status --deployment deploy-abc123
+    """
+    validate_context(ctx)
+
+    from clarifai.runners.models.model_deploy import (
+        get_deployment,
+        list_deployments_for_model,
+    )
+    from clarifai.urls.helper import ClarifaiUrlHelper
+
+    user_id = ctx.obj.current.user_id
+    pat = ctx.obj.current.pat
+    base_url = ctx.obj.current.api_base
+
+    if deployment:
+        # Show a single deployment
+        dep = get_deployment(deployment, user_id=user_id, pat=pat, base_url=base_url)
+        _print_deployment_detail(dep)
+        return
+
+    # Resolve model → list all deployments
+    if model_ref:
+        ref_user, ref_app, ref_model = _parse_model_ref(model_ref)
+    elif model_url:
+        ref_user, ref_app, _, ref_model, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
+    else:
+        raise click.UsageError(
+            "Provide MODEL_REF, --model-url, or --deployment.\n"
+            "  Example: clarifai model status user/app/models/model"
+        )
+
+    try:
+        deployments = list_deployments_for_model(
+            model_id=ref_model,
+            user_id=ref_user,
+            app_id=ref_app,
+            pat=pat,
+            base_url=base_url,
+        )
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+    if not deployments:
+        click.echo(
+            click.style(
+                f"\nNo deployments found for '{ref_user}/{ref_app}/models/{ref_model}'.",
+                fg="yellow",
+            )
+        )
+        click.echo(
+            f"  Deploy it: clarifai model deploy --model-url "
+            f"https://clarifai.com/{ref_user}/{ref_app}/models/{ref_model} --instance <type>"
+        )
+        return
+
+    for dep in deployments:
+        _print_deployment_detail(dep)
+
+
+@model.command()
+@click.argument('model_ref', required=False, default=None)
+@click.option('--model-url', default=None, help='Clarifai model URL.')
+@click.option('--deployment', default=None, help='Deployment ID to remove.')
+@click.pass_context
+def undeploy(ctx, model_ref, model_url, deployment):
+    """Remove a deployment (permanently stop serving the model).
+
+    \b
+    Deletes the deployment. The model version and infrastructure remain
+    intact — you can re-deploy at any time with 'clarifai model deploy'.
+
+    \b
+    MODEL_REF  Model reference: user_id/app_id/models/model_id
+
+    \b
+    Examples:
+      clarifai model undeploy --deployment deploy-abc123
+      clarifai model undeploy user/app/models/model
+      clarifai model undeploy --model-url https://clarifai.com/user/app/models/id
+    """
+    validate_context(ctx)
+
+    from clarifai.runners.models import deploy_output as out
+    from clarifai.runners.models.model_deploy import delete_deployment
+
+    user_id = ctx.obj.current.user_id
+    pat = ctx.obj.current.pat
+    base_url = ctx.obj.current.api_base
+
+    try:
+        dep_id, resolved_user = _resolve_deployment_id(
+            deployment, model_ref, model_url, user_id, pat, base_url
+        )
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+    try:
+        delete_deployment(dep_id, user_id=resolved_user, pat=pat, base_url=base_url)
+        out.success(f"Deployment '{dep_id}' deleted.")
     except UserError as e:
         click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
         raise SystemExit(1)
