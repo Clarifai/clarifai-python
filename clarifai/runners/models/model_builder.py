@@ -645,7 +645,7 @@ class ModelBuilder:
                     raise UserError(f"Model type '{model_type_id}' not supported for concepts")
 
         if self.config.get("checkpoints"):
-            loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
+            loader_type, _, hf_token, when, _, _ = self._validate_config_checkpoints()
 
             if loader_type == "huggingface":
                 is_valid_token = hf_token and HuggingFaceLoader.validate_hftoken(hf_token)
@@ -654,16 +654,48 @@ class ModelBuilder:
                         "Continuing without Hugging Face token for validating config in model builder."
                     )
 
-                has_repo_access = HuggingFaceLoader.validate_hf_repo_access(
-                    repo_id=self.config.get("checkpoints", {}).get("repo_id"),
-                    token=hf_token if is_valid_token else None,
+                repo_id = self.config.get("checkpoints", {}).get("repo_id")
+                config_hf_token = self.config.get("checkpoints", {}).get("hf_token")
+
+                # First, check anonymous access (no cached login) to detect gated repos.
+                has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                    repo_id=repo_id,
+                    token=False,  # bypass cached huggingface-cli login
                 )
 
-                if not has_repo_access:
-                    logger.error(
-                        f"Invalid Hugging Face repo access for repo {self.config.get('checkpoints').get('repo_id')}. Please check your repo and try again."
-                    )
-                    sys.exit("Token does not have access to HuggingFace repo , exiting.")
+                if has_access:
+                    # Public repo — no token needed anywhere.
+                    pass
+                elif reason == "gated_no_token":
+                    # Repo requires auth. Validate with the available token.
+                    if is_valid_token:
+                        has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                            repo_id=repo_id,
+                            token=hf_token,
+                        )
+                    if not is_valid_token or not has_access:
+                        if not is_valid_token:
+                            reason = "gated_no_token"
+                        self._raise_hf_access_error(repo_id, reason)
+
+                    # Token works — for build/runtime, persist it to config so
+                    # the container has it too.
+                    if when in ("build", "runtime") and not config_hf_token:
+                        self.config.setdefault("checkpoints", {})["hf_token"] = hf_token
+                        config_path = os.path.join(self.folder, "config.yaml")
+                        if os.path.exists(config_path):
+                            with open(config_path, 'r') as f:
+                                file_config = yaml.safe_load(f) or {}
+                            file_config.setdefault("checkpoints", {})["hf_token"] = hf_token
+                            with open(config_path, 'w') as f:
+                                yaml.dump(file_config, f, sort_keys=False)
+                            logger.info(
+                                "Wrote HF_TOKEN from environment to config.yaml "
+                                "so the build container can access the gated repo."
+                            )
+                else:
+                    # not_found or gated_no_access
+                    self._raise_hf_access_error(repo_id, reason)
 
         num_threads = self.config.get("num_threads")
         if num_threads or num_threads == 0:
@@ -676,6 +708,33 @@ class ModelBuilder:
         # Validate AgenticModelClass requirements
         if not self.download_validation_only:
             self._validate_agentic_model_requirements()
+
+    @staticmethod
+    def _raise_hf_access_error(repo_id, reason):
+        """Raise UserError with actionable guidance for HuggingFace access failures."""
+        if reason == "gated_no_token":
+            raise UserError(
+                f"HuggingFace repo '{repo_id}' requires authentication.\n"
+                "  Set HF_TOKEN in your environment:\n"
+                "    export HF_TOKEN=hf_...\n"
+                "  Or add to config.yaml:\n"
+                "    checkpoints:\n"
+                "      hf_token: hf_...\n"
+                f"  Request access at: https://huggingface.co/{repo_id}"
+            )
+        elif reason == "gated_no_access":
+            raise UserError(
+                f"Your HF token does not have access to gated repo '{repo_id}'.\n"
+                f"  Request access at: https://huggingface.co/{repo_id}\n"
+                "  Then wait for approval and retry."
+            )
+        elif reason == "not_found":
+            raise UserError(
+                f"HuggingFace repo '{repo_id}' not found.\n"
+                "  Check the repo_id in your config.yaml checkpoints section."
+            )
+        else:
+            raise UserError(f"Cannot access HuggingFace repo '{repo_id}'.")
 
     def _validate_agentic_model_requirements(self):
         """

@@ -264,8 +264,16 @@ class HuggingFaceLoader:
         return self.ignore_patterns
 
     @classmethod
-    def validate_hf_repo_access(cls, repo_id: str, token: str = None) -> bool:
-        # check if model exists on HF
+    def validate_hf_repo_access(cls, repo_id: str, token: str = None) -> tuple:
+        """Validate access to a HuggingFace repo.
+
+        Returns:
+            (bool, str): (has_access, reason) where reason is one of:
+                "" - success
+                "gated_no_token" - gated repo, no token provided
+                "gated_no_access" - gated repo, token lacks access
+                "not_found" - repo does not exist
+        """
         try:
             from huggingface_hub import auth_check
             from huggingface_hub.utils import GatedRepoError, RepositoryNotFoundError
@@ -275,15 +283,13 @@ class HuggingFaceLoader:
         try:
             auth_check(repo_id, token=token)
             logger.info("Hugging Face repo access validated")
-            return True
+            return True, ""
         except GatedRepoError:
-            logger.error(
-                "Hugging Face repo is gated. Please make sure you have access to the repo."
-            )
-            return False
+            if token:
+                return False, "gated_no_access"
+            return False, "gated_no_token"
         except RepositoryNotFoundError:
-            logger.error("Hugging Face repo not found. Please make sure the repo exists.")
-            return False
+            return False, "not_found"
 
     @staticmethod
     def validate_config(checkpoint_path: str):

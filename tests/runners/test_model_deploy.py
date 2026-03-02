@@ -1722,3 +1722,345 @@ class TestRecommendInstance:
             with open(config_path) as f:
                 config = yaml.safe_load(f)
             assert config["compute"]["instance"] == "gpu-nvidia-l40s"
+
+
+class TestHFTokenValidation:
+    """Tests for HuggingFace token validation and error reporting."""
+
+    def test_hf_gated_no_token(self):
+        """Gated repo with no token returns (False, 'gated_no_token')."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access"
+        ) as mock:
+            # Simulate real behavior
+            mock.return_value = (False, "gated_no_token")
+            has_access, reason = mock("meta-llama/Llama-3.1-8B-Instruct", token=None)
+            assert has_access is False
+            assert reason == "gated_no_token"
+
+    def _mock_hf_response(self, status_code=403):
+        """Create a mock HTTP response for HF exceptions."""
+        from unittest.mock import MagicMock
+
+        response = MagicMock()
+        response.status_code = status_code
+        response.headers = {}
+        return response
+
+    def test_hf_gated_no_access(self):
+        """Gated repo with token that lacks access returns (False, 'gated_no_access')."""
+        from unittest.mock import patch
+
+        from huggingface_hub.utils import GatedRepoError
+
+        err = GatedRepoError("gated", response=self._mock_hf_response(403))
+        with patch("huggingface_hub.auth_check", side_effect=err):
+            from clarifai.runners.utils.loader import HuggingFaceLoader
+
+            has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                "meta-llama/Llama-3.1-8B-Instruct", token="hf_fake_token"
+            )
+            assert has_access is False
+            assert reason == "gated_no_access"
+
+    def test_hf_gated_no_token_real(self):
+        """Gated repo with no token triggers gated_no_token reason."""
+        from unittest.mock import patch
+
+        from huggingface_hub.utils import GatedRepoError
+
+        err = GatedRepoError("gated", response=self._mock_hf_response(403))
+        with patch("huggingface_hub.auth_check", side_effect=err):
+            from clarifai.runners.utils.loader import HuggingFaceLoader
+
+            has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                "meta-llama/Llama-3.1-8B-Instruct", token=None
+            )
+            assert has_access is False
+            assert reason == "gated_no_token"
+
+    def test_hf_not_found(self):
+        """Non-existent repo returns (False, 'not_found')."""
+        from unittest.mock import patch
+
+        from huggingface_hub.utils import RepositoryNotFoundError
+
+        err = RepositoryNotFoundError("not found", response=self._mock_hf_response(404))
+        with patch("huggingface_hub.auth_check", side_effect=err):
+            from clarifai.runners.utils.loader import HuggingFaceLoader
+
+            has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                "fake-org/nonexistent-model", token=None
+            )
+            assert has_access is False
+            assert reason == "not_found"
+
+    def test_hf_success(self):
+        """Valid repo returns (True, '')."""
+        from unittest.mock import patch
+
+        with patch("huggingface_hub.auth_check", return_value=None):
+            from clarifai.runners.utils.loader import HuggingFaceLoader
+
+            has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
+                "bert-base-uncased", token=None
+            )
+            assert has_access is True
+            assert reason == ""
+
+    def test_validate_config_gated_no_token_raises(self):
+        """ModelBuilder raises UserError with 'Set HF_TOKEN' for gated repo without token."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # Anonymous check returns gated, no env token available either
+            with (
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                    return_value=(False, "gated_no_token"),
+                ),
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                    return_value=False,
+                ),
+            ):
+                with pytest.raises(UserError, match="requires authentication"):
+                    ModelBuilder(str(target), validate_api_ids=False)
+
+    def test_validate_config_gated_no_access_raises(self):
+        """ModelBuilder raises UserError with 'Request access' for gated repo with bad token."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+                "hf_token": "hf_bad_token",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # 1st call (anonymous) → gated, 2nd call (with token) → no access
+            with (
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                    side_effect=[(False, "gated_no_token"), (False, "gated_no_access")],
+                ),
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                    return_value=True,
+                ),
+            ):
+                with pytest.raises(UserError, match="does not have access"):
+                    ModelBuilder(str(target), validate_api_ids=False)
+
+    def test_validate_config_not_found_raises(self):
+        """ModelBuilder raises UserError with 'not found' for missing repo."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "fake-org/nonexistent-model",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            with (
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                    return_value=(False, "not_found"),
+                ),
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                    return_value=False,
+                ),
+            ):
+                with pytest.raises(UserError, match="not found"):
+                    ModelBuilder(str(target), validate_api_ids=False)
+
+    def test_validate_config_env_token_persisted_for_runtime(self):
+        """When when=runtime and HF_TOKEN only in env, token is validated and written to config."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # 1st call (anonymous/False) → gated, 2nd call (with env token) → success
+            mock_validate = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                side_effect=[(False, "gated_no_token"), (True, "")],
+            )
+            mock_env = patch.dict(os.environ, {"HF_TOKEN": "hf_env_only_token"})
+            mock_hftoken = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                return_value=True,
+            )
+
+            with mock_validate as mv, mock_env, mock_hftoken:
+                ModelBuilder(str(target), validate_api_ids=False)
+                # First call anonymous (False), second with env token
+                assert mv.call_count == 2
+                assert mv.call_args_list[0].kwargs["token"] is False
+                assert mv.call_args_list[1].kwargs["token"] == "hf_env_only_token"
+
+            # Token should have been persisted to config.yaml
+            with config_path.open("r") as f:
+                saved = yaml.safe_load(f)
+            assert saved["checkpoints"]["hf_token"] == "hf_env_only_token"
+
+    def test_validate_config_env_token_no_access_raises(self):
+        """When when=runtime, env token set but lacks access, raises UserError."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # 1st call (anonymous) → gated, 2nd call (with env token) → no access
+            with (
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                    side_effect=[(False, "gated_no_token"), (False, "gated_no_access")],
+                ),
+                patch.dict(os.environ, {"HF_TOKEN": "hf_bad_env_token"}),
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                    return_value=True,
+                ),
+            ):
+                with pytest.raises(UserError, match="does not have access"):
+                    ModelBuilder(str(target), validate_api_ids=False)
+
+    def test_validate_config_config_token_used_for_build_runtime(self):
+        """When when=runtime and hf_token IS in config, validate with that token."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+                "hf_token": "hf_config_token",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # 1st call (anonymous) → gated, 2nd call (with config token) → success
+            mock_validate = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                side_effect=[(False, "gated_no_token"), (True, "")],
+            )
+            mock_hftoken = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                return_value=True,
+            )
+
+            with mock_validate as mv, mock_hftoken:
+                ModelBuilder(str(target), validate_api_ids=False)
+                # 1st anonymous, 2nd with config token
+                assert mv.call_count == 2
+                assert mv.call_args_list[1].kwargs["token"] == "hf_config_token"

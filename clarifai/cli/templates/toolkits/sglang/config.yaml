@@ -2,8 +2,7 @@ model:
   id: "my-model"
 
 build_info:
-  python_version: "3.12"
-  image: "lmsysorg/sglang:v0.5.8.post1"
+  image: "lmsysorg/sglang:latest"
 
 compute:
   instance: g5.xlarge

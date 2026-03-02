@@ -557,7 +557,7 @@ def _patch_config(config_path, model_id, checkpoints_repo_id=None):
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
-def _print_init_success(model_path, toolkit):
+def _print_init_success(model_path, toolkit, instance=None):
     """Print unified success message after init."""
     from clarifai.runners.models import deploy_output as out
 
@@ -576,7 +576,10 @@ def _print_init_success(model_path, toolkit):
     click.echo(f"    clarifai model serve {model_path} --mode container # run inside Docker")
     click.echo()
     click.echo("  Deploy to Clarifai:")
-    click.echo(f"    clarifai model deploy {model_path} --instance gpu-nvidia-a10g")
+    if instance:
+        click.echo(f"    clarifai model deploy {model_path}")
+    else:
+        click.echo(f"    clarifai model deploy {model_path} --instance gpu-nvidia-a10g")
     click.echo("    clarifai model deploy --instance-info              # list available instances")
     click.echo()
 
@@ -748,6 +751,7 @@ def init(
             logger.info(f"Created {config_path}")
 
     # Auto-select instance based on model size when --model-name is provided
+    resolved_instance = None
     if model_name and toolkit in ('vllm', 'sglang', 'huggingface'):
         config_path = os.path.join(model_path, "config.yaml")
         if os.path.exists(config_path):
@@ -762,8 +766,9 @@ def init(
                 config.setdefault('compute', {})['instance'] = recommended
                 dump_yaml(config, config_path)
                 click.echo(f"  Instance: {recommended} ({reason})")
+                resolved_instance = recommended
 
-    _print_init_success(model_path, toolkit)
+    _print_init_success(model_path, toolkit, instance=resolved_instance)
 
 
 def _ensure_hf_token(ctx, model_path):
@@ -848,6 +853,33 @@ def upload(ctx, model_path, platform, verbose):
         base_url=ctx.obj.current.api_base,
         verbose=verbose,
     )
+
+
+@model.command(name="download-checkpoints", hidden=True)
+@click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
+@click.option(
+    '--out_path',
+    type=click.Path(exists=False),
+    required=False,
+    default=None,
+    help='Path to write the checkpoints to.',
+)
+@click.option(
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="build",
+    show_default=True,
+    help='The stage to download checkpoints for.',
+)
+@click.pass_context
+def download_checkpoints(ctx, model_path, out_path, stage):
+    """Download checkpoints from external source (used internally by Dockerfile build)."""
+    from clarifai.runners.models.model_builder import ModelBuilder
+
+    model_path = os.path.abspath(model_path)
+    builder = ModelBuilder(model_path, download_validation_only=True)
+    builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
 
 @model.command()
