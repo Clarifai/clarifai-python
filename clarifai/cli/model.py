@@ -503,7 +503,7 @@ def model():
 
 def _sanitize_model_id(name):
     """Convert a model name to a valid model.id (lowercase, alphanumeric, hyphens only)."""
-    name = name.split('/')[-1]  # "meta-llama/Llama-3-8B" -> "Llama-3-8B"
+    name = name.split('/')[-1]  # "Qwen/Qwen3-0.6B" -> "Qwen3-0.6B"
     name = name.lower()
     name = name.replace('_', '-')
     name = re.sub(r'[^a-z0-9-]', '', name)  # strip invalid chars (dots, etc.)
@@ -643,7 +643,7 @@ def init(
 
     \b
     Examples:
-      clarifai model init --toolkit vllm --model-name meta-llama/Llama-3-8B
+      clarifai model init --toolkit vllm --model-name Qwen/Qwen3-0.6B
       clarifai model init --toolkit ollama --model-name llama3.1
       clarifai model init --toolkit mcp my-mcp-server
       clarifai model init my-model
@@ -658,7 +658,7 @@ def init(
     # Resolve model_path: explicit > derived from model-name > current dir
     if model_path is None:
         if model_name:
-            # "meta-llama/Llama-3-8B" -> "./Llama-3-8B"
+            # "Qwen/Qwen3-0.6B" -> "./Qwen3-0.6B"
             model_path = model_name.split('/')[-1]
         else:
             model_path = "."
