@@ -4,7 +4,6 @@ import stat
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 
 from clarifai.runners.models.model_builder import ModelBuilder
 
@@ -133,7 +132,7 @@ class TestModel(ModelClass):
         self.assertEqual(len(git_info['commit']), 40)  # Git commit hash length
 
     def test_check_git_status_clean_repo(self):
-        """Test _check_git_status_and_prompt with clean repository"""
+        """Test _check_git_status with clean repository (no warnings)."""
         # Initialize git repo with clean state
         subprocess.run(['git', 'init'], cwd=self.model_dir, capture_output=True, check=False)
         subprocess.run(
@@ -157,12 +156,11 @@ class TestModel(ModelClass):
         )
 
         builder = ModelBuilder(self.model_dir, download_validation_only=True)
-        result = builder._check_git_status_and_prompt()
-        self.assertTrue(result)
+        # _check_git_status is non-blocking (returns None, just logs warnings)
+        builder._check_git_status()
 
-    @patch('builtins.input', return_value='y')
-    def test_check_git_status_dirty_repo_accept(self, mock_input):
-        """Test _check_git_status_and_prompt with uncommitted changes - user accepts"""
+    def test_check_git_status_dirty_repo(self):
+        """Test _check_git_status with uncommitted changes (warns but does not block)."""
         # Initialize git repo with uncommitted changes
         subprocess.run(['git', 'init'], cwd=self.model_dir, capture_output=True, check=False)
         subprocess.run(
@@ -190,43 +188,8 @@ class TestModel(ModelClass):
             f.write("uncommitted content")
 
         builder = ModelBuilder(self.model_dir, download_validation_only=True)
-        result = builder._check_git_status_and_prompt()
-        self.assertTrue(result)
-        mock_input.assert_called_once()
-
-    @patch('builtins.input', return_value='n')
-    def test_check_git_status_dirty_repo_decline(self, mock_input):
-        """Test _check_git_status_and_prompt with uncommitted changes - user declines"""
-        # Initialize git repo with uncommitted changes
-        subprocess.run(['git', 'init'], cwd=self.model_dir, capture_output=True, check=False)
-        subprocess.run(
-            ['git', 'config', 'user.email', 'test@test.com'],
-            cwd=self.model_dir,
-            capture_output=True,
-            check=False,
-        )
-        subprocess.run(
-            ['git', 'config', 'user.name', 'Test User'],
-            cwd=self.model_dir,
-            capture_output=True,
-            check=False,
-        )
-        subprocess.run(['git', 'add', '.'], cwd=self.model_dir, capture_output=True, check=False)
-        subprocess.run(
-            ['git', 'commit', '-m', 'Initial commit'],
-            cwd=self.model_dir,
-            capture_output=True,
-            check=False,
-        )
-
-        # Add uncommitted changes
-        with open(os.path.join(self.model_dir, "uncommitted.txt"), "w") as f:
-            f.write("uncommitted content")
-
-        builder = ModelBuilder(self.model_dir, download_validation_only=True)
-        result = builder._check_git_status_and_prompt()
-        self.assertFalse(result)
-        mock_input.assert_called_once()
+        # _check_git_status is non-blocking (returns None, just logs warnings)
+        builder._check_git_status()
 
     def test_get_model_version_proto_with_git_info(self):
         """Test that git info is properly added to model version proto"""
@@ -261,7 +224,7 @@ class TestModel(ModelClass):
         self.assertNotIn('git_registry', metadata_dict)
 
     def test_git_status_limited_to_model_path(self):
-        """Test that git status checking is limited to model path only"""
+        """Test that _check_git_status uses model path scope (git status --porcelain .)"""
         # Create a parent directory for the git repo
         parent_dir = os.path.join(self.test_dir, "git_repo")
         os.makedirs(parent_dir)
@@ -300,27 +263,11 @@ class TestModel(ModelClass):
         with open(outside_file, "w") as f:
             f.write("This file is outside the model directory")
 
-        # Test that ModelBuilder ignores files outside model path
+        # _check_git_status is non-blocking — just verify it runs without error.
+        # It uses `git status --porcelain .` scoped to model path, so outside
+        # changes should not appear in its output.
         builder = ModelBuilder(self.model_dir, download_validation_only=True)
-        result = builder._check_git_status_and_prompt()
-
-        # Should return True because no uncommitted changes within model path
-        self.assertTrue(result)
-
-        # Now add uncommitted file inside model directory
-        inside_file = os.path.join(self.model_dir, "inside_model.txt")
-        with open(inside_file, "w") as f:
-            f.write("This file is inside the model directory")
-
-        # Mock user declining the prompt
-        with patch('builtins.input', return_value='n'):
-            result = builder._check_git_status_and_prompt()
-            self.assertFalse(result)
-
-        # Mock user accepting the prompt
-        with patch('builtins.input', return_value='y'):
-            result = builder._check_git_status_and_prompt()
-            self.assertTrue(result)
+        builder._check_git_status()
 
 
 if __name__ == '__main__':

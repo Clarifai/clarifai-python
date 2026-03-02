@@ -3,9 +3,20 @@
 import os
 from unittest import mock
 
+import pytest
 from click.testing import CliRunner
 
 from clarifai.cli.base import cli
+
+
+@pytest.fixture(autouse=True)
+def _clean_env():
+    """Ensure CLARIFAI_* variables are not leaked from the host environment into tests."""
+    with mock.patch.dict(os.environ, {}, clear=False):
+        for key in list(os.environ.keys()):
+            if key.startswith('CLARIFAI_'):
+                os.environ.pop(key, None)
+        yield
 
 
 def _mock_verify(pat, api_url):

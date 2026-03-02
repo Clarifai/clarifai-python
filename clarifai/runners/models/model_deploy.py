@@ -946,12 +946,6 @@ def _parse_runner_log(raw_msg, verbose=False):
     Raw input example:
         '{"msg": "Starting MCP bridge...", "@timestamp": "...", "stack_info": null, ...}'
     Output: "Starting MCP bridge..."
-
-    In non-verbose mode, filters out:
-    - DeprecationWarning lines
-    - pip download progress lines
-    - Empty messages
-
     Args:
         raw_msg: Raw log message string.
         verbose: If True, pass through all messages unfiltered.

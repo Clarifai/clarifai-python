@@ -33,9 +33,9 @@ class TestGPUPresets:
             assert "inference_compute_info" in preset
 
     def test_resolve_instance_type_id_case_insensitive(self):
-        """Instance type IDs should be case-insensitive."""
-        preset_lower = resolve_gpu("g5.xlarge")
-        preset_upper = resolve_gpu("G5.XLARGE")
+        """GPU names should be case-insensitive."""
+        preset_lower = resolve_gpu("a10g")
+        preset_upper = resolve_gpu("A10G")
         assert preset_lower["instance_type_id"] == preset_upper["instance_type_id"]
 
     def test_resolve_unknown_gpu_raises(self):
@@ -187,10 +187,10 @@ class TestNormalizeConfig:
         assert result["model"]["app_id"] == "existing-app"
 
     def test_default_app_id_when_missing(self):
-        """app_id defaults to 'app' when not in config and not provided."""
+        """app_id defaults to 'main' when not in config and not provided."""
         config = {"model": {"id": "test", "user_id": "user1", "model_type_id": "text-to-text"}}
         result = ModelBuilder.normalize_config(config)
-        assert result["model"]["app_id"] == "app"
+        assert result["model"]["app_id"] == "main"
 
     def test_default_app_id_not_applied_when_provided(self):
         """Default app_id is not used when explicitly provided via parameter."""

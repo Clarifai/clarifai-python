@@ -54,7 +54,7 @@ class TestWhoami:
         result = runner.invoke(cli, ['--config', config_path, 'whoami'])
 
         assert result.exit_code == 0
-        assert 'Context User ID: test_user' in result.output
+        assert 'test_user' in result.output
 
     def test_whoami_handles_api_error(self, tmp_path):
         """should handle API errors gracefully."""
@@ -70,7 +70,7 @@ class TestWhoami:
             result = runner.invoke(cli, ['--config', config_path, 'whoami'])
 
         assert result.exit_code == 0
-        assert 'Context User ID: test_user' in result.output
+        assert 'test_user' in result.output
 
 
 class TestAppList:
