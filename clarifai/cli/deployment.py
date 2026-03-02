@@ -154,17 +154,24 @@ def get(ctx, deployment_id):
     type=int,
     help='Stop after N seconds (default: unlimited, Ctrl+C to stop).',
 )
+@click.option(
+    '--log-type',
+    default='model',
+    type=click.Choice(['model', 'events'], case_sensitive=False),
+    help='Log type: model (stdout/stderr) or events (k8s scheduling/scaling).',
+)
 @click.pass_context
-def logs(ctx, deployment_id, follow, duration):
+def logs(ctx, deployment_id, follow, duration, log_type):
     """Stream logs from a deployment's runner.
 
     \b
     Resolves the model, version, and nodepool from the deployment
-    and streams runner stdout/stderr.
+    and streams runner stdout/stderr or k8s events.
 
     \b
     Examples:
       clarifai deployment logs deploy-abc123
+      clarifai deployment logs deploy-abc123 --log-type events
       clarifai deployment logs deploy-abc123 --no-follow
       clarifai deployment logs deploy-abc123 --duration 60
     """
@@ -200,6 +207,9 @@ def logs(ctx, deployment_id, follow, duration):
         if np.compute_cluster and np.compute_cluster.id:
             compute_cluster_id = np.compute_cluster.id
 
+    # Map user-friendly names to API log_type values
+    api_log_type = {"model": "runner", "events": "runner.events"}[log_type.lower()]
+
     try:
         stream_model_logs(
             model_id=model_id,
@@ -212,6 +222,7 @@ def logs(ctx, deployment_id, follow, duration):
             base_url=base_url,
             follow=follow,
             duration=duration,
+            log_type=api_log_type,
         )
     except UserError as e:
         click.echo(click.style(f"\nError: {e}", fg="red"), err=True)

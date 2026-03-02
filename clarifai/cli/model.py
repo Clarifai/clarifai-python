@@ -1056,6 +1056,12 @@ def _print_deploy_result(result):
 )
 @click.option('--compute-cluster-id', default=None, help='[Advanced] Filter by compute cluster.')
 @click.option('--nodepool-id', default=None, help='[Advanced] Filter by nodepool.')
+@click.option(
+    '--log-type',
+    default='model',
+    type=click.Choice(['model', 'events'], case_sensitive=False),
+    help='Log type: model (stdout/stderr) or events (k8s scheduling/scaling).',
+)
 @click.pass_context
 def logs(
     ctx,
@@ -1067,6 +1073,7 @@ def logs(
     duration,
     compute_cluster_id,
     nodepool_id,
+    log_type,
 ):
     """Stream logs from a deployed model's runner.
 
@@ -1077,6 +1084,7 @@ def logs(
     \b
     Examples:
       clarifai model logs --deployment deploy-abc123
+      clarifai model logs --deployment deploy-abc123 --log-type events
       clarifai model logs --model-url https://clarifai.com/user/app/models/id
       clarifai model logs --model-url <url> --no-follow
       clarifai model logs --model-url <url> --duration 60
@@ -1117,6 +1125,9 @@ def logs(
             if np.compute_cluster and np.compute_cluster.id:
                 compute_cluster_id = compute_cluster_id or np.compute_cluster.id
 
+    # Map user-friendly names to API log_type values
+    api_log_type = {"model": "runner", "events": "runner.events"}[log_type.lower()]
+
     try:
         stream_model_logs(
             model_url=model_url,
@@ -1130,6 +1141,7 @@ def logs(
             base_url=ctx.obj.current.api_base,
             follow=follow,
             duration=duration,
+            log_type=api_log_type,
         )
     except UserError as e:
         click.echo(click.style(f"\nError: {e}", fg="red"), err=True)

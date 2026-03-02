@@ -1096,11 +1096,12 @@ def stream_model_logs(
     base_url=None,
     follow=True,
     duration=None,
+    log_type="runner",
 ):
     """Stream model runner logs to stdout.
 
     Looks up the runner for the given model, then continuously fetches and prints
-    log_type="runner" entries (model pod stdout/stderr).
+    log entries (model pod stdout/stderr or k8s events).
 
     Args:
         model_url: Clarifai model URL. Used to extract user_id, app_id, model_id.
@@ -1114,6 +1115,8 @@ def stream_model_logs(
         base_url: API base URL.
         follow: If True, continuously tail logs. If False, print existing and exit.
         duration: Max seconds to tail (None = until Ctrl+C).
+        log_type: Log type to fetch — "runner" (model stdout/stderr) or
+            "runner.events" (k8s scheduling/scaling events).
     """
     from clarifai_grpc.grpc.api import service_pb2
 
@@ -1206,7 +1209,7 @@ def stream_model_logs(
             try:
                 resp = stub.ListLogEntries(
                     service_pb2.ListLogEntriesRequest(
-                        log_type="runner",
+                        log_type=log_type,
                         user_app_id=user_app_id,
                         compute_cluster_id=cc_id or "",
                         nodepool_id=np_id or "",
