@@ -971,6 +971,15 @@ def _parse_runner_log(raw_msg, verbose=False):
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # In non-verbose mode, filter noisy lines
+    if not verbose:
+        if "DeprecationWarning:" in raw_msg:
+            return None
+        if raw_msg.startswith("Downloading ") or raw_msg.startswith("  Downloading "):
+            return None
+        if raw_msg.startswith("Installing collected packages:"):
+            return None
+
     # Return raw message as-is
     return raw_msg
 
