@@ -2,7 +2,7 @@ model:
   id: "my-model"
 
 build_info:
-  python_version: "3.12"
+  image: "vllm/vllm-openai:latest"
 
 compute:
   instance: g5.xlarge
