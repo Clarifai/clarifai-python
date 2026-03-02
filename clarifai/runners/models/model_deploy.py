@@ -26,7 +26,7 @@ from clarifai.utils.compute_presets import (
 from clarifai.utils.logging import logger
 
 # Default deployment monitoring settings
-DEFAULT_MONITOR_TIMEOUT = 600  # 10 minutes
+DEFAULT_MONITOR_TIMEOUT = 1200  # 20 minutes
 DEFAULT_POLL_INTERVAL = 5  # seconds
 DEFAULT_LOG_TAIL_DURATION = 15  # seconds to check for runner logs after pods are ready
 
@@ -140,8 +140,8 @@ class ModelDeployer:
         if not self.model_path and not self.model_url:
             raise UserError(
                 "You must specify either MODEL_PATH (directory) or --model-url.\n"
-                "  Local model:    clarifai model deploy ./my-model --instance g5.xlarge\n"
-                "  Existing model: clarifai model deploy --model-url <url> --instance g5.xlarge"
+                "  Local model:    clarifai model deploy ./my-model --instance gpu-nvidia-a10g\n"
+                "  Existing model: clarifai model deploy --model-url <url> --instance gpu-nvidia-a10g"
             )
         if self.model_path and self.model_url:
             raise UserError("Specify only one of: MODEL_PATH or --model-url.")
@@ -155,7 +155,7 @@ class ModelDeployer:
             if not self.instance_type and not self.nodepool_id:
                 raise UserError(
                     "You must specify --instance or --nodepool-id when deploying an existing model.\n"
-                    "  Example: clarifai model deploy --model-url <url> --instance g5.xlarge\n"
+                    "  Example: clarifai model deploy --model-url <url> --instance gpu-nvidia-a10g\n"
                     "  Run 'clarifai model deploy --instance-info' to see available options."
                 )
 
@@ -170,6 +170,17 @@ class ModelDeployer:
                 region=self.region,
             )
         return self._gpu_preset
+
+    def _write_instance_to_config(self, instance_type_id):
+        """Persist auto-selected instance to config.yaml."""
+        config_path = os.path.join(self.model_path, 'config.yaml')
+        if not os.path.exists(config_path):
+            return
+        from clarifai.utils.cli import dump_yaml, from_yaml
+
+        config = from_yaml(config_path)
+        config.setdefault('compute', {})['instance'] = instance_type_id
+        dump_yaml(config, config_path)
 
     def _deploy_local_model(self):
         """Upload model from local path, then deploy."""
@@ -211,21 +222,30 @@ class ModelDeployer:
             if compute_instance:
                 self.instance_type = compute_instance
             else:
-                # Fallback: try to infer from inference_compute_info
-                from clarifai.utils.compute_presets import infer_gpu_from_config
+                # Fallback: try to infer from inference_compute_info, then auto-recommend
+                from clarifai.utils.compute_presets import (
+                    infer_gpu_from_config,
+                    recommend_instance,
+                )
 
                 inferred = infer_gpu_from_config(self._builder.config)
                 if inferred:
                     self.instance_type = inferred
                 else:
-                    raise UserError(
-                        "You must specify --instance or set 'compute.instance' in config.yaml.\n"
-                        "  Example: clarifai model deploy ./my-model --instance g5.xlarge\n"
-                        "  Or add to config.yaml:\n"
-                        "    compute:\n"
-                        "      instance: g5.xlarge\n"
-                        "  Run 'clarifai model deploy --instance-info' to see available options."
+                    recommended, reason = recommend_instance(
+                        self._builder.config, pat=self.pat, base_url=self.base_url
                     )
+                    if recommended:
+                        self.instance_type = recommended
+                        out.info("Auto-selected", f"{recommended} ({reason})")
+                        # Persist to config.yaml so future deploys reuse this choice
+                        self._write_instance_to_config(recommended)
+                    else:
+                        raise UserError(
+                            f"Could not auto-detect instance type. {reason or ''}\n"
+                            "  Specify --instance or set 'compute.instance' in config.yaml.\n"
+                            "  Run 'clarifai model deploy --instance-info' to see available options."
+                        )
 
         # Show clean validation summary
         model_type_id = model_config.get('model_type_id', 'unknown')

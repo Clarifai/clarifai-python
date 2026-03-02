@@ -8,6 +8,8 @@ This module provides:
 
 import re
 
+import requests
+
 from clarifai.utils.logging import logger
 
 # Kubernetes quantity suffixes and their multipliers (in bytes or millicores)
@@ -314,10 +316,14 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
             if matched:
                 return _instance_type_to_preset(matched)
 
-    # Fallback to hardcoded presets (by shorthand name)
+    # Fallback to hardcoded presets (by shorthand name, then by instance_type_id)
     gpu_upper = gpu_name.upper()
     if gpu_upper in FALLBACK_GPU_PRESETS:
         return dict(FALLBACK_GPU_PRESETS[gpu_upper])
+    gpu_lower = gpu_name.lower()
+    for preset in FALLBACK_GPU_PRESETS.values():
+        if preset["instance_type_id"].lower() == gpu_lower:
+            return dict(preset)
 
     available = "Run 'clarifai model deploy --instance-info' to see available options."
     raise ValueError(f"Unknown instance type '{gpu_name}'. {available}")
@@ -444,8 +450,227 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
     from tabulate import tabulate
 
     table = tabulate(rows, headers="keys", tablefmt="simple")
-    example = "\nExample: clarifai model deploy ./my-model --instance g5.xlarge"
+    example = "\nExample: clarifai model deploy ./my-model --instance gpu-nvidia-a10g"
     return header + table + example
+
+
+def _get_hf_model_info(repo_id):
+    """Fetch model metadata from HuggingFace API.
+
+    Returns dict with: num_params, quant_method, quant_bits, dtype_breakdown, pipeline_tag.
+    Returns None on failure.
+    """
+    try:
+        url = f"https://huggingface.co/api/models/{repo_id}"
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        logger.debug(f"Failed to fetch HF model info for {repo_id}")
+        return None
+
+    result = {
+        "num_params": None,
+        "quant_method": None,
+        "quant_bits": None,
+        "dtype_breakdown": None,
+        "pipeline_tag": data.get("pipeline_tag"),
+    }
+
+    # Extract parameter count and dtype breakdown from safetensors metadata
+    safetensors = data.get("safetensors")
+    if safetensors:
+        result["num_params"] = safetensors.get("total")
+        params_by_dtype = safetensors.get("parameters")
+        if params_by_dtype:
+            result["dtype_breakdown"] = dict(params_by_dtype)
+
+    # Extract quantization config
+    config = data.get("config") or {}
+    quant_config = config.get("quantization_config") or {}
+    if quant_config:
+        result["quant_method"] = quant_config.get("quant_method")
+        result["quant_bits"] = quant_config.get("bits")
+
+    return result
+
+
+def _detect_quant_from_repo_name(repo_id):
+    """Detect quantization from repo name. Returns (quant_method, bits) or (None, None)."""
+    name = repo_id.lower()
+    patterns = [
+        ("-awq", "awq", 4),
+        ("-gptq", "gptq", 4),
+        ("-bnb-4bit", "bnb", 4),
+        ("-int8", None, 8),
+        ("-int4", None, 4),
+        ("-4bit", None, 4),
+        ("-fp16", "fp16", 16),
+    ]
+    for suffix, method, bits in patterns:
+        if suffix in name:
+            return (method, bits)
+    return (None, None)
+
+
+# Bytes per parameter by dtype/quantization
+_BYTES_PER_PARAM = {
+    "BF16": 2.0,
+    "F16": 2.0,
+    "FP16": 2.0,
+    "F32": 4.0,
+    "FP32": 4.0,
+    "I8": 1.0,
+    "I32": 4.0,
+    "U8": 1.0,
+}
+
+# Framework overhead (2 GiB) for CUDA context, KV cache init, etc.
+_FRAMEWORK_OVERHEAD_BYTES = 2 * 1024**3
+# KV cache overhead as fraction of model weight
+_KV_CACHE_FRACTION = 0.20
+
+
+def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_breakdown=None):
+    """Estimate VRAM bytes needed for inference. Returns int."""
+    # If we have per-dtype parameter counts, compute a weighted sum
+    if dtype_breakdown:
+        weight_bytes = 0
+        for dtype, count in dtype_breakdown.items():
+            bpp = _BYTES_PER_PARAM.get(dtype.upper(), 2.0)
+            weight_bytes += count * bpp
+    elif quant_method in ("awq", "gptq"):
+        bpp = 0.5 if (quant_bits is None or quant_bits == 4) else 1.0
+        weight_bytes = num_params * bpp
+    elif quant_bits:
+        bpp = quant_bits / 8.0
+        weight_bytes = num_params * bpp
+    else:
+        # Default: BF16
+        weight_bytes = num_params * 2.0
+
+    # Total: weights + KV cache overhead + framework overhead
+    return int(weight_bytes + (weight_bytes * _KV_CACHE_FRACTION) + _FRAMEWORK_OVERHEAD_BYTES)
+
+
+def _select_instance_by_vram(vram_bytes, pat=None, base_url=None):
+    """Select smallest instance whose VRAM >= vram_bytes.
+
+    Returns (instance_type_id, reason) or (None, reason).
+    """
+    vram_gib = vram_bytes / (1024**3)
+
+    # Try API first for real available instances
+    instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
+    if instance_types:
+        # Build list of (instance_id, vram_bytes) for GPU instances, sorted by VRAM ascending
+        gpu_instances = []
+        for it in instance_types:
+            ci = it.compute_info if it.compute_info else None
+            if not ci or not ci.num_accelerators or ci.num_accelerators == 0:
+                continue
+            acc_mem = ci.accelerator_memory
+            if not acc_mem:
+                continue
+            mem_bytes = parse_k8s_quantity(acc_mem)
+            if mem_bytes > 0:
+                gpu_instances.append((it.id, mem_bytes))
+
+        # Deduplicate by instance ID, keeping largest VRAM for each
+        seen = {}
+        for inst_id, mem in gpu_instances:
+            if inst_id not in seen or mem > seen[inst_id]:
+                seen[inst_id] = mem
+        sorted_instances = sorted(seen.items(), key=lambda x: x[1])
+
+        for inst_id, mem in sorted_instances:
+            if mem >= vram_bytes:
+                mem_gib = mem / (1024**3)
+                return (
+                    inst_id,
+                    f"Estimated {vram_gib:.1f} GiB VRAM, fits {inst_id} ({mem_gib:.0f} GiB)",
+                )
+
+        if sorted_instances:
+            max_gib = sorted_instances[-1][1] / (1024**3)
+            return (
+                None,
+                f"Estimated {vram_gib:.1f} GiB VRAM, exceeds max available {max_gib:.0f} GiB",
+            )
+
+    # Fallback to hardcoded GPU tiers
+    fallback_tiers = [
+        ("gpu-nvidia-a10g", 24 * 1024**3),  # A10G: 24 GiB
+        ("gpu-nvidia-l40s", 48 * 1024**3),  # L40S: 48 GiB
+        ("gpu-nvidia-g6e-2x-large", 96 * 1024**3),  # G6E 2x: 96 GiB
+    ]
+    for inst_id, mem in fallback_tiers:
+        if mem >= vram_bytes:
+            mem_gib = mem / (1024**3)
+            return (
+                inst_id,
+                f"Estimated {vram_gib:.1f} GiB VRAM, fits {inst_id} ({mem_gib:.0f} GiB)",
+            )
+
+    return (None, f"Estimated {vram_gib:.1f} GiB VRAM, exceeds max 96 GiB")
+
+
+def recommend_instance(config, pat=None, base_url=None):
+    """Recommend instance type based on model config.
+
+    Returns (instance_type_id, reason) or (None, reason).
+    """
+    model_config = config.get('model', {})
+    model_type_id = model_config.get('model_type_id', '')
+
+    # MCP models run on CPU
+    if model_type_id in ("mcp", "mcp-stdio"):
+        return ("t3a.2xlarge", "MCP models run on CPU")
+
+    checkpoints = config.get('checkpoints', {})
+    repo_id = checkpoints.get('repo_id') if checkpoints else None
+
+    if not repo_id:
+        # Check if this is a GPU toolkit (vllm/sglang) that needs a repo_id
+        build_info = config.get('build_info', {})
+        toolkit = build_info.get('toolkit') or ''
+        if toolkit.lower() in ('vllm', 'sglang'):
+            return (None, "Cannot estimate without checkpoints.repo_id")
+        # No checkpoints, no GPU toolkit → default to CPU
+        return ("t3a.2xlarge", "No model checkpoints, defaulting to CPU")
+
+    # Try HF metadata API for parameter count + quantization
+    hf_info = _get_hf_model_info(repo_id)
+    num_params = hf_info.get("num_params") if hf_info else None
+
+    if num_params:
+        quant_method = hf_info.get("quant_method")
+        quant_bits = hf_info.get("quant_bits")
+        dtype_breakdown = hf_info.get("dtype_breakdown")
+
+        # Also check repo name for quantization hints if API didn't report any
+        if not quant_method:
+            name_method, name_bits = _detect_quant_from_repo_name(repo_id)
+            if name_method:
+                quant_method = name_method
+                quant_bits = name_bits
+
+        vram = _estimate_vram_bytes(num_params, quant_method, quant_bits, dtype_breakdown)
+        return _select_instance_by_vram(vram, pat=pat, base_url=base_url)
+
+    # Fallback: file-size-based estimate via HuggingFaceLoader
+    try:
+        from clarifai.runners.utils.loader import HuggingFaceLoader
+
+        file_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
+        if file_size and file_size > 0:
+            # File size ≈ model weights; add 30% overhead for runtime buffers + KV cache
+            vram = int(file_size * 1.3) + _FRAMEWORK_OVERHEAD_BYTES
+            return _select_instance_by_vram(vram, pat=pat, base_url=base_url)
+    except Exception:
+        logger.debug(f"Failed to get checkpoint size for {repo_id}")
+
+    return (None, "Could not determine model size for " + repo_id)
 
 
 def get_compute_cluster_config(user_id, cloud_provider="aws", region="us-east-1"):

@@ -1818,7 +1818,7 @@ class ModelBuilder:
                 "inference_compute_info is required for uploading a model.\n"
                 "  Add one of the following to your config.yaml:\n"
                 "    compute:\n"
-                "      instance: g5.xlarge    # simplified format\n"
+                "      instance: gpu-nvidia-a10g    # simplified format\n"
                 "  Or:\n"
                 "    inference_compute_info:\n"
                 "      cpu_limit: '4'\n"

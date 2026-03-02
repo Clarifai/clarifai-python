@@ -576,7 +576,7 @@ def _print_init_success(model_path, toolkit):
     click.echo(f"    clarifai model serve {model_path} --mode container # run inside Docker")
     click.echo()
     click.echo("  Deploy to Clarifai:")
-    click.echo(f"    clarifai model deploy {model_path} --instance g5.xlarge")
+    click.echo(f"    clarifai model deploy {model_path} --instance gpu-nvidia-a10g")
     click.echo("    clarifai model deploy --instance-info              # list available instances")
     click.echo()
 
@@ -747,6 +747,22 @@ def init(
                 f.write(get_config_template(model_type_id=config_model_type_id, model_id=model_id))
             logger.info(f"Created {config_path}")
 
+    # Auto-select instance based on model size when --model-name is provided
+    if model_name and toolkit in ('vllm', 'sglang', 'huggingface'):
+        config_path = os.path.join(model_path, "config.yaml")
+        if os.path.exists(config_path):
+            from clarifai.utils.cli import dump_yaml, from_yaml
+            from clarifai.utils.compute_presets import recommend_instance
+
+            pat_val = getattr(ctx.obj.current, 'pat', None)
+            base_url_val = getattr(ctx.obj.current, 'api_base', None)
+            config = from_yaml(config_path)
+            recommended, reason = recommend_instance(config, pat=pat_val, base_url=base_url_val)
+            if recommended:
+                config.setdefault('compute', {})['instance'] = recommended
+                dump_yaml(config, config_path)
+                click.echo(f"  Instance: {recommended} ({reason})")
+
     _print_init_success(model_path, toolkit)
 
 
@@ -839,7 +855,7 @@ def upload(ctx, model_path, platform, verbose):
 @click.option(
     '--instance',
     default=None,
-    help='Hardware instance type (e.g., g5.xlarge). Use --instance-info to list options.',
+    help='Hardware instance type (e.g., gpu-nvidia-a10g). Use --instance-info to list options.',
 )
 @click.option(
     '--instance-info',
@@ -924,8 +940,8 @@ def deploy(
 
     \b
     Examples:
-      clarifai model deploy ./my-model --instance g5.xlarge
-      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance g5.xlarge
+      clarifai model deploy ./my-model --instance gpu-nvidia-a10g
+      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance gpu-nvidia-a10g
       clarifai model deploy --instance-info
       clarifai model deploy --instance-info --cloud gcp
     """

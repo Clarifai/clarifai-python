@@ -9,6 +9,10 @@ import yaml
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.utils.compute_presets import (
     FALLBACK_GPU_PRESETS,
+    _detect_quant_from_repo_name,
+    _estimate_vram_bytes,
+    _get_hf_model_info,
+    _select_instance_by_vram,
     get_compute_cluster_config,
     get_deploy_compute_cluster_id,
     get_deploy_nodepool_id,
@@ -17,6 +21,7 @@ from clarifai.utils.compute_presets import (
     infer_gpu_from_config,
     list_gpu_presets,
     parse_k8s_quantity,
+    recommend_instance,
     resolve_gpu,
 )
 
@@ -679,7 +684,7 @@ class TestDeploymentMonitoring:
             DEFAULT_POLL_INTERVAL,
         )
 
-        assert DEFAULT_MONITOR_TIMEOUT == 600  # 10 minutes
+        assert DEFAULT_MONITOR_TIMEOUT == 1200  # 20 minutes
         assert DEFAULT_POLL_INTERVAL == 5  # 5 seconds
         assert DEFAULT_LOG_TAIL_DURATION == 15  # 15 seconds quick check after ready
 
@@ -1447,3 +1452,273 @@ class TestDeployModelQuiet:
         assert result is True
         captured = capsys.readouterr()
         assert "Deployment" in captured.out
+
+
+class TestRecommendInstance:
+    """Test auto-selection of GPU instance based on model size."""
+
+    def test_get_hf_model_info_success(self):
+        """Parses safetensors.total and config from mocked HF API."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "safetensors": {
+                "total": 7_000_000_000,
+                "parameters": {"BF16": 7_000_000_000},
+            },
+            "config": {},
+            "pipeline_tag": "text-generation",
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            info = _get_hf_model_info("meta-llama/Llama-3-8B")
+        assert info is not None
+        assert info["num_params"] == 7_000_000_000
+        assert info["dtype_breakdown"] == {"BF16": 7_000_000_000}
+        assert info["pipeline_tag"] == "text-generation"
+        assert info["quant_method"] is None
+
+    def test_get_hf_model_info_with_quantization(self):
+        """Detects AWQ quantization from API response."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "safetensors": {"total": 7_000_000_000, "parameters": {"I32": 7_000_000_000}},
+            "config": {"quantization_config": {"quant_method": "awq", "bits": 4}},
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            info = _get_hf_model_info("some/model-awq")
+        assert info["quant_method"] == "awq"
+        assert info["quant_bits"] == 4
+
+    def test_get_hf_model_info_api_failure(self):
+        """Returns None when API fails."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets.requests.get", side_effect=Exception("timeout")
+        ):
+            info = _get_hf_model_info("nonexistent/model")
+        assert info is None
+
+    def test_get_hf_model_info_no_safetensors(self):
+        """Returns num_params=None when safetensors field missing."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"config": {}, "pipeline_tag": "text-generation"}
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            info = _get_hf_model_info("some/old-model")
+        assert info is not None
+        assert info["num_params"] is None
+
+    def test_detect_quant_awq(self):
+        """-awq in repo name → ("awq", 4)"""
+        method, bits = _detect_quant_from_repo_name("TheBloke/Llama-7B-AWQ")
+        assert method == "awq"
+        assert bits == 4
+
+    def test_detect_quant_gptq(self):
+        """-GPTQ in repo name → ("gptq", 4)"""
+        method, bits = _detect_quant_from_repo_name("TheBloke/Llama-7B-GPTQ")
+        assert method == "gptq"
+        assert bits == 4
+
+    def test_detect_quant_none(self):
+        """Clean name → (None, None)"""
+        method, bits = _detect_quant_from_repo_name("meta-llama/Llama-3-8B")
+        assert method is None
+        assert bits is None
+
+    def test_estimate_vram_7b_bf16(self):
+        """~7B * 2 + overhead ≈ 18.9 GiB"""
+        vram = _estimate_vram_bytes(7_248_023_552)  # 7B params, BF16 default
+        # 7.248B * 2 = 14.496 GB weights, + 20% KV = 17.395 GB, + 2 GiB framework
+        expected_approx = 7_248_023_552 * 2.0 * 1.20 + 2 * 1024**3
+        assert abs(vram - expected_approx) < 1024  # within 1 KB
+
+    def test_estimate_vram_7b_awq_4bit(self):
+        """~7B * 0.5 + overhead ≈ 6.4 GiB"""
+        vram = _estimate_vram_bytes(7_248_023_552, quant_method="awq", quant_bits=4)
+        expected_approx = 7_248_023_552 * 0.5 * 1.20 + 2 * 1024**3
+        assert abs(vram - expected_approx) < 1024
+
+    def test_estimate_vram_70b_bf16(self):
+        """~70B BF16 should be very large."""
+        vram = _estimate_vram_bytes(70_000_000_000)
+        vram_gib = vram / (1024**3)
+        assert vram_gib > 150  # ~170 GiB, exceeds all instances
+
+    def test_select_instance_small(self):
+        """10 GiB → A10G (24 GiB) via fallback."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+        ):
+            inst_id, reason = _select_instance_by_vram(10 * 1024**3)
+        assert inst_id == "gpu-nvidia-a10g"
+        assert "10.0 GiB" in reason
+
+    def test_select_instance_medium(self):
+        """30 GiB → L40S (48 GiB) via fallback."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+        ):
+            inst_id, reason = _select_instance_by_vram(30 * 1024**3)
+        assert inst_id == "gpu-nvidia-l40s"
+
+    def test_select_instance_large(self):
+        """60 GiB → G6E (96 GiB) via fallback."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+        ):
+            inst_id, reason = _select_instance_by_vram(60 * 1024**3)
+        assert inst_id == "gpu-nvidia-g6e-2x-large"
+
+    def test_select_instance_too_large(self):
+        """120 GiB → None via fallback."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+        ):
+            inst_id, reason = _select_instance_by_vram(120 * 1024**3)
+        assert inst_id is None
+        assert "exceeds" in reason
+
+    def test_recommend_mcp_model(self):
+        """MCP → CPU instance."""
+        config = {"model": {"model_type_id": "mcp"}}
+        inst_id, reason = recommend_instance(config)
+        assert inst_id == "t3a.2xlarge"
+        assert "CPU" in reason
+
+    def test_recommend_no_checkpoints(self):
+        """No repo_id, no GPU toolkit → CPU."""
+        config = {"model": {"model_type_id": "any-to-any"}}
+        inst_id, reason = recommend_instance(config)
+        assert inst_id == "t3a.2xlarge"
+        assert "CPU" in reason or "cpu" in reason.lower()
+
+    def test_recommend_vllm_no_repo(self):
+        """vLLM without repo_id → None."""
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"toolkit": "vllm"},
+        }
+        inst_id, reason = recommend_instance(config)
+        assert inst_id is None
+        assert "checkpoints.repo_id" in reason
+
+    def test_recommend_7b_model(self):
+        """Mock 7B BF16 → A10G."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "meta-llama/Llama-3-8B"},
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "safetensors": {"total": 7_248_023_552, "parameters": {"BF16": 7_248_023_552}},
+            "config": {},
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            with patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ):
+                inst_id, reason = recommend_instance(config)
+        assert inst_id == "gpu-nvidia-a10g"
+
+    def test_recommend_13b_model(self):
+        """Mock 13B BF16 → L40S."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "meta-llama/Llama-13B"},
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "safetensors": {"total": 13_000_000_000, "parameters": {"BF16": 13_000_000_000}},
+            "config": {},
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            with patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ):
+                inst_id, reason = recommend_instance(config)
+        # 13B * 2 * 1.2 + 2GiB ≈ 33.3 GiB → L40S (48 GiB)
+        assert inst_id == "gpu-nvidia-l40s"
+
+    def test_recommend_fallback_file_size(self):
+        """HF metadata fails, file size works → selects by file size."""
+        from unittest.mock import patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "some/model"},
+        }
+        with patch(
+            "clarifai.utils.compute_presets._get_hf_model_info",
+            return_value={
+                "num_params": None,
+                "quant_method": None,
+                "quant_bits": None,
+                "dtype_breakdown": None,
+                "pipeline_tag": None,
+            },
+        ):
+            with patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.get_huggingface_checkpoint_total_size",
+                return_value=10 * 1024**3,  # 10 GiB files
+            ):
+                with patch(
+                    "clarifai.utils.compute_presets._try_list_all_instance_types",
+                    return_value=None,
+                ):
+                    inst_id, reason = recommend_instance(config)
+        # 10 GiB * 1.3 + 2 GiB ≈ 15 GiB → A10G (24 GiB)
+        assert inst_id == "gpu-nvidia-a10g"
+
+    def test_recommend_both_fail(self):
+        """Both APIs fail → (None, reason)."""
+        from unittest.mock import patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "nonexistent/model"},
+        }
+        with patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=None):
+            with patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.get_huggingface_checkpoint_total_size",
+                return_value=0,
+            ):
+                inst_id, reason = recommend_instance(config)
+        assert inst_id is None
+        assert "Could not determine" in reason
+
+    def test_write_instance_to_config(self):
+        """Verify config.yaml is updated with selected instance."""
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.yaml")
+            with open(config_path, "w") as f:
+                yaml.dump({"model": {"id": "test"}}, f)
+
+            deployer = ModelDeployer.__new__(ModelDeployer)
+            deployer.model_path = tmpdir
+            deployer._write_instance_to_config("gpu-nvidia-l40s")
+
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            assert config["compute"]["instance"] == "gpu-nvidia-l40s"
