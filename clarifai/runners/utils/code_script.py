@@ -213,13 +213,11 @@ client = OpenAI(
 response = client.chat.completions.create(
     model="{model_ui_url}",
     messages=[
-        {{"role": "system", "content": "Talk like a pirate."}},
         {{
             "role": "user",
             "content": "How do I check if a Python object is an instance of a class?",
         }},
     ],
-    temperature=1.0,
     stream=False,  # stream=True also works, just iterator over the response
 )
 print(response)
