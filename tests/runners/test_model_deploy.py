@@ -99,6 +99,30 @@ class TestGPUPresets:
         # Either shows instance types from API or a login prompt
         assert "instance type" in result.lower() or "logged in" in result.lower()
 
+    def test_resolve_gpu_nvidia_prefix_via_api(self):
+        """'gpu-nvidia-a10g' should resolve to real API instance type, not fallback."""
+        from unittest.mock import MagicMock, patch
+
+        mock_g5 = MagicMock()
+        mock_g5.id = "g5.xlarge"
+        mock_g5.description = "NVIDIA A10G 24GB"
+        mock_g5.cloud_provider.id = "aws"
+        mock_g5.region = "us-east-1"
+        mock_g5.compute_info.cpu_limit = "4"
+        mock_g5.compute_info.cpu_memory = "16Gi"
+        mock_g5.compute_info.num_accelerators = 1
+        mock_g5.compute_info.accelerator_type = ["NVIDIA-A10G"]
+        mock_g5.compute_info.accelerator_memory = "24Gi"
+
+        with patch(
+            "clarifai.utils.compute_presets._try_list_all_instance_types",
+            return_value=[mock_g5],
+        ):
+            # 'gpu-nvidia-a10g' should normalize to 'A10G' and match via accelerator_type
+            preset = resolve_gpu("gpu-nvidia-a10g")
+            assert preset["instance_type_id"] == "g5.xlarge"
+            assert preset["cloud_provider"] == "aws"
+
     def test_fallback_presets_complete(self):
         """All fallback presets have required keys."""
         for name, preset in FALLBACK_GPU_PRESETS.items():
@@ -1612,7 +1636,7 @@ class TestRecommendInstance:
         """vLLM without repo_id → None."""
         config = {
             "model": {"model_type_id": "any-to-any"},
-            "build_info": {"toolkit": "vllm"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
         }
         inst_id, reason = recommend_instance(config)
         assert inst_id is None
@@ -1705,6 +1729,96 @@ class TestRecommendInstance:
                 inst_id, reason = recommend_instance(config)
         assert inst_id is None
         assert "Could not determine" in reason
+
+    def test_recommend_sglang_skips_pre_ampere(self):
+        """SGLang toolkit should skip pre-Ampere instances across all clouds."""
+        from unittest.mock import MagicMock, patch
+
+        # AWS T4 instance
+        mock_g4dn = MagicMock()
+        mock_g4dn.id = "g4dn.xlarge"
+        mock_g4dn.compute_info.num_accelerators = 1
+        mock_g4dn.compute_info.accelerator_memory = "16Gi"
+
+        # Azure T4 instance
+        mock_azure_t4 = MagicMock()
+        mock_azure_t4.id = "Standard_NC4as_T4_v3"
+        mock_azure_t4.compute_info.num_accelerators = 1
+        mock_azure_t4.compute_info.accelerator_memory = "16Gi"
+
+        # AWS A10G instance (Ampere)
+        mock_g5 = MagicMock()
+        mock_g5.id = "g5.xlarge"
+        mock_g5.compute_info.num_accelerators = 1
+        mock_g5.compute_info.accelerator_memory = "24Gi"
+
+        config_sglang = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "lmsysorg/sglang:latest"},
+            "checkpoints": {"repo_id": "Qwen/Qwen3-0.6B"},
+        }
+        config_vllm = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
+            "checkpoints": {"repo_id": "Qwen/Qwen3-0.6B"},
+        }
+
+        small_vram = {"num_params": 600_000_000}  # ~3 GiB, fits T4
+
+        with (
+            patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram),
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types",
+                return_value=[mock_g4dn, mock_azure_t4, mock_g5],
+            ),
+        ):
+            # SGLang should skip both AWS g4dn and Azure T4 → pick g5
+            inst_id, _ = recommend_instance(config_sglang)
+            assert inst_id == "g5.xlarge"
+
+            # vLLM should pick the cheapest (first) T4
+            inst_id, _ = recommend_instance(config_vllm)
+            assert inst_id == "g4dn.xlarge"
+
+    def test_recommend_sglang_from_requirements_txt(self):
+        """SGLang detected via requirements.txt should also skip pre-Ampere."""
+        from unittest.mock import MagicMock, patch
+
+        mock_g4dn = MagicMock()
+        mock_g4dn.id = "g4dn.xlarge"
+        mock_g4dn.compute_info.num_accelerators = 1
+        mock_g4dn.compute_info.accelerator_memory = "16Gi"
+
+        mock_g5 = MagicMock()
+        mock_g5.id = "g5.xlarge"
+        mock_g5.compute_info.num_accelerators = 1
+        mock_g5.compute_info.accelerator_memory = "24Gi"
+
+        # Config has no build_info.image — toolkit should be detected from requirements.txt
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "Qwen/Qwen3-0.6B"},
+        }
+
+        small_vram = {"num_params": 600_000_000}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            req_path = os.path.join(tmpdir, "requirements.txt")
+            with open(req_path, "w") as f:
+                f.write("sglang\nclarifai\n")
+
+            with (
+                patch(
+                    "clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram
+                ),
+                patch(
+                    "clarifai.utils.compute_presets._try_list_all_instance_types",
+                    return_value=[mock_g4dn, mock_g5],
+                ),
+            ):
+                # Should detect sglang from requirements.txt and skip g4dn
+                inst_id, _ = recommend_instance(config, model_path=tmpdir)
+                assert inst_id == "g5.xlarge"
 
     def test_write_instance_to_config(self):
         """Verify config.yaml is updated with selected instance."""

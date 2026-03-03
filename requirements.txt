@@ -19,4 +19,5 @@ packaging>=25.0
 tenacity>=8.2.3
 httpx>=0.27.0
 openai>=1.0.0
-huggingface-hub>=1.0.0
+huggingface_hub>=0.16.4
+hf-transfer>=0.1.9

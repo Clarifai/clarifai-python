@@ -155,7 +155,7 @@ class ModelDeployer:
             if not self.instance_type and not self.nodepool_id:
                 raise UserError(
                     "You must specify --instance or --nodepool-id when deploying an existing model.\n"
-                    "  Example: clarifai model deploy --model-url <url> --instance gpu-nvidia-a10g\n"
+                    "  Example: clarifai model deploy --model-url <url> --instance a10g\n"
                     "  Run 'clarifai model deploy --instance-info' to see available options."
                 )
 
@@ -233,7 +233,10 @@ class ModelDeployer:
                     self.instance_type = inferred
                 else:
                     recommended, reason = recommend_instance(
-                        self._builder.config, pat=self.pat, base_url=self.base_url
+                        self._builder.config,
+                        pat=self.pat,
+                        base_url=self.base_url,
+                        model_path=self.model_path,
                     )
                     if recommended:
                         self.instance_type = recommended

@@ -761,7 +761,9 @@ def init(
             pat_val = getattr(ctx.obj.current, 'pat', None)
             base_url_val = getattr(ctx.obj.current, 'api_base', None)
             config = from_yaml(config_path)
-            recommended, reason = recommend_instance(config, pat=pat_val, base_url=base_url_val)
+            recommended, reason = recommend_instance(
+                config, pat=pat_val, base_url=base_url_val, toolkit=toolkit, model_path=model_path
+            )
             if recommended:
                 config.setdefault('compute', {})['instance'] = recommended
                 dump_yaml(config, config_path)

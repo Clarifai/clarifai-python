@@ -786,7 +786,7 @@ class ModelBuilder:
             )
 
             if not self.has_proper_usage_tracking(all_python_content):
-                logger.error(
+                logger.warning(
                     "Missing configuration to track usage for OpenAI chat completion calls. "
                     "Go to your model scripts and make sure to set both: "
                     "1) stream_options={'include_usage': True}"

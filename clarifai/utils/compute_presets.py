@@ -250,12 +250,32 @@ def _instance_type_to_preset(instance_type):
     }
 
 
+def _normalize_gpu_name(gpu_name):
+    """Extract GPU shorthand from various formats.
+
+    Handles formats like:
+    - 'gpu-nvidia-a10g' → 'A10G'
+    - 'gpu-nvidia-g6e-2x-large' → 'G6E-2X-LARGE'
+    - 'A10G' → 'A10G' (already short)
+    - 'g5.xlarge' → 'G5.XLARGE' (no prefix to strip)
+    """
+    name = gpu_name.strip()
+    # Strip 'gpu-nvidia-' prefix if present
+    lower = name.lower()
+    if lower.startswith("gpu-nvidia-"):
+        name = name[len("gpu-nvidia-") :]
+    elif lower.startswith("gpu-"):
+        name = name[len("gpu-") :]
+    return name.upper()
+
+
 def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=None):
     """Resolve a GPU/instance type name to its full preset info.
 
     Accepts either:
     - Instance type IDs from the API (e.g. 'g5.xlarge', 'g6e.2xlarge', 't3a.2xlarge')
     - GPU shorthand names (e.g. 'A10G', 'L40S', 'CPU') as fallback aliases
+    - Legacy nodepool-style names (e.g. 'gpu-nvidia-a10g') — normalized to GPU shorthand
 
     Queries all cloud providers/regions unless cloud_provider/region are specified.
     If --cloud/--region are given, only that provider+region is queried.
@@ -303,7 +323,9 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
                 return _instance_type_to_preset(it)
 
         # 2. Fuzzy match by GPU shorthand in instance type ID or accelerator type
-        matched = _match_gpu_name_to_instance_type(gpu_name.upper(), filtered)
+        #    Normalize 'gpu-nvidia-a10g' → 'A10G' for better matching
+        normalized = _normalize_gpu_name(gpu_name)
+        matched = _match_gpu_name_to_instance_type(normalized, filtered)
         if matched:
             return _instance_type_to_preset(matched)
 
@@ -312,7 +334,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
             for it in instance_types:
                 if it.id.lower() == gpu_name.lower():
                     return _instance_type_to_preset(it)
-            matched = _match_gpu_name_to_instance_type(gpu_name.upper(), instance_types)
+            matched = _match_gpu_name_to_instance_type(normalized, instance_types)
             if matched:
                 return _instance_type_to_preset(matched)
 
@@ -450,7 +472,7 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
     from tabulate import tabulate
 
     table = tabulate(rows, headers="keys", tablefmt="simple")
-    example = "\nExample: clarifai model deploy ./my-model --instance gpu-nvidia-a10g"
+    example = "\nExample: clarifai model deploy ./my-model --instance a10g"
     return header + table + example
 
 
@@ -553,12 +575,34 @@ def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_b
     return int(weight_bytes + (weight_bytes * _KV_CACHE_FRACTION) + _FRAMEWORK_OVERHEAD_BYTES)
 
 
-def _select_instance_by_vram(vram_bytes, pat=None, base_url=None):
+# Pre-Ampere GPU indicators (compute capability < 8.0).
+# SGLang requires Ampere+ for CUDA graph capture (RMSNorm kernels).
+# Checked case-insensitively against instance IDs across all clouds:
+#   AWS: "g4dn.xlarge", "p3.2xlarge"
+#   Azure: "Standard_NC4as_T4_v3"
+#   GCP: "n1-standard-4-nvidia-tesla-t4"
+_PRE_AMPERE_INDICATORS = ("t4", "v100", "k80", "p100", "p40", "m60", "g4dn", "g4ad", "p3.", "p2.")
+
+
+def _select_instance_by_vram(vram_bytes, pat=None, base_url=None, exclude_pre_ampere=False):
     """Select smallest instance whose VRAM >= vram_bytes.
+
+    Args:
+        vram_bytes: Minimum required VRAM in bytes.
+        pat: Clarifai PAT for API lookups.
+        base_url: Clarifai API base URL.
+        exclude_pre_ampere: If True, skip pre-Ampere instances (T4, V100, etc.).
+            Required by SGLang which needs compute capability >= 8.0.
 
     Returns (instance_type_id, reason) or (None, reason).
     """
     vram_gib = vram_bytes / (1024**3)
+
+    def _is_excluded(inst_id):
+        if not exclude_pre_ampere:
+            return False
+        inst_lower = inst_id.lower()
+        return any(indicator in inst_lower for indicator in _PRE_AMPERE_INDICATORS)
 
     # Try API first for real available instances
     instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
@@ -584,6 +628,8 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None):
         sorted_instances = sorted(seen.items(), key=lambda x: x[1])
 
         for inst_id, mem in sorted_instances:
+            if _is_excluded(inst_id):
+                continue
             if mem >= vram_bytes:
                 mem_gib = mem / (1024**3)
                 return (
@@ -605,6 +651,8 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None):
         ("gpu-nvidia-g6e-2x-large", 96 * 1024**3),  # G6E 2x: 96 GiB
     ]
     for inst_id, mem in fallback_tiers:
+        if _is_excluded(inst_id):
+            continue
         if mem >= vram_bytes:
             mem_gib = mem / (1024**3)
             return (
@@ -615,8 +663,46 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None):
     return (None, f"Estimated {vram_gib:.1f} GiB VRAM, exceeds max 96 GiB")
 
 
-def recommend_instance(config, pat=None, base_url=None):
+def _detect_toolkit_from_config(config, model_path=None):
+    """Detect inference toolkit from build_info.image or requirements.txt.
+
+    Checks build_info.image first (e.g. "lmsysorg/sglang:latest"), then
+    falls back to scanning requirements.txt for known toolkit packages.
+
+    Returns toolkit name ('vllm', 'sglang') or empty string.
+    """
+    # Check build_info.image
+    build_image = (config.get('build_info', {}).get('image') or '').lower()
+    if 'sglang' in build_image:
+        return 'sglang'
+    elif 'vllm' in build_image:
+        return 'vllm'
+
+    # Check requirements.txt
+    if model_path:
+        try:
+            from clarifai.utils.cli import parse_requirements
+
+            deps = parse_requirements(model_path)
+            for name in ('vllm', 'sglang'):
+                if name in deps:
+                    return name
+        except Exception:
+            pass
+
+    return ''
+
+
+def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path=None):
     """Recommend instance type based on model config.
+
+    Args:
+        config: Parsed config.yaml dict.
+        pat: Clarifai PAT for API lookups.
+        base_url: Clarifai API base URL.
+        toolkit: Explicit toolkit name (e.g. 'vllm', 'sglang'). If not provided,
+            detected from build_info.image or requirements.txt.
+        model_path: Path to model directory (for requirements.txt-based toolkit detection).
 
     Returns (instance_type_id, reason) or (None, reason).
     """
@@ -630,14 +716,19 @@ def recommend_instance(config, pat=None, base_url=None):
     checkpoints = config.get('checkpoints', {})
     repo_id = checkpoints.get('repo_id') if checkpoints else None
 
+    if not toolkit:
+        toolkit = _detect_toolkit_from_config(config, model_path=model_path)
+
     if not repo_id:
         # Check if this is a GPU toolkit (vllm/sglang) that needs a repo_id
-        build_info = config.get('build_info', {})
-        toolkit = build_info.get('toolkit') or ''
-        if toolkit.lower() in ('vllm', 'sglang'):
+        if toolkit in ('vllm', 'sglang'):
             return (None, "Cannot estimate without checkpoints.repo_id")
         # No checkpoints, no GPU toolkit → default to CPU
         return ("t3a.2xlarge", "No model checkpoints, defaulting to CPU")
+
+    # SGLang requires Ampere+ GPUs (compute capability >= 8.0).
+    # Skip pre-Ampere instances like T4 (g4dn) which fail with CUDA graph errors.
+    exclude_pre_ampere = toolkit == 'sglang'
 
     # Try HF metadata API for parameter count + quantization
     hf_info = _get_hf_model_info(repo_id)
@@ -656,7 +747,9 @@ def recommend_instance(config, pat=None, base_url=None):
                 quant_bits = name_bits
 
         vram = _estimate_vram_bytes(num_params, quant_method, quant_bits, dtype_breakdown)
-        return _select_instance_by_vram(vram, pat=pat, base_url=base_url)
+        return _select_instance_by_vram(
+            vram, pat=pat, base_url=base_url, exclude_pre_ampere=exclude_pre_ampere
+        )
 
     # Fallback: file-size-based estimate via HuggingFaceLoader
     try:
@@ -666,7 +759,9 @@ def recommend_instance(config, pat=None, base_url=None):
         if file_size and file_size > 0:
             # File size ≈ model weights; add 30% overhead for runtime buffers + KV cache
             vram = int(file_size * 1.3) + _FRAMEWORK_OVERHEAD_BYTES
-            return _select_instance_by_vram(vram, pat=pat, base_url=base_url)
+            return _select_instance_by_vram(
+                vram, pat=pat, base_url=base_url, exclude_pre_ampere=exclude_pre_ampere
+            )
     except Exception:
         logger.debug(f"Failed to get checkpoint size for {repo_id}")
 
