@@ -6,6 +6,7 @@ import click
 import yaml
 
 from clarifai import __version__
+from clarifai.errors import UserError
 from clarifai.utils.cli import (
     LazyAliasedGroup,
     TableFormatter,
@@ -698,4 +699,13 @@ cli.command_sections = [
 
 
 def main():
-    cli()
+    try:
+        cli(standalone_mode=False)
+    except click.exceptions.Exit:
+        pass  # Normal exit (e.g. --help, --version)
+    except click.ClickException as e:
+        e.show()
+        sys.exit(e.exit_code)
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        sys.exit(1)

@@ -6,6 +6,7 @@ This module provides:
 3. Auto-create compute cluster & nodepool configs for model deployment
 """
 
+import os
 import re
 
 import requests
@@ -579,6 +580,132 @@ def _detect_quant_from_repo_name(repo_id):
     return (None, None)
 
 
+def _get_hf_token(config=None):
+    """Get HuggingFace token from config, environment, or cached token file.
+
+    Checks in order:
+    1. config['checkpoints']['hf_token']
+    2. HF_TOKEN environment variable
+    3. ~/.cache/huggingface/token (standard HF CLI cache)
+
+    Returns token string or None.
+    """
+    # From config
+    if config:
+        token = (config.get('checkpoints') or {}).get('hf_token')
+        if token:
+            return token
+
+    # From environment
+    token = os.environ.get('HF_TOKEN')
+    if token:
+        return token
+
+    # From HF CLI cache
+    token_path = os.path.expanduser('~/.cache/huggingface/token')
+    try:
+        with open(token_path) as f:
+            token = f.read().strip()
+            if token:
+                return token
+    except (OSError, IOError):
+        pass
+
+    return None
+
+
+def _get_hf_model_config(repo_id, hf_token=None):
+    """Fetch model config.json from HuggingFace for KV cache calculation.
+
+    Extracts architecture details needed for accurate KV cache sizing:
+    - num_hidden_layers
+    - num_key_value_heads (for GQA/MQA models)
+    - head_dim
+    - max_position_embeddings (context window)
+
+    Returns dict with these keys, or None if config unavailable or missing required fields.
+    """
+    try:
+        url = f"https://huggingface.co/{repo_id}/raw/main/config.json"
+        headers = {}
+        if hf_token:
+            headers['Authorization'] = f'Bearer {hf_token}'
+        resp = requests.get(url, headers=headers, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        logger.debug(f"Failed to fetch HF config.json for {repo_id}")
+        return None
+
+    # Extract num_hidden_layers (required)
+    num_layers = (
+        data.get('num_hidden_layers')
+        or data.get('n_layer')
+        or data.get('n_layers')
+        or data.get('num_layers')
+    )
+    if not num_layers:
+        return None
+
+    # Extract num_attention_heads (needed for head_dim fallback and MHA)
+    num_attention_heads = data.get('num_attention_heads') or data.get('n_head')
+
+    # Extract num_key_value_heads (for GQA/MQA; falls back to num_attention_heads for MHA)
+    num_kv_heads = data.get('num_key_value_heads')
+    if num_kv_heads is None:
+        num_kv_heads = num_attention_heads
+    if not num_kv_heads:
+        return None
+
+    # Extract head_dim (explicit field or computed from hidden_size / num_attention_heads)
+    head_dim = data.get('head_dim')
+    if not head_dim:
+        hidden_size = data.get('hidden_size') or data.get('n_embd')
+        if hidden_size and num_attention_heads:
+            head_dim = hidden_size // num_attention_heads
+        else:
+            return None
+
+    # Extract max_position_embeddings (context window - required for KV cache sizing)
+    max_seq_len = (
+        data.get('max_position_embeddings')
+        or data.get('max_seq_len')
+        or data.get('seq_length')
+        or data.get('n_positions')
+    )
+    if not max_seq_len:
+        return None
+
+    return {
+        'num_hidden_layers': int(num_layers),
+        'num_key_value_heads': int(num_kv_heads),
+        'head_dim': int(head_dim),
+        'max_position_embeddings': int(max_seq_len),
+    }
+
+
+def _estimate_kv_cache_bytes(model_config, dtype_bytes=2):
+    """Estimate KV cache memory for full context window.
+
+    Formula: 2 (K+V) × num_layers × num_kv_heads × head_dim × dtype_bytes × max_seq_len
+
+    Args:
+        model_config: Dict from _get_hf_model_config() with architecture details.
+        dtype_bytes: Bytes per element (default 2 for FP16/BF16).
+
+    Returns:
+        int: KV cache size in bytes.
+    """
+    return (
+        2
+        * model_config['num_hidden_layers']
+        * model_config['num_key_value_heads']
+        * model_config['head_dim']
+        * dtype_bytes
+        * model_config['max_position_embeddings']
+    )
+
+
 # Bytes per parameter by dtype/quantization
 _BYTES_PER_PARAM = {
     "BF16": 2.0,
@@ -591,15 +718,21 @@ _BYTES_PER_PARAM = {
     "U8": 1.0,
 }
 
-# Framework overhead (2 GiB) for CUDA context, KV cache init, etc.
-_FRAMEWORK_OVERHEAD_BYTES = 2 * 1024**3
-# KV cache overhead as fraction of model weight
-_KV_CACHE_FRACTION = 0.20
+# Fixed framework overhead (2 GiB) for CUDA context, PyTorch runtime, etc.
+_FRAMEWORK_OVERHEAD_FIXED = 2 * 1024**3
+# Variable overhead as fraction of weight bytes (activations, internal buffers)
+_FRAMEWORK_OVERHEAD_FRACTION = 0.10
+# Fallback KV cache overhead as fraction of model weights (used when config.json unavailable)
+_KV_CACHE_FRACTION = 0.50
 
 
-def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_breakdown=None):
-    """Estimate VRAM bytes needed for inference. Returns int."""
-    # If we have per-dtype parameter counts, compute a weighted sum
+def _compute_overhead(weight_bytes):
+    """Compute framework overhead: 2 GiB fixed + 10% of weight bytes."""
+    return int(_FRAMEWORK_OVERHEAD_FIXED + weight_bytes * _FRAMEWORK_OVERHEAD_FRACTION)
+
+
+def _estimate_weight_bytes(num_params, quant_method=None, quant_bits=None, dtype_breakdown=None):
+    """Estimate model weight bytes. Returns int."""
     if dtype_breakdown:
         weight_bytes = 0
         for dtype, count in dtype_breakdown.items():
@@ -614,9 +747,16 @@ def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_b
     else:
         # Default: BF16
         weight_bytes = num_params * 2.0
+    return int(weight_bytes)
 
+
+def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_breakdown=None):
+    """Estimate VRAM bytes needed for inference (heuristic fallback). Returns int."""
+    weight_bytes = _estimate_weight_bytes(num_params, quant_method, quant_bits, dtype_breakdown)
     # Total: weights + KV cache overhead + framework overhead
-    return int(weight_bytes + (weight_bytes * _KV_CACHE_FRACTION) + _FRAMEWORK_OVERHEAD_BYTES)
+    return int(
+        weight_bytes + (weight_bytes * _KV_CACHE_FRACTION) + _compute_overhead(weight_bytes)
+    )
 
 
 # Pre-Ampere GPU indicators (compute capability < 8.0).
@@ -628,8 +768,21 @@ def _estimate_vram_bytes(num_params, quant_method=None, quant_bits=None, dtype_b
 _PRE_AMPERE_INDICATORS = ("t4", "v100", "k80", "p100", "p40", "m60", "g4dn", "g4ad", "p3.", "p2.")
 
 
-def _select_instance_by_vram(vram_bytes, pat=None, base_url=None, exclude_pre_ampere=False):
-    """Select smallest instance whose VRAM >= vram_bytes.
+# Minimum GPU utilization headroom: require at least 10% free VRAM.
+# vLLM/SGLang default to gpu_memory_utilization=0.9, and the remaining 10% covers
+# CUDA block allocator overhead, page tables, and memory fragmentation.
+# Without this, a 15.1 GiB model on a 16 GiB GPU leaves only ~0.9 GiB headroom
+# which gets eaten by vLLM internals, causing OOM.
+_GPU_UTILIZATION_FACTOR = 0.90
+
+
+def _select_instance_by_vram(
+    vram_bytes, pat=None, base_url=None, exclude_pre_ampere=False, reason_detail=""
+):
+    """Select smallest instance whose usable VRAM >= vram_bytes.
+
+    Applies a 10% headroom factor (matching vLLM/SGLang gpu_memory_utilization=0.9)
+    so the selected GPU isn't filled to the brim.
 
     Args:
         vram_bytes: Minimum required VRAM in bytes.
@@ -637,10 +790,14 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None, exclude_pre_am
         base_url: Clarifai API base URL.
         exclude_pre_ampere: If True, skip pre-Ampere instances (T4, V100, etc.).
             Required by SGLang which needs compute capability >= 8.0.
+        reason_detail: Optional detail string for the reason (e.g. weight/KV breakdown).
 
     Returns (instance_type_id, reason) or (None, reason).
     """
     vram_gib = vram_bytes / (1024**3)
+    estimate_prefix = f"Estimated {vram_gib:.1f} GiB VRAM"
+    if reason_detail:
+        estimate_prefix += f" ({reason_detail})"
 
     def _is_excluded(inst_id):
         if not exclude_pre_ampere:
@@ -674,18 +831,19 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None, exclude_pre_am
         for inst_id, mem in sorted_instances:
             if _is_excluded(inst_id):
                 continue
-            if mem >= vram_bytes:
+            usable = mem * _GPU_UTILIZATION_FACTOR
+            if usable >= vram_bytes:
                 mem_gib = mem / (1024**3)
                 return (
                     inst_id,
-                    f"Estimated {vram_gib:.1f} GiB VRAM, fits {inst_id} ({mem_gib:.0f} GiB)",
+                    f"{estimate_prefix}, fits {inst_id} ({mem_gib:.0f} GiB)",
                 )
 
         if sorted_instances:
             max_gib = sorted_instances[-1][1] / (1024**3)
             return (
                 None,
-                f"Estimated {vram_gib:.1f} GiB VRAM, exceeds max available {max_gib:.0f} GiB",
+                f"{estimate_prefix}, exceeds max available {max_gib:.0f} GiB",
             )
 
     # Fallback to hardcoded GPU tiers
@@ -697,14 +855,15 @@ def _select_instance_by_vram(vram_bytes, pat=None, base_url=None, exclude_pre_am
     for inst_id, mem in fallback_tiers:
         if _is_excluded(inst_id):
             continue
-        if mem >= vram_bytes:
+        usable = mem * _GPU_UTILIZATION_FACTOR
+        if usable >= vram_bytes:
             mem_gib = mem / (1024**3)
             return (
                 inst_id,
-                f"Estimated {vram_gib:.1f} GiB VRAM, fits {inst_id} ({mem_gib:.0f} GiB)",
+                f"{estimate_prefix}, fits {inst_id} ({mem_gib:.0f} GiB)",
             )
 
-    return (None, f"Estimated {vram_gib:.1f} GiB VRAM, exceeds max 96 GiB")
+    return (None, f"{estimate_prefix}, exceeds max 96 GiB")
 
 
 def _detect_toolkit_from_config(config, model_path=None):
@@ -774,6 +933,9 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
     # Skip pre-Ampere instances like T4 (g4dn) which fail with CUDA graph errors.
     exclude_pre_ampere = toolkit == 'sglang'
 
+    # For vLLM/SGLang, try to get HF token for gated model access
+    hf_token = _get_hf_token(config) if toolkit in ('vllm', 'sglang') else None
+
     # Try HF metadata API for parameter count + quantization
     hf_info = _get_hf_model_info(repo_id)
     num_params = hf_info.get("num_params") if hf_info else None
@@ -790,6 +952,30 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
                 quant_method = name_method
                 quant_bits = name_bits
 
+        # For vLLM/SGLang: try accurate KV cache estimation from config.json
+        if toolkit in ('vllm', 'sglang'):
+            hf_config = _get_hf_model_config(repo_id, hf_token=hf_token)
+            if hf_config:
+                weight_bytes = _estimate_weight_bytes(
+                    num_params, quant_method, quant_bits, dtype_breakdown
+                )
+                kv_bytes = _estimate_kv_cache_bytes(hf_config)
+                vram = int(weight_bytes + kv_bytes + _compute_overhead(weight_bytes))
+                weight_gib = weight_bytes / (1024**3)
+                kv_gib = kv_bytes / (1024**3)
+                ctx_len = hf_config['max_position_embeddings']
+                reason_detail = (
+                    f"{weight_gib:.1f} GiB weights + {kv_gib:.1f} GiB KV cache for {ctx_len} ctx"
+                )
+                return _select_instance_by_vram(
+                    vram,
+                    pat=pat,
+                    base_url=base_url,
+                    exclude_pre_ampere=exclude_pre_ampere,
+                    reason_detail=reason_detail,
+                )
+
+        # Fallback: heuristic KV cache (fraction of weights)
         vram = _estimate_vram_bytes(num_params, quant_method, quant_bits, dtype_breakdown)
         return _select_instance_by_vram(
             vram, pat=pat, base_url=base_url, exclude_pre_ampere=exclude_pre_ampere
@@ -801,8 +987,27 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
 
         file_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
         if file_size and file_size > 0:
-            # File size ≈ model weights; add 30% overhead for runtime buffers + KV cache
-            vram = int(file_size * 1.3) + _FRAMEWORK_OVERHEAD_BYTES
+            # For vLLM/SGLang: try accurate KV cache with file-size weights
+            if toolkit in ('vllm', 'sglang'):
+                hf_config = _get_hf_model_config(repo_id, hf_token=hf_token)
+                if hf_config:
+                    kv_bytes = _estimate_kv_cache_bytes(hf_config)
+                    vram = int(file_size + kv_bytes + _compute_overhead(file_size))
+                    file_gib = file_size / (1024**3)
+                    kv_gib = kv_bytes / (1024**3)
+                    ctx_len = hf_config['max_position_embeddings']
+                    reason_detail = (
+                        f"{file_gib:.1f} GiB weights + {kv_gib:.1f} GiB KV cache for {ctx_len} ctx"
+                    )
+                    return _select_instance_by_vram(
+                        vram,
+                        pat=pat,
+                        base_url=base_url,
+                        exclude_pre_ampere=exclude_pre_ampere,
+                        reason_detail=reason_detail,
+                    )
+            # Heuristic: file size + 30% overhead for runtime buffers + KV cache
+            vram = int(file_size * 1.3) + _compute_overhead(file_size)
             return _select_instance_by_vram(
                 vram, pat=pat, base_url=base_url, exclude_pre_ampere=exclude_pre_ampere
             )

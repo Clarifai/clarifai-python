@@ -4,14 +4,19 @@ import os
 import tempfile
 
 import pytest
+import requests
 import yaml
 
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.utils.compute_presets import (
     FALLBACK_GPU_PRESETS,
     _detect_quant_from_repo_name,
+    _estimate_kv_cache_bytes,
     _estimate_vram_bytes,
+    _estimate_weight_bytes,
+    _get_hf_model_config,
     _get_hf_model_info,
+    _get_hf_token,
     _select_instance_by_vram,
     get_compute_cluster_config,
     get_deploy_compute_cluster_id,
@@ -538,6 +543,95 @@ class TestModelDeployerValidation:
         deployer = ModelDeployer(model_url="https://clarifai.com/user1/app1/models/my-model")
         with pytest.raises(Exception, match="You must specify --instance"):
             deployer.deploy()
+
+
+class TestInstanceOverride:
+    """Test that --instance flag properly overrides inference_compute_info."""
+
+    def test_instance_flag_overrides_config(self):
+        """--instance l40s should override inference_compute_info even if config had a10g."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        deployer = ModelDeployer.__new__(ModelDeployer)
+        deployer.instance_type = "gpu-nvidia-l40s"
+        deployer.pat = None
+        deployer.base_url = None
+
+        # Simulate builder with A10G inference_compute_info (set by normalize_config)
+        mock_builder = MagicMock()
+        mock_builder.config = {
+            "inference_compute_info": {
+                "cpu_limit": "4",
+                "cpu_memory": "16Gi",
+                "num_accelerators": 1,
+                "accelerator_type": ["NVIDIA-A10G"],
+                "accelerator_memory": "24Gi",
+            }
+        }
+        mock_builder.inference_compute_info = MagicMock()  # non-None (already set)
+        deployer._builder = mock_builder
+
+        # Mock get_inference_compute_for_gpu to return L40S info
+        l40s_ici = {
+            "cpu_limit": "8",
+            "cpu_memory": "32Gi",
+            "num_accelerators": 1,
+            "accelerator_type": ["NVIDIA-L40S"],
+            "accelerator_memory": "48Gi",
+        }
+        with patch(
+            "clarifai.utils.compute_presets.get_inference_compute_for_gpu",
+            return_value=l40s_ici,
+        ):
+            from clarifai.utils.compute_presets import get_inference_compute_for_gpu
+
+            if deployer.instance_type:
+                ici = get_inference_compute_for_gpu(
+                    deployer.instance_type, pat=deployer.pat, base_url=deployer.base_url
+                )
+                if ici.get('num_accelerators', 0) > 0:
+                    ici.setdefault('accelerator_type', ['NVIDIA-*'])
+                deployer._builder.config['inference_compute_info'] = ici
+                deployer._builder.inference_compute_info = (
+                    deployer._builder._get_inference_compute_info()
+                )
+
+        # Verify inference_compute_info was updated to L40S
+        updated_ici = deployer._builder.config['inference_compute_info']
+        assert updated_ici['accelerator_memory'] == '48Gi'
+        assert updated_ici['cpu_limit'] == '8'
+
+    def test_no_instance_flag_keeps_config(self):
+        """Without --instance, inference_compute_info from config is preserved."""
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        deployer = ModelDeployer.__new__(ModelDeployer)
+        deployer.instance_type = None  # No --instance flag
+        deployer.pat = None
+        deployer.base_url = None
+
+        # Simulate builder with A10G inference_compute_info
+        from unittest.mock import MagicMock
+
+        mock_builder = MagicMock()
+        a10g_ici = {
+            "cpu_limit": "4",
+            "cpu_memory": "16Gi",
+            "num_accelerators": 1,
+            "accelerator_type": ["NVIDIA-A10G"],
+            "accelerator_memory": "24Gi",
+        }
+        mock_builder.config = {"inference_compute_info": dict(a10g_ici)}
+        deployer._builder = mock_builder
+
+        # The override block should NOT execute
+        if deployer.instance_type:
+            assert False, "Should not reach here"
+
+        # inference_compute_info unchanged
+        assert deployer._builder.config['inference_compute_info'] == a10g_ici
 
 
 class TestDeploymentMonitoring:
@@ -1558,16 +1652,18 @@ class TestRecommendInstance:
         assert bits is None
 
     def test_estimate_vram_7b_bf16(self):
-        """~7B * 2 + overhead ≈ 18.9 GiB"""
+        """~7B * 2 + overhead (50% KV + hybrid overhead)"""
         vram = _estimate_vram_bytes(7_248_023_552)  # 7B params, BF16 default
-        # 7.248B * 2 = 14.496 GB weights, + 20% KV = 17.395 GB, + 2 GiB framework
-        expected_approx = 7_248_023_552 * 2.0 * 1.20 + 2 * 1024**3
+        weight_bytes = 7_248_023_552 * 2.0
+        # weights + 50% KV + overhead (2 GiB fixed + 10% of weights)
+        expected_approx = weight_bytes * 1.50 + (2 * 1024**3 + weight_bytes * 0.10)
         assert abs(vram - expected_approx) < 1024  # within 1 KB
 
     def test_estimate_vram_7b_awq_4bit(self):
-        """~7B * 0.5 + overhead ≈ 6.4 GiB"""
+        """~7B * 0.5 + overhead (50% KV + hybrid overhead)"""
         vram = _estimate_vram_bytes(7_248_023_552, quant_method="awq", quant_bits=4)
-        expected_approx = 7_248_023_552 * 0.5 * 1.20 + 2 * 1024**3
+        weight_bytes = 7_248_023_552 * 0.5
+        expected_approx = weight_bytes * 1.50 + (2 * 1024**3 + weight_bytes * 0.10)
         assert abs(vram - expected_approx) < 1024
 
     def test_estimate_vram_70b_bf16(self):
@@ -1643,7 +1739,7 @@ class TestRecommendInstance:
         assert "checkpoints.repo_id" in reason
 
     def test_recommend_7b_model(self):
-        """Mock 7B BF16 → A10G."""
+        """Mock 7B BF16 → L40S (heuristic path with 90% utilization headroom)."""
         from unittest.mock import MagicMock, patch
 
         config = {
@@ -1660,7 +1756,8 @@ class TestRecommendInstance:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ):
                 inst_id, reason = recommend_instance(config)
-        assert inst_id == "gpu-nvidia-a10g"
+        # 7.2B * 2 * 1.5 + overhead = ~23.6 GiB > A10G usable (21.6 GiB) → L40S
+        assert inst_id == "gpu-nvidia-l40s"
 
     def test_recommend_13b_model(self):
         """Mock 13B BF16 → L40S."""
@@ -1680,7 +1777,7 @@ class TestRecommendInstance:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ):
                 inst_id, reason = recommend_instance(config)
-        # 13B * 2 * 1.2 + 2GiB ≈ 33.3 GiB → L40S (48 GiB)
+        # 13B * 2 * 1.5 + (2 GiB + 10%) ≈ 40.7 GiB → L40S (48 GiB)
         assert inst_id == "gpu-nvidia-l40s"
 
     def test_recommend_fallback_file_size(self):
@@ -1767,6 +1864,7 @@ class TestRecommendInstance:
 
         with (
             patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram),
+            patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
             patch(
                 "clarifai.utils.compute_presets._try_list_all_instance_types",
                 return_value=[mock_g4dn, mock_azure_t4, mock_g5],
@@ -1811,6 +1909,7 @@ class TestRecommendInstance:
                 patch(
                     "clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram
                 ),
+                patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
                 patch(
                     "clarifai.utils.compute_presets._try_list_all_instance_types",
                     return_value=[mock_g4dn, mock_g5],
@@ -2178,3 +2277,352 @@ class TestHFTokenValidation:
                 # 1st anonymous, 2nd with config token
                 assert mv.call_count == 2
                 assert mv.call_args_list[1].kwargs["token"] == "hf_config_token"
+
+
+class TestKVCacheEstimation:
+    """Tests for accurate KV cache estimation from HF config.json."""
+
+    # Qwen3-4B architecture params (from actual config.json)
+    QWEN3_4B_CONFIG = {
+        'num_hidden_layers': 36,
+        'num_key_value_heads': 8,
+        'head_dim': 128,
+        'max_position_embeddings': 40960,
+    }
+
+    # Llama-3.1-8B architecture params
+    LLAMA_8B_CONFIG = {
+        'num_hidden_layers': 32,
+        'num_key_value_heads': 8,
+        'head_dim': 128,
+        'max_position_embeddings': 131072,
+    }
+
+    # Phi-3-mini-4k (small context)
+    PHI3_MINI_CONFIG = {
+        'num_hidden_layers': 32,
+        'num_key_value_heads': 32,  # MHA (num_kv_heads == num_attention_heads)
+        'head_dim': 96,
+        'max_position_embeddings': 4096,
+    }
+
+    def test_kv_cache_qwen3_4b(self):
+        """Qwen3-4B KV cache should be ~5.62 GiB (matches vLLM error)."""
+        kv_bytes = _estimate_kv_cache_bytes(self.QWEN3_4B_CONFIG)
+        kv_gib = kv_bytes / (1024**3)
+        # 2 * 36 * 8 * 128 * 2 * 40960 = 6,039,797,760 bytes = ~5.625 GiB
+        assert abs(kv_gib - 5.625) < 0.01
+
+    def test_kv_cache_llama_8b(self):
+        """Llama-3.1-8B with 128k context should have ~16 GiB KV cache."""
+        kv_bytes = _estimate_kv_cache_bytes(self.LLAMA_8B_CONFIG)
+        kv_gib = kv_bytes / (1024**3)
+        # 2 * 32 * 8 * 128 * 2 * 131072 = 17,179,869,184 bytes = 16 GiB
+        assert abs(kv_gib - 16.0) < 0.01
+
+    def test_kv_cache_phi3_small_context(self):
+        """Phi-3-mini with 4k context should have small KV cache."""
+        kv_bytes = _estimate_kv_cache_bytes(self.PHI3_MINI_CONFIG)
+        kv_gib = kv_bytes / (1024**3)
+        # 2 * 32 * 32 * 96 * 2 * 4096 = 1,610,612,736 bytes = 1.5 GiB
+        assert abs(kv_gib - 1.5) < 0.01
+
+    def test_estimate_weight_bytes_bf16(self):
+        """_estimate_weight_bytes returns just weights, no KV or overhead."""
+        weight_bytes = _estimate_weight_bytes(4_000_000_000)  # 4B params, BF16
+        # 4B * 2 = 8 GB
+        assert weight_bytes == 4_000_000_000 * 2
+
+    def test_estimate_weight_bytes_awq(self):
+        """AWQ 4-bit quantization: 0.5 bytes per param."""
+        weight_bytes = _estimate_weight_bytes(7_000_000_000, quant_method="awq", quant_bits=4)
+        assert weight_bytes == 7_000_000_000 * 0.5
+
+    def test_get_hf_model_config_qwen3(self):
+        """Mock HF config.json for Qwen3-4B returns correct architecture."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'num_hidden_layers': 36,
+            'num_attention_heads': 32,
+            'num_key_value_heads': 8,
+            'head_dim': 128,
+            'hidden_size': 2560,
+            'max_position_embeddings': 40960,
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            config = _get_hf_model_config("Qwen/Qwen3-4B")
+        assert config == self.QWEN3_4B_CONFIG
+
+    def test_get_hf_model_config_compute_head_dim(self):
+        """When head_dim is not explicit, compute from hidden_size / num_attention_heads."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'num_hidden_layers': 32,
+            'num_attention_heads': 32,
+            'num_key_value_heads': 8,
+            'hidden_size': 4096,
+            'max_position_embeddings': 131072,
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            config = _get_hf_model_config("meta-llama/Llama-3.1-8B")
+        assert config is not None
+        assert config['head_dim'] == 128  # 4096 / 32
+        assert config['num_key_value_heads'] == 8
+
+    def test_get_hf_model_config_mha_fallback(self):
+        """MHA model (no num_key_value_heads) falls back to num_attention_heads."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'num_hidden_layers': 32,
+            'num_attention_heads': 32,
+            'hidden_size': 3072,
+            'max_position_embeddings': 4096,
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            config = _get_hf_model_config("microsoft/phi-3-mini-4k-instruct")
+        assert config is not None
+        assert config['num_key_value_heads'] == 32  # falls back to num_attention_heads
+
+    def test_get_hf_model_config_missing_max_pos(self):
+        """Models without max_position_embeddings return None (safe fallback)."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'num_hidden_layers': 32,
+            'num_attention_heads': 71,
+            'hidden_size': 4544,
+            # No max_position_embeddings
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
+            config = _get_hf_model_config("tiiuae/falcon-7b")
+        assert config is None
+
+    def test_get_hf_model_config_network_failure(self):
+        """Network failure returns None gracefully."""
+        from unittest.mock import patch
+
+        with patch(
+            "clarifai.utils.compute_presets.requests.get",
+            side_effect=requests.exceptions.ConnectionError("offline"),
+        ):
+            config = _get_hf_model_config("any/model")
+        assert config is None
+
+    def test_get_hf_model_config_with_token(self):
+        """HF token is passed as Bearer header for gated models."""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'num_hidden_layers': 32,
+            'num_attention_heads': 8,
+            'hidden_size': 4096,
+            'max_position_embeddings': 131072,
+        }
+        with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp) as mock:
+            _get_hf_model_config("meta-llama/Llama-3.1-8B", hf_token="hf_test_token")
+            # Verify token was passed in headers
+            call_kwargs = mock.call_args
+            assert call_kwargs.kwargs['headers']['Authorization'] == 'Bearer hf_test_token'
+
+    def test_get_hf_token_from_config(self):
+        """Token from config takes priority."""
+        config = {'checkpoints': {'hf_token': 'hf_from_config'}}
+        assert _get_hf_token(config) == 'hf_from_config'
+
+    def test_get_hf_token_from_env(self):
+        """Falls back to HF_TOKEN environment variable."""
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {'HF_TOKEN': 'hf_from_env'}):
+            assert _get_hf_token({}) == 'hf_from_env'
+
+    def test_get_hf_token_none(self):
+        """Returns None when no token available."""
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {}, clear=True):
+            # Also ensure no cached token file
+            with patch("builtins.open", side_effect=FileNotFoundError):
+                assert _get_hf_token({}) is None
+
+    def test_recommend_vllm_qwen3_4b_accurate_kv(self):
+        """vLLM + Qwen3-4B: accurate KV cache → A10G instead of g4dn."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
+            "checkpoints": {"repo_id": "Qwen/Qwen3-4B"},
+        }
+        # Mock HF model info (parameter count)
+        mock_hf_info = MagicMock()
+        mock_hf_info.json.return_value = {
+            "safetensors": {"total": 4_020_000_000, "parameters": {"BF16": 4_020_000_000}},
+            "config": {},
+        }
+        with (
+            patch("clarifai.utils.compute_presets.requests.get") as mock_get,
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ),
+        ):
+            # First call: _get_hf_model_info (HF API)
+            # Second call: _get_hf_model_config (config.json)
+            mock_config_resp = MagicMock()
+            mock_config_resp.json.return_value = {
+                'num_hidden_layers': 36,
+                'num_attention_heads': 32,
+                'num_key_value_heads': 8,
+                'head_dim': 128,
+                'hidden_size': 2560,
+                'max_position_embeddings': 40960,
+            }
+            mock_get.side_effect = [mock_hf_info, mock_config_resp]
+
+            inst_id, reason = recommend_instance(config)
+
+        # 4.02B * 2 = 8.04 GiB weights + 5.625 GiB KV + 2 GiB overhead = ~15.7 GiB
+        # g4dn (16 GiB) would be too tight → should pick A10G (24 GiB)
+        assert inst_id == "gpu-nvidia-a10g"
+        assert "KV cache" in reason
+        assert "40960 ctx" in reason
+
+    def test_recommend_vllm_short_context_unchanged(self):
+        """vLLM + short context model: accurate KV cache is small, same result as heuristic."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
+            "checkpoints": {"repo_id": "microsoft/phi-3-mini-4k-instruct"},
+        }
+        mock_hf_info = MagicMock()
+        mock_hf_info.json.return_value = {
+            "safetensors": {"total": 3_800_000_000, "parameters": {"BF16": 3_800_000_000}},
+            "config": {},
+        }
+        mock_config_resp = MagicMock()
+        mock_config_resp.json.return_value = {
+            'num_hidden_layers': 32,
+            'num_attention_heads': 32,
+            'hidden_size': 3072,
+            'max_position_embeddings': 4096,
+        }
+        with (
+            patch("clarifai.utils.compute_presets.requests.get") as mock_get,
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ),
+        ):
+            mock_get.side_effect = [mock_hf_info, mock_config_resp]
+            inst_id, reason = recommend_instance(config)
+
+        # 3.8B * 2 = 7.6 GiB weights + ~1.5 GiB KV (small ctx) + 2 GiB = ~11 GiB
+        # Fits g4dn (16 GiB) - but g4dn is not in fallback tiers, so → A10G (24 GiB)
+        assert inst_id == "gpu-nvidia-a10g"
+        assert "KV cache" in reason
+
+    def test_recommend_non_vllm_uses_heuristic(self):
+        """Non-vLLM toolkit (huggingface) uses heuristic, not accurate KV cache."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "checkpoints": {"repo_id": "some/model"},
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "safetensors": {"total": 7_000_000_000, "parameters": {"BF16": 7_000_000_000}},
+            "config": {},
+        }
+        with (
+            patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp),
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ),
+        ):
+            inst_id, reason = recommend_instance(config)
+
+        # Should NOT call _get_hf_model_config (no toolkit detected)
+        # 7B * 2 * 1.5 + overhead ≈ 22.9 GiB > A10G usable (21.6 GiB) → L40S
+        assert inst_id == "gpu-nvidia-l40s"
+        assert "KV cache" not in reason  # heuristic path, no KV detail
+
+    def test_recommend_vllm_config_unavailable_falls_back(self):
+        """vLLM with unavailable config.json falls back to heuristic."""
+        from unittest.mock import MagicMock, patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
+            "checkpoints": {"repo_id": "private/gated-model"},
+        }
+        mock_hf_info = MagicMock()
+        mock_hf_info.json.return_value = {
+            "safetensors": {"total": 7_000_000_000, "parameters": {"BF16": 7_000_000_000}},
+            "config": {},
+        }
+        with (
+            patch("clarifai.utils.compute_presets.requests.get") as mock_get,
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ),
+        ):
+            # First call: _get_hf_model_info succeeds
+            # Second call: _get_hf_model_config fails (gated)
+            mock_config_fail = MagicMock()
+            mock_config_fail.raise_for_status.side_effect = requests.exceptions.HTTPError("403")
+            mock_get.side_effect = [mock_hf_info, mock_config_fail]
+
+            inst_id, reason = recommend_instance(config)
+
+        # Falls back to heuristic: 7B * 2 * 1.5 + overhead ≈ 22.9 GiB > A10G usable → L40S
+        assert inst_id == "gpu-nvidia-l40s"
+        assert "KV cache" not in reason  # heuristic, no KV detail
+
+    def test_recommend_vllm_file_size_with_kv(self):
+        """vLLM file-size fallback also uses accurate KV cache when available."""
+        from unittest.mock import patch
+
+        config = {
+            "model": {"model_type_id": "any-to-any"},
+            "build_info": {"image": "vllm/vllm-openai:latest"},
+            "checkpoints": {"repo_id": "Qwen/Qwen3-4B"},
+        }
+        with (
+            patch(
+                "clarifai.utils.compute_presets._get_hf_model_info",
+                return_value={
+                    "num_params": None,
+                    "quant_method": None,
+                    "quant_bits": None,
+                    "dtype_breakdown": None,
+                    "pipeline_tag": None,
+                },
+            ),
+            patch(
+                "clarifai.utils.compute_presets._get_hf_model_config",
+                return_value=self.QWEN3_4B_CONFIG,
+            ),
+            patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.get_huggingface_checkpoint_total_size",
+                return_value=int(7.5 * 1024**3),  # 7.5 GiB file size
+            ),
+            patch(
+                "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
+            ),
+        ):
+            inst_id, reason = recommend_instance(config)
+
+        # 7.5 GiB files + 5.625 GiB KV + 2 GiB overhead = ~15.1 GiB → A10G
+        assert inst_id == "gpu-nvidia-a10g"
+        assert "KV cache" in reason
+        assert "40960 ctx" in reason

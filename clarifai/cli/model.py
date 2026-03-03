@@ -1121,7 +1121,6 @@ def logs(
     """
     validate_context(ctx)
 
-    from clarifai.errors import UserError
     from clarifai.runners.models.model_deploy import stream_model_logs
 
     user_id = ctx.obj.current.user_id
@@ -1131,16 +1130,12 @@ def logs(
     if deployment:
         from clarifai.runners.models.model_deploy import get_deployment
 
-        try:
-            dep = get_deployment(
-                deployment,
-                user_id=user_id,
-                pat=ctx.obj.current.pat,
-                base_url=ctx.obj.current.api_base,
-            )
-        except UserError as e:
-            click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
-            raise SystemExit(1)
+        dep = get_deployment(
+            deployment,
+            user_id=user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
 
         w = dep.worker
         if w and w.model:
@@ -1158,24 +1153,20 @@ def logs(
     # Map user-friendly names to API log_type values
     api_log_type = {"model": "runner", "events": "runner.events"}[log_type.lower()]
 
-    try:
-        stream_model_logs(
-            model_url=model_url,
-            model_id=model_id,
-            user_id=user_id,
-            app_id=app_id,
-            model_version_id=model_version_id,
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            pat=ctx.obj.current.pat,
-            base_url=ctx.obj.current.api_base,
-            follow=follow,
-            duration=duration,
-            log_type=api_log_type,
-        )
-    except UserError as e:
-        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
-        raise SystemExit(1)
+    stream_model_logs(
+        model_url=model_url,
+        model_id=model_id,
+        user_id=user_id,
+        app_id=app_id,
+        model_version_id=model_version_id,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+        follow=follow,
+        duration=duration,
+        log_type=api_log_type,
+    )
 
 
 def _parse_model_ref(ref):
@@ -1341,17 +1332,13 @@ def status(ctx, model_ref, model_url, deployment):
             "  Example: clarifai model status user/app/models/model"
         )
 
-    try:
-        deployments = list_deployments_for_model(
-            model_id=ref_model,
-            user_id=ref_user,
-            app_id=ref_app,
-            pat=pat,
-            base_url=base_url,
-        )
-    except UserError as e:
-        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
-        raise SystemExit(1)
+    deployments = list_deployments_for_model(
+        model_id=ref_model,
+        user_id=ref_user,
+        app_id=ref_app,
+        pat=pat,
+        base_url=base_url,
+    )
 
     if not deployments:
         click.echo(
@@ -1400,20 +1387,12 @@ def undeploy(ctx, model_ref, model_url, deployment):
     pat = ctx.obj.current.pat
     base_url = ctx.obj.current.api_base
 
-    try:
-        dep_id, resolved_user = _resolve_deployment_id(
-            deployment, model_ref, model_url, user_id, pat, base_url
-        )
-    except UserError as e:
-        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
-        raise SystemExit(1)
+    dep_id, resolved_user = _resolve_deployment_id(
+        deployment, model_ref, model_url, user_id, pat, base_url
+    )
 
-    try:
-        delete_deployment(dep_id, user_id=resolved_user, pat=pat, base_url=base_url)
-        out.success(f"Deployment '{dep_id}' deleted.")
-    except UserError as e:
-        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
-        raise SystemExit(1)
+    delete_deployment(dep_id, user_id=resolved_user, pat=pat, base_url=base_url)
+    out.success(f"Deployment '{dep_id}' deleted.")
 
 
 def _detect_toolkit(config, dependencies):

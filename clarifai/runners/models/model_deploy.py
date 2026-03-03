@@ -159,6 +159,13 @@ class ModelDeployer:
                     "  Run 'clarifai list-instances' to see available options."
                 )
 
+        # Validate instance type early (before upload/deployment work)
+        if self.instance_type:
+            try:
+                self._resolve_gpu()
+            except ValueError as e:
+                raise UserError(str(e))
+
     def _resolve_gpu(self):
         """Resolve GPU name to preset info if gpu is specified."""
         if self.instance_type and not self._gpu_preset:
@@ -277,10 +284,10 @@ class ModelDeployer:
             else:
                 self._builder.create_dockerfile(generate_dockerfile=True)
 
-        # If the builder has no inference_compute_info (e.g. ollama config with
-        # no compute section), resolve it from the --instance flag so the upload
-        # has the required compute metadata.
-        if self._builder.inference_compute_info is None and self.instance_type:
+        # Resolve inference_compute_info from --instance flag.
+        # Always override when --instance is provided, even if normalize_config
+        # already set it from config.yaml — the CLI flag takes priority.
+        if self.instance_type:
             from clarifai.utils.compute_presets import get_inference_compute_for_gpu
 
             ici = get_inference_compute_for_gpu(
