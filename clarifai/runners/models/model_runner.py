@@ -49,6 +49,11 @@ class ModelRunner(BaseRunner):
         )
         self.model = model
 
+        # Cache hasattr results for hot-path methods to avoid repeated attribute lookups
+        # on every poll loop iteration (called thousands of times per second across 128 threads).
+        self._model_has_check_admission = hasattr(model, 'check_admission')
+        self._model_has_admission_control_backoff = hasattr(model, 'admission_control_backoff')
+
         # Store authentication parameters for URL fetching
         self._user_id = user_id
         self._pat = pat
@@ -90,7 +95,8 @@ class ModelRunner(BaseRunner):
         HealthProbeRequestHandler.is_ready = True
         HealthProbeRequestHandler.is_startup = True
 
-        start_health_server_thread(port=health_check_port, address='')
+        if health_check_port is not None and health_check_port > 0:
+            start_health_server_thread(port=health_check_port, address='')
 
     def get_runner_item_output_for_status(
         self, status: status_pb2.Status
@@ -115,7 +121,7 @@ class ModelRunner(BaseRunner):
         """
         The time in seconds to wait before retrying admission control. If the model defines this backoff, we use that.
         """
-        if hasattr(self.model, 'admission_control_backoff'):
+        if self._model_has_admission_control_backoff:
             return self.model.admission_control_backoff
         return super().admission_control_backoff
 
@@ -126,10 +132,9 @@ class ModelRunner(BaseRunner):
         Returns:
           bool: True if the runner is ready to accept work, False otherwise.
         """
-        if hasattr(self.model, 'check_admission'):
+        if self._model_has_check_admission:
             return self.model.check_admission()
-        else:
-            return super().check_admission()
+        return super().check_admission()
 
     def runner_item_predict(
         self, runner_item: service_pb2.RunnerItem

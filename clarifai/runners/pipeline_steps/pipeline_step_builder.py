@@ -36,6 +36,7 @@ class PipelineStepBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self.pipeline_step_visibility = self._get_pipeline_step_visibility()
         self.pipeline_step_proto = self._get_pipeline_step_proto()
         self.pipeline_step_id = self.pipeline_step_proto.id
         self.pipeline_step_version_id = None
@@ -106,11 +107,70 @@ class PipelineStepBuilder:
         """Create pipeline step proto from config."""
         pipeline_step_config = self.config["pipeline_step"]
 
-        pipeline_step_proto = resources_pb2.PipelineStep(
-            id=pipeline_step_config["id"], user_id=pipeline_step_config["user_id"]
-        )
+        pipeline_step_kwargs = {
+            "id": pipeline_step_config["id"],
+            "user_id": pipeline_step_config["user_id"],
+        }
+
+        if self.pipeline_step_visibility is not None:
+            pipeline_step_kwargs["visibility"] = self.pipeline_step_visibility
+
+        pipeline_step_proto = resources_pb2.PipelineStep(**pipeline_step_kwargs)
 
         return pipeline_step_proto
+
+    def _get_pipeline_step_visibility(self):
+        """Parse optional pipeline step visibility from config."""
+        pipeline_step_config = self.config["pipeline_step"]
+        visibility_config = pipeline_step_config.get("visibility")
+
+        if visibility_config is None:
+            return None
+
+        if isinstance(visibility_config, dict):
+            if "gettable" not in visibility_config:
+                raise ValueError("pipeline_step.visibility must include 'gettable' in config.yaml")
+            gettable = self._parse_visibility_gettable(visibility_config["gettable"])
+            return resources_pb2.Visibility(gettable=gettable)
+
+        gettable = self._parse_visibility_gettable(visibility_config)
+        return resources_pb2.Visibility(gettable=gettable)
+
+    @staticmethod
+    def _parse_visibility_gettable(raw_value):
+        """Parse visibility.gettable from string/int into enum value."""
+        enum_field = resources_pb2.Visibility.DESCRIPTOR.fields_by_name["gettable"]
+        valid_enum_values = {value.number for value in enum_field.enum_type.values}
+
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().upper()
+            visibility_map = {
+                "UNKNOWN_VISIBILITY": 0,
+                "PRIVATE": 10,
+                "ORG": 30,
+                "PUBLIC": 50,
+            }
+            if normalized in visibility_map:
+                parsed_value = visibility_map[normalized]
+            elif normalized.isdigit():
+                parsed_value = int(normalized)
+            else:
+                raise ValueError(
+                    "Invalid visibility.gettable value. Use PRIVATE, ORG, PUBLIC, or enum numbers 10/30/50."
+                )
+        elif isinstance(raw_value, int):
+            parsed_value = raw_value
+        else:
+            raise ValueError(
+                "Invalid visibility.gettable type. Expected string or integer in config.yaml."
+            )
+
+        if parsed_value not in valid_enum_values:
+            raise ValueError(
+                "Invalid visibility.gettable value. Allowed enum values are UNKNOWN_VISIBILITY(0), PRIVATE(10), ORG(30), PUBLIC(50)."
+            )
+
+        return parsed_value
 
     def _get_pipeline_step_compute_info(self):
         """Get pipeline step compute info from config."""
@@ -159,9 +219,7 @@ class PipelineStepBuilder:
                         param.accepted_values.extend(param_config["accepted_values"])
                     input_params.append(param)
 
-            pipeline_step = resources_pb2.PipelineStep(
-                id=self.pipeline_step_id, user_id=self.pipeline_step_proto.user_id
-            )
+            pipeline_step = self.pipeline_step_proto
 
             resp = self.client.STUB.PostPipelineSteps(
                 service_pb2.PostPipelineStepsRequest(
@@ -395,12 +453,17 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 
         # Create pipeline step version proto with generated ID
         version_id = get_uuid(16)  # Generate a 16-character UUID
-        pipeline_step_version = resources_pb2.PipelineStepVersion(
-            id=version_id,
-            description="Pipeline step version",
-            pipeline_step_input_params=input_params,
-            pipeline_step_compute_info=self.pipeline_step_compute_info,
-        )
+        pipeline_step_version_kwargs = {
+            "id": version_id,
+            "description": "Pipeline step version",
+            "pipeline_step_input_params": input_params,
+            "pipeline_step_compute_info": self.pipeline_step_compute_info,
+        }
+
+        if self.pipeline_step_visibility is not None:
+            pipeline_step_version_kwargs["visibility"] = self.pipeline_step_visibility
+
+        pipeline_step_version = resources_pb2.PipelineStepVersion(**pipeline_step_version_kwargs)
 
         return service_pb2.PostPipelineStepVersionsUploadRequest(
             upload_config=service_pb2.PostPipelineStepVersionsUploadConfig(

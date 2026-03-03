@@ -45,6 +45,7 @@ class PipelineBuilder:
         self.pipeline_id = pipeline_config["id"]
         self.user_id = pipeline_config["user_id"]
         self.app_id = pipeline_config["app_id"]
+        self.pipeline_visibility = self._get_pipeline_visibility()
 
         # Track uploaded pipeline step versions
         self.uploaded_step_versions = {}
@@ -65,6 +66,59 @@ class PipelineBuilder:
         except Exception as e:
             raise ValueError(f"Error loading config file {self.config_path}: {e}")
 
+    def _get_pipeline_visibility(self):
+        """Parse optional pipeline visibility from config."""
+        pipeline_config = self.config["pipeline"]
+        visibility_config = pipeline_config.get("visibility")
+
+        if visibility_config is None:
+            return None
+
+        if isinstance(visibility_config, dict):
+            if "gettable" not in visibility_config:
+                raise ValueError("pipeline.visibility must include 'gettable' in config.yaml")
+            gettable = self._parse_visibility_gettable(visibility_config["gettable"])
+            return resources_pb2.Visibility(gettable=gettable)
+
+        gettable = self._parse_visibility_gettable(visibility_config)
+        return resources_pb2.Visibility(gettable=gettable)
+
+    @staticmethod
+    def _parse_visibility_gettable(raw_value):
+        """Parse visibility.gettable from string/int into enum value."""
+        enum_field = resources_pb2.Visibility.DESCRIPTOR.fields_by_name["gettable"]
+        valid_enum_values = {value.number for value in enum_field.enum_type.values}
+
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().upper()
+            visibility_map = {
+                "UNKNOWN_VISIBILITY": 0,
+                "PRIVATE": 10,
+                "ORG": 30,
+                "PUBLIC": 50,
+            }
+            if normalized in visibility_map:
+                parsed_value = visibility_map[normalized]
+            elif normalized.isdigit():
+                parsed_value = int(normalized)
+            else:
+                raise ValueError(
+                    "Invalid visibility.gettable value. Use PRIVATE, ORG, PUBLIC, or enum numbers 10/30/50."
+                )
+        elif isinstance(raw_value, int):
+            parsed_value = raw_value
+        else:
+            raise ValueError(
+                "Invalid visibility.gettable type. Expected string or integer in config.yaml."
+            )
+
+        if parsed_value not in valid_enum_values:
+            raise ValueError(
+                "Invalid visibility.gettable value. Allowed enum values are UNKNOWN_VISIBILITY(0), PRIVATE(10), ORG(30), PUBLIC(50)."
+            )
+
+        return parsed_value
+
     def _save_config(self) -> None:
         """Save the updated configuration back to the file."""
         try:
@@ -80,13 +134,31 @@ class PipelineBuilder:
             raise ValueError(f"Error saving config file {self.config_path}: {e}")
 
     def upload_pipeline_steps(self) -> bool:
-        """Upload all pipeline steps listed in step_directories."""
+        """Upload all pipeline steps listed in step_directories.
+
+        If step_directories is empty but all templateRefs in the orchestration spec
+        already have version IDs, this is not an error - it means we're reusing
+        existing pipeline step versions.
+        """
         pipeline_config = self.config["pipeline"]
         step_directories = pipeline_config.get("step_directories", [])
 
         if not step_directories:
-            logger.info("No pipeline steps to upload (step_directories is empty)")
-            return False  # treat this as an error.
+            # Check if all templateRefs already have versions
+            steps_without_versions = self.validator.get_pipeline_steps_without_versions(
+                self.config
+            )
+            if not steps_without_versions:
+                logger.info(
+                    "No step_directories specified, but all templateRefs have versions. "
+                    "Skipping pipeline step upload (reusing existing step versions)."
+                )
+                return True  # Not an error - using existing versioned steps
+            else:
+                logger.error(
+                    f"step_directories is empty but these steps need versions: {steps_without_versions}"
+                )
+                return False  # Error: need to upload steps but no directories provided
 
         logger.info(f"Uploading {len(step_directories)} pipeline steps...")
 
@@ -412,9 +484,14 @@ class PipelineBuilder:
 
         try:
             # Create pipeline proto
-            pipeline = resources_pb2.Pipeline(
-                id=self.pipeline_id, user_id=self.user_id, app_id=self.app_id
-            )
+            pipeline_kwargs = {
+                "id": self.pipeline_id,
+                "user_id": self.user_id,
+                "app_id": self.app_id,
+            }
+            if self.pipeline_visibility is not None:
+                pipeline_kwargs["visibility"] = self.pipeline_visibility
+            pipeline = resources_pb2.Pipeline(**pipeline_kwargs)
 
             # Add orchestration spec
             pipeline_config = self.config["pipeline"]
@@ -432,6 +509,8 @@ class PipelineBuilder:
 
             # Create pipeline version with orchestration spec
             pipeline_version = resources_pb2.PipelineVersion()
+            if self.pipeline_visibility is not None:
+                pipeline_version.visibility.CopyFrom(self.pipeline_visibility)
             # Create orchestration spec proto
             orchestration_spec_proto = resources_pb2.OrchestrationSpec()
             # Create Argo orchestration spec proto

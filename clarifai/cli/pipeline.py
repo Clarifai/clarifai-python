@@ -624,32 +624,30 @@ def validate_lock(lockfile_path):
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.option(
     '--app_id',
+    required=True,
+    help='App ID to list pipelines from.',
+)
+@click.option(
+    '--user_id',
     required=False,
-    help='App ID to list pipelines from. If not provided, lists across all apps.',
+    help='User ID to list pipelines from. If not provided, uses current user.',
 )
 @click.pass_context
-def list(ctx, page_no, per_page, app_id):
+def list(ctx, page_no, per_page, app_id, user_id):
     """List all pipelines for the user."""
     validate_context(ctx)
 
-    from clarifai.client.app import App
-    from clarifai.client.user import User
+    target_user_id = user_id or ctx.obj.current.user_id
 
-    if app_id:
-        app = App(
-            app_id=app_id,
-            user_id=ctx.obj.current.user_id,
-            pat=ctx.obj.current.pat,
-            base_url=ctx.obj.current.api_base,
-        )
-        response = app.list_pipelines(page_no=page_no, per_page=per_page)
-    else:
-        user = User(
-            user_id=ctx.obj.current.user_id,
-            pat=ctx.obj.current.pat,
-            base_url=ctx.obj.current.api_base,
-        )
-        response = user.list_pipelines(page_no=page_no, per_page=per_page)
+    from clarifai.client.app import App
+
+    app = App(
+        app_id=app_id,
+        user_id=target_user_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
+    response = app.list_pipelines(page_no=page_no, per_page=per_page)
 
     display_co_resources(
         response,
@@ -658,6 +656,7 @@ def list(ctx, page_no, per_page, app_id):
             'USER_ID': lambda p: getattr(p, 'user_id', ''),
             'APP_ID': lambda p: getattr(p, 'app_id', ''),
             'VERSION_ID': lambda p: getattr(p, 'pipeline_version_id', ''),
+            'VISIBILITY': lambda p: getattr(p, 'visibility', ''),
             'DESCRIPTION': lambda p: getattr(p, 'description', ''),
             'CREATED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'created_at', '')),
             'MODIFIED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'modified_at', '')),

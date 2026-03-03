@@ -115,7 +115,7 @@ class TestArtifactCLI:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_list_command_success(self, mock_artifact_class, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
@@ -140,6 +140,40 @@ class TestArtifactCLI:
         assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.cli.artifact.display_co_resources')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_command_latest_version_and_visibility(
+        self, mock_artifact_class, mock_display_co_resources, mock_validate
+    ):
+        """Test artifact listing resolves latest version and visibility columns."""
+        mock_validate.return_value = None
+
+        mock_artifact_instance = Mock()
+        mock_artifact = Mock()
+        mock_artifact.id = 'test-artifact'
+        mock_artifact.artifact_version = Mock()
+        mock_artifact.artifact_version.id = ''
+        mock_artifact.artifact_version.visibility.gettable = 10  # PRIVATE
+        mock_artifact.artifact_version_id = 'v1'
+        mock_artifact.created_at = None
+
+        mock_artifact_instance.list.return_value = [mock_artifact]
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+        )
+
+        assert result.exit_code == 0
+        mock_display_co_resources.assert_called_once()
+
+        custom_columns = mock_display_co_resources.call_args.kwargs['custom_columns']
+        assert custom_columns['LATEST_VERSION'](mock_artifact) == 'v1'
+        assert custom_columns['VISIBILITY'](mock_artifact) == 'PRIVATE'
+
+    @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
         """Test list command with missing required parameters."""
         mock_obj = setup_context_mock(mock_validate)
@@ -149,7 +183,7 @@ class TestArtifactCLI:
         assert "Missing argument 'PATH'" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_list_versions_command(self, mock_artifact_version_class, mock_validate):
         """Test list versions command."""
         mock_validate.return_value = None
@@ -178,7 +212,7 @@ class TestArtifactCLI:
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.parse_artifact_path')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_get_command_success(self, mock_artifact_class, mock_parse_path, mock_validate):
         """Test successful get command."""
         mock_validate.return_value = None
@@ -221,7 +255,7 @@ class TestArtifactCLI:
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.parse_artifact_path')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_delete_command_success(self, mock_artifact_class, mock_parse_path, mock_validate):
         """Test successful delete command."""
         mock_validate.return_value = None
@@ -265,7 +299,7 @@ class TestArtifactCLI:
         assert "Operation cancelled" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_delete_command_force(self, mock_artifact_class, mock_validate):
         """Test delete command with force flag (no confirmation needed)."""
         mock_obj = setup_context_mock(mock_validate)
@@ -289,7 +323,7 @@ class TestArtifactCLI:
         mock_artifact_instance.delete.assert_called_once()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_delete_version_command_force(self, mock_artifact_version_class, mock_validate):
         """Test delete version command with force flag (no confirmation needed)."""
         mock_obj = setup_context_mock(mock_validate)
@@ -377,8 +411,8 @@ class TestArtifactCLI:
         assert kwargs.get('visibility') == 'org'
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.ArtifactVersion')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    @patch('clarifai.client.artifact.Artifact')
     def test_cp_command_download_success(
         self, mock_artifact_class, mock_artifact_version_class, mock_validate
     ):
@@ -463,7 +497,7 @@ class TestArtifactCLI:
         """Test that CLI operations properly handle instance reuse."""
         mock_obj = setup_context_mock(Mock())
 
-        with patch('clarifai.cli.artifact.Artifact') as mock_artifact:
+        with patch('clarifai.client.artifact.Artifact') as mock_artifact:
             mock_instance = Mock()
             mock_artifact.return_value = mock_instance
 
@@ -472,18 +506,20 @@ class TestArtifactCLI:
             mock_instance.get.return_value = Mock(
                 id="test_artifact",
                 description="Test artifact",
-                visibility=Mock(gettable="PUBLIC"),
+                artifact_version=Mock(id="v1"),
                 created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
                 modified_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
             )
-            mock_instance.list.return_value = [
-                Mock(
-                    id="test_artifact",
-                    description="Test artifact",
-                    visibility=Mock(gettable="PUBLIC"),
-                    created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
-                )
-            ]
+
+            mock_list_item = Mock(
+                id="test_artifact",
+                description="Test artifact",
+                artifact_version_id="v1",
+                created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
+            )
+            mock_list_item.artifact_version = Mock(id="")
+            mock_list_item.artifact_version.visibility.gettable = 10  # PRIVATE
+            mock_instance.list.return_value = [mock_list_item]
 
             # Test multiple operations
             result1 = self.runner.invoke(
@@ -541,7 +577,7 @@ class TestArtifactCLIIntegration:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_full_workflow_simulation(self, mock_artifact_class, mock_validate):
         """Test simulated full workflow - just test list command as representative."""
         mock_validate.return_value = None
@@ -563,7 +599,7 @@ class TestArtifactCLIIntegration:
         assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact.Artifact')
     def test_error_handling(self, mock_artifact_class, mock_validate):
         """Test CLI error handling."""
         mock_validate.return_value = None
@@ -591,7 +627,7 @@ class TestArtifactCLIIntegration:
 class TestConvenienceFunctions:
     """Test class for CLI convenience functions."""
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     @patch('os.path.exists', return_value=True)
     def test_upload_artifact_function(self, mock_exists, mock_artifact_version_class):
         """Test _upload_artifact convenience function."""
@@ -638,8 +674,8 @@ class TestConvenienceFunctions:
 
         assert result.version_id == "test_version"
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
-    @patch('clarifai.cli.artifact.Artifact')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    @patch('clarifai.client.artifact.Artifact')
     def test_download_artifact_function(self, mock_artifact_class, mock_artifact_version_class):
         """Test _download_artifact convenience function."""
         # Mock Artifact instance for getting latest version
@@ -698,7 +734,7 @@ class TestConvenienceFunctions:
 
         assert result == "/downloaded/path"
 
-    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_download_artifact_with_specific_version(self, mock_artifact_version_class):
         """Test _download_artifact with specific version ID."""
         # Mock ArtifactVersion instance and its download method

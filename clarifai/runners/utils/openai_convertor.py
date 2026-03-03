@@ -246,7 +246,7 @@ def is_openai_chat_format(messages):
     if not isinstance(messages, list):
         return False
 
-    valid_roles = {"system", "user", "assistant", "function"}
+    valid_roles = {"system", "user", "assistant", "function", "developer", "tool"}
 
     for msg in messages:
         if not isinstance(msg, dict):

@@ -2,15 +2,12 @@ import os
 import re
 import shutil
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
-from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from clarifai.cli.base import cli
-from clarifai.client.artifact import Artifact
-from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.constants.artifact import (
     ARTIFACT_VISIBILITY_ORG,
     ARTIFACT_VISIBILITY_PRIVATE,
@@ -127,6 +124,47 @@ def _parse_and_validate_path(path, require_artifact=True, operation_type="genera
     return parsed
 
 
+def _resolve_latest_version(artifact) -> Optional[Any]:
+    """Resolve latest artifact version"""
+    return getattr(artifact, 'artifact_version', None)
+
+
+def _resolve_latest_version_id(artifact) -> str:
+    """Resolve latest artifact version ID from different response shapes."""
+    artifact_version = _resolve_latest_version(artifact)
+    if artifact_version and getattr(artifact_version, 'id', None):
+        return artifact_version.id
+
+    for field_name in ('artifact_version_id', 'latest_version_id', 'version_id'):
+        value = getattr(artifact, field_name, None)
+        if value:
+            return value
+
+    return 'N/A'
+
+
+def _resolve_visibility(resources_pb2, artifact) -> str:
+    """Resolve visibility display value from latest artifact version"""
+    artifact_version = _resolve_latest_version(artifact)
+    if not artifact_version:
+        return ''
+
+    visibility = getattr(artifact_version, 'visibility', None)
+    if not visibility:
+        return ''
+
+    gettable = getattr(visibility, 'gettable', None)
+    if gettable is None:
+        return ''
+
+    try:
+        return resources_pb2.Visibility.Gettable.Name(gettable)
+    except ValueError:
+        return ''
+
+    return ''
+
+
 def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: dict, **kwargs):
     """Upload a file to an artifact.
 
@@ -139,6 +177,8 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
     Returns:
         ArtifactVersion: The created artifact version
     """
+    from clarifai.client.artifact_version import ArtifactVersion
+
     user_id = parsed_destination['user_id']
     app_id = parsed_destination['app_id']
     artifact_id = parsed_destination['artifact_id']  # Now required
@@ -177,6 +217,10 @@ def _download_artifact(
     Returns:
         str: The path where file was downloaded
     """
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     user_id = parsed_source['user_id']
     app_id = parsed_source['app_id']
     artifact_id = parsed_source['artifact_id']
@@ -229,6 +273,12 @@ def list(ctx, path, versions):
         clarifai af list users/u/apps/a
         clarifai af list users/u/apps/a/artifacts/my-artifact --versions
     """
+
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
 
@@ -302,9 +352,8 @@ def list(ctx, path, versions):
                 artifacts_list,
                 custom_columns={
                     'ARTIFACT': lambda a: a.id,
-                    'LATEST_VERSION': lambda a: a.artifact_version.id
-                    if a.artifact_version and a.artifact_version.id
-                    else 'N/A',
+                    'LATEST_VERSION': lambda a: _resolve_latest_version_id(a),
+                    'VISIBILITY': lambda a: _resolve_visibility(resources_pb2, a),
                     'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
                 },
             )
@@ -327,6 +376,11 @@ def get(ctx, path):
         clarifai af get users/u/apps/a/artifacts/my-artifact
         clarifai af get users/u/apps/a/artifacts/my-artifact/versions/v123
     """
+    from clarifai_grpc.grpc.api import resources_pb2
+
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
         parsed = _parse_and_validate_path(path)
@@ -399,6 +453,9 @@ def delete(ctx, path, force):
         clarifai af rm users/u/apps/a/artifacts/my-artifact/versions/v123
         clarifai af rm users/u/apps/a/artifacts/my-artifact --force
     """
+    from clarifai.client.artifact import Artifact
+    from clarifai.client.artifact_version import ArtifactVersion
+
     try:
         validate_context(ctx)
         parsed = _parse_and_validate_path(path)
@@ -484,6 +541,7 @@ def cp(
         clarifai af cp users/u/apps/a/artifacts/my-artifact/versions/v123 /tmp/
         clarifai af cp users/u/apps/a/artifacts/my-artifact .
     """
+
     try:
         validate_context(ctx)
 
