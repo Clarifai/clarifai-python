@@ -775,6 +775,11 @@ _PRE_AMPERE_INDICATORS = ("t4", "v100", "k80", "p100", "p40", "m60", "g4dn", "g4
 # which gets eaten by vLLM internals, causing OOM.
 _GPU_UTILIZATION_FACTOR = 0.90
 
+# Cloud providers supported for auto-recommendation.
+# Other providers (e.g. CoreWeave) may have instance types with non-standard VRAM
+# configurations that don't map well to our estimation heuristics.
+_SUPPORTED_CLOUDS = {"aws", "gcp", "vultr"}
+
 
 def _select_instance_by_vram(
     vram_bytes, pat=None, base_url=None, exclude_pre_ampere=False, reason_detail=""
@@ -809,8 +814,12 @@ def _select_instance_by_vram(
     instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
     if instance_types:
         # Build list of (instance_id, vram_bytes) for GPU instances, sorted by VRAM ascending
+        # Only include instances from supported clouds (aws, gcp, vultr)
         gpu_instances = []
         for it in instance_types:
+            cloud = it.cloud_provider.id if it.cloud_provider else ""
+            if cloud not in _SUPPORTED_CLOUDS:
+                continue
             ci = it.compute_info if it.compute_info else None
             if not ci or not ci.num_accelerators or ci.num_accelerators == 0:
                 continue

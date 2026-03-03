@@ -1834,18 +1834,21 @@ class TestRecommendInstance:
         # AWS T4 instance
         mock_g4dn = MagicMock()
         mock_g4dn.id = "g4dn.xlarge"
+        mock_g4dn.cloud_provider.id = "aws"
         mock_g4dn.compute_info.num_accelerators = 1
         mock_g4dn.compute_info.accelerator_memory = "16Gi"
 
-        # Azure T4 instance
+        # Azure T4 instance (not in supported clouds — filtered out by recommendation)
         mock_azure_t4 = MagicMock()
         mock_azure_t4.id = "Standard_NC4as_T4_v3"
+        mock_azure_t4.cloud_provider.id = "azure"
         mock_azure_t4.compute_info.num_accelerators = 1
         mock_azure_t4.compute_info.accelerator_memory = "16Gi"
 
         # AWS A10G instance (Ampere)
         mock_g5 = MagicMock()
         mock_g5.id = "g5.xlarge"
+        mock_g5.cloud_provider.id = "aws"
         mock_g5.compute_info.num_accelerators = 1
         mock_g5.compute_info.accelerator_memory = "24Gi"
 
@@ -1870,11 +1873,11 @@ class TestRecommendInstance:
                 return_value=[mock_g4dn, mock_azure_t4, mock_g5],
             ),
         ):
-            # SGLang should skip both AWS g4dn and Azure T4 → pick g5
+            # SGLang should skip g4dn (pre-Ampere), Azure T4 filtered (unsupported cloud) → g5
             inst_id, _ = recommend_instance(config_sglang)
             assert inst_id == "g5.xlarge"
 
-            # vLLM should pick the cheapest (first) T4
+            # vLLM picks g4dn (AWS, cheapest); Azure T4 filtered out
             inst_id, _ = recommend_instance(config_vllm)
             assert inst_id == "g4dn.xlarge"
 
@@ -1884,11 +1887,13 @@ class TestRecommendInstance:
 
         mock_g4dn = MagicMock()
         mock_g4dn.id = "g4dn.xlarge"
+        mock_g4dn.cloud_provider.id = "aws"
         mock_g4dn.compute_info.num_accelerators = 1
         mock_g4dn.compute_info.accelerator_memory = "16Gi"
 
         mock_g5 = MagicMock()
         mock_g5.id = "g5.xlarge"
+        mock_g5.cloud_provider.id = "aws"
         mock_g5.compute_info.num_accelerators = 1
         mock_g5.compute_info.accelerator_memory = "24Gi"
 
