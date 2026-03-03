@@ -43,7 +43,8 @@ def test_model_init_vllm_toolkit(monkeypatch, tmp_path):
 
     requirements = model_dir / 'requirements.txt'
     assert requirements.exists(), 'requirements.txt missing'
-    assert 'vllm' in requirements.read_text()
+    # vllm is provided by the Docker base image, not in requirements.txt
+    assert 'clarifai' in requirements.read_text()
 
 
 def test_model_init_vllm_no_model_name(monkeypatch, tmp_path):
