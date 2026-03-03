@@ -283,7 +283,11 @@ class InputAnnotationDownloader:
                 annot_count = len(annot_data)
                 has_annotation_file = True
 
-            return {"status": "success", "annot_count": annot_count, "has_annotation_file": has_annotation_file}
+            return {
+                "status": "success",
+                "annot_count": annot_count,
+                "has_annotation_file": has_annotation_file,
+            }
 
         except Exception as e:
             logger.error(f"Error processing input {input_.id}: {e}")
@@ -296,8 +300,12 @@ class InputAnnotationDownloader:
             raise e
         assert len(archive.namelist()) == self.num_inputs + self.num_annotation_files, (
             "Archive has %d files | expecting %d inputs + %d annotation files = %d total files"
-            % (len(archive.namelist()), self.num_inputs, self.num_annotation_files,
-               self.num_inputs + self.num_annotation_files)
+            % (
+                len(archive.namelist()),
+                self.num_inputs,
+                self.num_annotation_files,
+                self.num_inputs + self.num_annotation_files,
+            )
         )
 
     def download_archive(self, save_path: str, split: Optional[str] = None) -> None:
@@ -351,7 +359,9 @@ class InputAnnotationDownloader:
             "Downloaded %d inputs and %d annotation files (containing %d total annotations) to %s"
             % (self.num_inputs, self.num_annotation_files, self.num_annotations, save_path)
         )
-        logger.info(f"Average annotations per input: {self.num_annotations / max(self.num_inputs, 1):.2f}")
+        logger.info(
+            f"Average annotations per input: {self.num_annotations / max(self.num_inputs, 1):.2f}"
+        )
 
         if failed_inputs or skipped_inputs:
             logger.warning(
