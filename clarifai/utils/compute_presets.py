@@ -399,7 +399,15 @@ def infer_gpu_from_config(config):
     return None
 
 
-def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
+def list_gpu_presets(
+    pat=None,
+    base_url=None,
+    cloud_provider=None,
+    region=None,
+    gpu_name=None,
+    min_gpus=None,
+    min_gpu_mem=None,
+):
     """Return a formatted table of available GPU presets.
 
     Queries all cloud providers/regions via the API, falls back to hardcoded presets.
@@ -409,6 +417,9 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
         base_url: Optional API base URL.
         cloud_provider: Optional filter by cloud provider (e.g. 'aws', 'gcp').
         region: Optional filter by region (e.g. 'us-east-1').
+        gpu_name: Optional filter by GPU name substring (case-insensitive, e.g. 'H100').
+        min_gpus: Optional minimum GPU count filter.
+        min_gpu_mem: Optional minimum GPU memory filter (K8s quantity string, e.g. '48Gi').
 
     Returns:
         str: Formatted table string.
@@ -444,6 +455,36 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
                 seen.add(key)
                 deduped.append(it)
 
+        # Apply gpu_name filter (case-insensitive substring on accelerator_type entries)
+        if gpu_name:
+            gpu_upper = gpu_name.upper()
+            deduped = [
+                it
+                for it in deduped
+                if it.compute_info
+                and it.compute_info.accelerator_type
+                and any(gpu_upper in acc.upper() for acc in it.compute_info.accelerator_type)
+            ]
+
+        # Apply min_gpus filter
+        if min_gpus is not None:
+            deduped = [
+                it
+                for it in deduped
+                if it.compute_info and (it.compute_info.num_accelerators or 0) >= min_gpus
+            ]
+
+        # Apply min_gpu_mem filter
+        if min_gpu_mem is not None:
+            threshold = parse_k8s_quantity(min_gpu_mem)
+            deduped = [
+                it
+                for it in deduped
+                if it.compute_info
+                and it.compute_info.accelerator_memory
+                and parse_k8s_quantity(it.compute_info.accelerator_memory) >= threshold
+            ]
+
         # Sort: cloud first, then GPU count desc, then ID
         sorted_types = _sort_instance_types(deduped)
         for it in sorted_types:
@@ -468,6 +509,9 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
         return (
             "Could not fetch instance types from API.\nMake sure you are logged in: clarifai login"
         )
+
+    if not rows:
+        return "No instance types match the given filters."
 
     from tabulate import tabulate
 

@@ -372,6 +372,8 @@ class LazyAliasedGroup(AliasedGroup):
             'ps': 'pipeline_step',
             'pipelinetemplate': 'pipeline_template',
             'pt': 'pipeline_template',
+            'list-instances': 'list_instances',
+            'li': 'list_instances',
         }
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> Optional[click.Command]:

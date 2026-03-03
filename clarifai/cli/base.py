@@ -692,7 +692,7 @@ cli.command_sections = [
     ('Config', ['config']),
     ('Models', ['model']),
     ('Pipelines', ['pipeline', 'pipeline-step', 'pipelinerun', 'pipelinetemplate']),
-    ('Compute', ['computecluster', 'nodepool', 'deployment']),
+    ('Compute', ['list-instances', 'computecluster', 'nodepool', 'deployment']),
     ('Other', ['artifact', 'run', 'shell-completion']),
 ]
 
