@@ -204,7 +204,7 @@ def _sort_instance_types(instance_types):
     """Sort instance types by cloud provider, GPU count desc, then ID.
 
     This ensures consistent priority: aws before gcp before vultr,
-    matching the display order of --instance-info.
+    matching the display order of list-instances.
     """
     return sorted(
         instance_types,
@@ -303,7 +303,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
 
     if instance_types:
-        # Sort for consistent priority (aws first, matching --instance-info order)
+        # Sort for consistent priority (aws first, matching list-instances order)
         instance_types = _sort_instance_types(instance_types)
 
         # Optionally filter by cloud_provider (even when querying all)
@@ -347,7 +347,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         if preset["instance_type_id"].lower() == gpu_lower:
             return dict(preset)
 
-    available = "Run 'clarifai model deploy --instance-info' to see available options."
+    available = "Run 'clarifai list-instances' to see available options."
     raise ValueError(f"Unknown instance type '{gpu_name}'. {available}")
 
 

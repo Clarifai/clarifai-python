@@ -156,7 +156,7 @@ class ModelDeployer:
                 raise UserError(
                     "You must specify --instance or --nodepool-id when deploying an existing model.\n"
                     "  Example: clarifai model deploy --model-url <url> --instance a10g\n"
-                    "  Run 'clarifai model deploy --instance-info' to see available options."
+                    "  Run 'clarifai list-instances' to see available options."
                 )
 
     def _resolve_gpu(self):
@@ -247,7 +247,7 @@ class ModelDeployer:
                         raise UserError(
                             f"Could not auto-detect instance type. {reason or ''}\n"
                             "  Specify --instance or set 'compute.instance' in config.yaml.\n"
-                            "  Run 'clarifai model deploy --instance-info' to see available options."
+                            "  Run 'clarifai list-instances' to see available options."
                         )
 
         # Show clean validation summary
@@ -1213,7 +1213,7 @@ def stream_model_logs(
             f"No active runner found for model '{model_id}' (version: {model_version_id}).\n"
             "  The model is not currently deployed. To deploy it, run:\n"
             f"    clarifai model deploy --model-url \"{url_hint}\" --instance <instance-type>\n"
-            "  Run 'clarifai model deploy --instance-info' to see available instance types."
+            "  Run 'clarifai list-instances' to see available instance types."
         )
 
     print(f"Streaming logs for model '{model_id}' (runner: {runner_id})...", flush=True)

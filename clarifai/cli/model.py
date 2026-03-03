@@ -580,7 +580,9 @@ def _print_init_success(model_path, toolkit, instance=None):
         click.echo(f"    clarifai model deploy {model_path}")
     else:
         click.echo(f"    clarifai model deploy {model_path} --instance gpu-nvidia-a10g")
-    click.echo("    clarifai model deploy --instance-info              # list available instances")
+    click.echo(
+        "    clarifai list-instances                             # list available instances"
+    )
     click.echo()
 
 
@@ -889,12 +891,7 @@ def download_checkpoints(ctx, model_path, out_path, stage):
 @click.option(
     '--instance',
     default=None,
-    help='Hardware instance type (e.g., gpu-nvidia-a10g). Use --instance-info to list options.',
-)
-@click.option(
-    '--instance-info',
-    is_flag=True,
-    help='Show available instance types with GPU, memory, and pricing, then exit.',
+    help='Hardware instance type (e.g., gpu-nvidia-a10g). Use "clarifai list-instances" to list options.',
 )
 @click.option(
     '--model-url',
@@ -951,7 +948,6 @@ def deploy(
     ctx,
     model_path,
     instance,
-    instance_info,
     model_url,
     model_version_id,
     min_replicas,
@@ -974,29 +970,13 @@ def deploy(
 
     \b
     Examples:
-      clarifai model deploy ./my-model --instance gpu-nvidia-a10g
-      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance gpu-nvidia-a10g
-      clarifai model deploy --instance-info
-      clarifai model deploy --instance-info --cloud gcp
+      clarifai model deploy ./my-model --instance a10g
+      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance a10g
+
+    List all GPU/ CPU available instance for model deployment:
+      clarifai list-instances
+      clarifai list-instances --cloud gcp
     """
-    if instance_info:
-        from clarifai.utils.compute_presets import list_gpu_presets
-
-        pat_val = None
-        base_url_val = None
-        try:
-            validate_context(ctx)
-            pat_val = ctx.obj.current.pat
-            base_url_val = ctx.obj.current.api_base
-        except Exception:
-            pass
-        click.echo(
-            list_gpu_presets(
-                pat=pat_val, base_url=base_url_val, cloud_provider=cloud, region=region
-            )
-        )
-        return
-
     validate_context(ctx)
     user_id = ctx.obj.current.user_id
     app_id = getattr(ctx.obj.current, 'app_id', None)

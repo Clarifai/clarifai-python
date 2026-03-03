@@ -1885,7 +1885,7 @@ class ModelBuilder:
                 "      num_accelerators: 1\n"
                 "      accelerator_type: ['NVIDIA-A10G']\n"
                 "      accelerator_memory: '24Gi'\n"
-                "  Run 'clarifai model deploy --instance-info' to see available options."
+                "  Run 'clarifai list-instances' to see available options."
             )
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
@@ -2316,7 +2316,7 @@ def upload_model(
         "Deploy",
         f'clarifai model deploy --model-url "{builder.model_ui_url}" --instance <instance-type>',
     )
-    out.hint("GPU info", "clarifai model deploy --instance-info")
+    out.hint("GPU info", "clarifai list-instances")
     out.hint("Predict", predict_cmd)
 
 
