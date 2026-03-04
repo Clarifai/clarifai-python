@@ -657,16 +657,22 @@ class ModelDeployer:
         out.success(f"Deployment '{deployment_id}' created")
 
         # Skip monitoring when min_replicas is 0 — no pods will be scheduled
+        timed_out = False
         if self.min_replicas > 0:
-            self._monitor_deployment(deployment_id, np_id, cc_id)
+            timed_out = self._monitor_deployment(deployment_id, np_id, cc_id)
 
-        return self._format_result(deployment_id, np_id, cc_id)
+        result = self._format_result(deployment_id, np_id, cc_id)
+        result['timed_out'] = timed_out
+        return result
 
     def _monitor_deployment(self, deployment_id, nodepool_id, compute_cluster_id):
         """Monitor deployment status until runner pods are ready or timeout.
 
         Polls runner status and fetches runner logs to show the user what's happening
         after the deployment is created (pod scheduling, image pulling, model loading).
+
+        Returns:
+            True if monitoring timed out, False if pods became ready.
         """
         from clarifai_grpc.grpc.api import service_pb2
 
@@ -773,7 +779,7 @@ class ModelDeployer:
                         nodepool_id,
                         runner.id,
                     )
-                    return
+                    return False  # Not timed out
 
                 status_msg = f"Pods: {pods_running}/{pods_total} running ({elapsed}s elapsed)"
             else:
@@ -785,14 +791,32 @@ class ModelDeployer:
 
             time.sleep(poll_interval)
 
-        # Timeout reached
+        # Timeout reached — provide actionable context
         if has_inline_progress:
             out.clear_inline()
-        out.warning(
-            f"Deployment monitoring timed out after {timeout}s. "
-            "The deployment may still be in progress."
-        )
-        out.status("Check status with: clarifai deployment list")
+
+        elapsed_min = timeout // 60
+        out.warning(f"Pod not ready after {elapsed_min} minutes of monitoring.")
+        out.status("")
+
+        # Determine the last known stage from seen event messages
+        last_stage = _infer_last_stage(seen_messages)
+        if last_stage:
+            out.status(f"  Last observed stage: {last_stage}")
+            out.status("")
+
+        out.status("  The deployment was created successfully but the model pod")
+        out.status("  hasn't started yet. Common causes:")
+        out.status("    - GPU nodes are scaling up (can take 5-15 min)")
+        out.status("    - Large model image is being pulled")
+        out.status("    - Model is loading checkpoints into GPU memory")
+        out.status("")
+        out.status("  Check progress with:")
+        out.hint("Status", f'clarifai model status --deployment "{deployment_id}"')
+        out.hint("Logs", f'clarifai model logs --deployment "{deployment_id}"')
+        out.hint("Events", f'clarifai model logs --deployment "{deployment_id}" --log-type events')
+
+        return True  # Timed out
 
     @staticmethod
     def _fetch_runner_logs(
@@ -1012,6 +1036,37 @@ def _parse_runner_log(raw_msg, verbose=False):
 
     # Return raw message as-is
     return raw_msg
+
+
+def _infer_last_stage(seen_messages):
+    """Infer the last deployment stage from observed k8s event messages.
+
+    Uses the _EVENT_PHASE_MAP ordering to determine the furthest stage reached.
+    Returns a human-readable description, or None if no events were observed.
+    """
+    if not seen_messages:
+        return None
+
+    # Ordered from latest to earliest stage — return the first match
+    stage_keywords = [
+        ("Running", "Container started — model may be loading"),
+        ("Starting", "Container created"),
+        ("Health check", "Container started but health check failing"),
+        ("Restarting", "Container is crash-looping"),
+        ("Image pulled", "Image downloaded, starting container"),
+        ("Pulling image", "Downloading model image (can be large)"),
+        ("Scheduled", "Pod assigned to a node"),
+        ("Nominated", "Node selected, waiting for scheduling"),
+        ("Scaling", "Cluster is scaling up to add GPU nodes"),
+        ("Scheduling", "Waiting for a node with available GPU"),
+        ("Volume", "Waiting for volume attachment"),
+    ]
+    for keyword, description in stage_keywords:
+        for msg in seen_messages:
+            if keyword in msg:
+                return description
+
+    return None
 
 
 def _simplify_k8s_message(reason, message):

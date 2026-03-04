@@ -1016,11 +1016,22 @@ def _print_deploy_result(result):
     from clarifai.runners.models import deploy_output as out
 
     model_url = result['model_url']
+    timed_out = result.get('timed_out', False)
 
-    out.phase_header("Ready")
-    click.echo()
-    out.success("Model deployed successfully!")
-    click.echo()
+    if timed_out:
+        # Monitoring timed out — deployment exists but pod isn't ready yet.
+        # The monitor phase already printed detailed diagnostics, so just show
+        # the deployment info and emphasize status/logs commands.
+        out.phase_header("Deployed (pod pending)")
+        click.echo()
+        out.warning("Deployment created but model pod is not running yet.")
+        click.echo()
+    else:
+        out.phase_header("Ready")
+        click.echo()
+        out.success("Model deployed successfully!")
+        click.echo()
+
     out.link("Model", model_url)
     out.info("Version", result['model_version_id'])
     out.info("Deployment", result['deployment_id'])
@@ -1031,14 +1042,15 @@ def _print_deploy_result(result):
         region = result.get('region', '')
         out.info("Cloud", f"{cloud} / {region}" if cloud and region else cloud or region)
 
-    # Show client script (same as upload output)
-    client_script = result.get('client_script')
-    if client_script:
-        click.echo("\n" + "=" * 60)
-        click.echo("# Here is a code snippet to use this model:")
-        click.echo("=" * 60)
-        click.echo(client_script)
-        click.echo("=" * 60)
+    if not timed_out:
+        # Show client script and predict hints only when pod is actually ready
+        client_script = result.get('client_script')
+        if client_script:
+            click.echo("\n" + "=" * 60)
+            click.echo("# Here is a code snippet to use this model:")
+            click.echo("=" * 60)
+            click.echo(client_script)
+            click.echo("=" * 60)
 
     from clarifai.runners.utils.code_script import generate_predict_hint
 
@@ -1059,10 +1071,21 @@ def _print_deploy_result(result):
     )
 
     out.phase_header("Next Steps")
-    out.hint("Predict", predict_cmd)
-    out.link("Playground", playground_url)
-    out.hint("Logs", f'clarifai model logs --deployment "{result["deployment_id"]}"')
-    out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
+    if timed_out:
+        # Prioritize status/logs/events when pod isn't ready
+        out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
+        out.hint("Logs", f'clarifai model logs --deployment "{result["deployment_id"]}"')
+        out.hint(
+            "Events",
+            f'clarifai model logs --deployment "{result["deployment_id"]}" --log-type events',
+        )
+        out.hint("Predict", predict_cmd)
+        out.link("Playground", playground_url)
+    else:
+        out.hint("Predict", predict_cmd)
+        out.link("Playground", playground_url)
+        out.hint("Logs", f'clarifai model logs --deployment "{result["deployment_id"]}"')
+        out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
     out.hint("Undeploy", f'clarifai model undeploy --deployment "{result["deployment_id"]}"')
 
 
