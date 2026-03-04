@@ -749,6 +749,33 @@ def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, co
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
 
+    # Patch model.py defaults to match the configured model
+    model_py_path = os.path.join(model_path, "1", "model.py")
+    if os.path.exists(model_py_path):
+        try:
+            with open(model_py_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if model_name:
+                content = content.replace(
+                    'LMS_MODEL_NAME = os.environ.get("LMS_MODEL_NAME", "google/gemma-3-4b")',
+                    f'LMS_MODEL_NAME = os.environ.get("LMS_MODEL_NAME", "{model_name}")',
+                )
+            if port:
+                content = content.replace(
+                    'LMS_PORT = int(os.environ.get("LMS_PORT", "23333"))',
+                    f'LMS_PORT = int(os.environ.get("LMS_PORT", "{port}"))',
+                )
+            if context_length:
+                content = content.replace(
+                    'LMS_CONTEXT_LENGTH = int(os.environ.get("LMS_CONTEXT_LENGTH", "4096"))',
+                    f'LMS_CONTEXT_LENGTH = int(os.environ.get("LMS_CONTEXT_LENGTH", "{context_length}"))',
+                )
+            with open(model_py_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            logger.error(f"Failed to customize LM Studio model name in {model_py_path}: {e}")
+            raise
+
 
 def prompt_required_field(message: str, default: Optional[str] = None) -> str:
     """Prompt the user for a required field, optionally with a default.
