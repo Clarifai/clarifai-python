@@ -1,3 +1,15 @@
+## [[12.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.0) - [PyPI](https://pypi.org/project/clarifai/12.3.0/) - 2026-03-04
+
+### Added
+- Added `clarifai model deploy` command and `clarifai model init` simplification with multi-cloud GPU discovery, zero-prompt deployment flow, and simplified `config.yaml` [(#960)](https://github.com/Clarifai/clarifai-python/pull/960)
+- Added `developer` and `tool` to valid message roles for LLM interactions [(#970)](https://github.com/Clarifai/clarifai-python/pull/970)
+- Added support for pipeline upload without `step_directories` when `templateRefs` have versions [(#961)](https://github.com/Clarifai/clarifai-python/pull/961)
+
+### Fixed
+- Fixed `List Artifacts` command to use correct `latest-version-id` and visibility [(#968)](https://github.com/Clarifai/clarifai-python/pull/968)
+- Fixed dataset download bug [(#945)](https://github.com/Clarifai/clarifai-python/pull/945)
+- Fixed user input override bypass when a PostScript version exists [(#969)](https://github.com/Clarifai/clarifai-python/pull/969)
+
 ## [[12.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.2) - [PyPI](https://pypi.org/project/clarifai/12.2.2/) - 2026-02-26
 
 ### Added
