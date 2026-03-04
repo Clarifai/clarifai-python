@@ -657,9 +657,12 @@ def init(
         logger.error("--model-name can only be used with --toolkit")
         raise click.Abort()
 
-    # Resolve model_path: explicit > derived from model-name > current dir
+    # Resolve model_path: explicit > current dir (if already init'd) > derived from model-name > current dir
     if model_path is None:
-        if model_name:
+        if os.path.exists(os.path.join(".", "config.yaml")):
+            # Current directory is already an initialized model — update in place
+            model_path = "."
+        elif model_name:
             # "Qwen/Qwen3-0.6B" -> "./Qwen3-0.6B"
             model_path = model_name.split('/')[-1]
         else:
