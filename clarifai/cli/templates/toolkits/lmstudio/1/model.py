@@ -15,9 +15,9 @@ from clarifai.runners.utils.openai_convertor import build_openai_messages
 from clarifai.utils.logging import logger
 
 VERBOSE_LMSTUDIO = True
-LMS_MODEL_NAME = "LiquidAI/LFM2-1.2B"
-LMS_PORT = 11434
-LMS_CONTEXT_LENGTH = 4096
+LMS_MODEL_NAME = os.environ.get("LMS_MODEL_NAME", "google/gemma-3-4b")
+LMS_PORT = int(os.environ.get("LMS_PORT", "23333"))
+LMS_CONTEXT_LENGTH = int(os.environ.get("LMS_CONTEXT_LENGTH", "4096"))
 
 
 def _stream_command(cmd, verbose=True):
@@ -56,18 +56,59 @@ def _wait_for_port(port, timeout=30.0):
     raise RuntimeError(f"LM Studio server did not start on port {port} within {timeout}s")
 
 
-def run_lms_server(model_name='LiquidAI/LFM2-1.2B', port=11434, context_length=4096):
-    """Download model, load it, and start the LM Studio server."""
+def _is_model_available(model_name):
+    """Check if a model is already available locally in LM Studio."""
     try:
-        _stream_command(
-            f"lms get https://huggingface.co/{model_name} --verbose",
-            verbose=VERBOSE_LMSTUDIO,
+        result = subprocess.run(
+            "lms ls --json", shell=True, capture_output=True, text=True, timeout=10
         )
-        _stream_command("lms unload --all", verbose=VERBOSE_LMSTUDIO)
-        _stream_command(
-            f"lms load {model_name} --verbose --context-length {context_length}",
-            verbose=VERBOSE_LMSTUDIO,
+        if result.returncode == 0 and result.stdout.strip():
+            models = json.loads(result.stdout)
+            for m in models:
+                if m.get("modelKey", "") == model_name:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def _is_model_loaded(model_name):
+    """Check if a model is currently loaded in LM Studio."""
+    try:
+        result = subprocess.run(
+            "lms ps --json", shell=True, capture_output=True, text=True, timeout=10
         )
+        if result.returncode == 0 and result.stdout.strip():
+            models = json.loads(result.stdout)
+            for m in models:
+                if m.get("modelKey", "") == model_name:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def run_lms_server(model_name='google/gemma-3-4b', port=11434, context_length=4096):
+    """Download model if needed, load it, and start the LM Studio server."""
+    try:
+        if _is_model_available(model_name):
+            logger.info(f"Model {model_name} is already available locally, skipping download.")
+        else:
+            logger.info(f"Model {model_name} not found locally, downloading...")
+            _stream_command(
+                f"lms get https://huggingface.co/{model_name} --verbose",
+                verbose=VERBOSE_LMSTUDIO,
+            )
+
+        if _is_model_loaded(model_name):
+            logger.info(f"Model {model_name} is already loaded.")
+        else:
+            _stream_command("lms unload --all", verbose=VERBOSE_LMSTUDIO)
+            _stream_command(
+                f"lms load {model_name} --verbose --context-length {context_length}",
+                verbose=VERBOSE_LMSTUDIO,
+            )
+
         subprocess.Popen(
             f"lms server start --port {port}",
             shell=True,

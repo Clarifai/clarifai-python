@@ -58,8 +58,8 @@ def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
 
     content = (model_dir / '1' / 'model.py').read_text()
-    assert "LMS_MODEL_NAME = \"LiquidAI/LFM2-1.2B\"" in content
-    assert "LMS_PORT = 11434" in content
+    assert 'LMS_MODEL_NAME = os.environ.get("LMS_MODEL_NAME", "google/gemma-3-4b")' in content
+    assert 'LMS_PORT = int(os.environ.get("LMS_PORT", "23333"))' in content
 
     files = {p.name for p in model_dir.iterdir()}
     assert {'1', 'config.yaml', 'requirements.txt'}.issubset(files)
