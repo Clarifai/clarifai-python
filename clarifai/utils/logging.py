@@ -394,7 +394,9 @@ class JsonFormatter(logging.Formatter):
         logr.update(
             {
                 JSON_LOG_KEY: msg,
-                '@timestamp': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                '@timestamp': datetime.datetime.now(datetime.timezone.utc).strftime(
+                    '%Y-%m-%dT%H:%M:%S.%fZ'
+                ),
             }
         )
 
@@ -447,7 +449,11 @@ class TerminalFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
         # Note we didn't go with UTC here as it's easier to understand time in your time zone.
         # The json logger leverages UTC though.
-        return datetime.datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')
+        try:
+            return datetime.datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')
+        except Exception:
+            # During Python shutdown, datetime may already be torn down.
+            return ""
 
 
 # the default logger for the SDK.

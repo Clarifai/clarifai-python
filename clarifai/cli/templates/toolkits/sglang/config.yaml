@@ -1,0 +1,13 @@
+model:
+  id: "my-model"
+
+build_info:
+  image: "lmsysorg/sglang:latest"
+
+compute:
+  instance: g5.xlarge
+
+checkpoints:
+  repo_id: google/gemma-3-1b-it
+  type: huggingface
+  when: runtime

@@ -1,0 +1,3 @@
+clarifai
+openai
+nvidia-cudnn-cu12>=9.16.0.29

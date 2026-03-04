@@ -253,6 +253,11 @@ class MCPModelClass(ModelClass):
         logger.info("MCP bridge shut down")
 
     def __del__(self):
+        import sys
+
+        # Skip cleanup during Python shutdown — modules are already torn down
+        if sys is None or sys.meta_path is None:
+            return
         try:
             self.shutdown()
         except Exception:

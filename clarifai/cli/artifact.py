@@ -259,7 +259,7 @@ def _download_artifact(
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def artifact():
-    """Manage Artifacts: create, upload, download, list, get, delete"""
+    """Manage artifacts and files."""
 
 
 @artifact.command(['list', 'ls'])

@@ -15,6 +15,9 @@ COPY --link requirements.txt /home/nonroot/requirements.txt
 RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
 RUN ["pip", "show", "--no-cache-dir", "clarifai"]
 
+# Ensure the nonroot user (uid 65532) exists in /etc/passwd so getpass.getuser() works
+RUN grep -q ':65532:' /etc/passwd 2>/dev/null || echo 'nonroot:x:65532:65532:nonroot:/home/nonroot:/usr/sbin/nologin' >> /etc/passwd
+
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
 # The CLARIFAI* will be set by the templaing system.

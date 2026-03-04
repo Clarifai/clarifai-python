@@ -86,7 +86,7 @@ def _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id):
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipelinerun():
-    """Manage Pipeline Version Runs: pause, cancel, resume, monitor"""
+    """Monitor and control pipeline runs."""
 
 
 @pipelinerun.command()

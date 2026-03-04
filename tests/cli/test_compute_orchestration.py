@@ -189,9 +189,7 @@ class TestComputeOrchestration:
     @pytest.mark.coverage_only
     def test_delete_deployment(self, cli_runner):
         cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = cli_runner.invoke(
-            cli, ["deployment", "delete", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID]
-        )
+        result = cli_runner.invoke(cli, ["deployment", "delete", CREATE_DEPLOYMENT_ID])
         assert result.exit_code == 0, logger.exception(result)
 
     def test_delete_nodepool(self, cli_runner):

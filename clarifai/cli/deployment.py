@@ -12,7 +12,7 @@ from clarifai.utils.cli import AliasedGroup, display_co_resources, from_yaml, va
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def deployment():
-    """Manage Deployments: create, delete, list"""
+    """Manage deployments."""
 
 
 @deployment.command(['c'])
@@ -111,19 +111,147 @@ def list(ctx, nodepool_id, page_no, per_page):
     )
 
 
-@deployment.command(['rm'])
-@click.argument('nodepool_id')
+@deployment.command(['get', 'status'])
 @click.argument('deployment_id')
 @click.pass_context
-def delete(ctx, nodepool_id, deployment_id):
-    """Deletes a deployment for the nodepool."""
-    from clarifai.client.nodepool import Nodepool
+def get(ctx, deployment_id):
+    """Show details for a single deployment.
 
+    \b
+    Examples:
+      clarifai deployment get deploy-abc123
+      clarifai deployment status deploy-abc123
+    """
     validate_context(ctx)
-    nodepool = Nodepool(
-        nodepool_id=nodepool_id,
-        user_id=ctx.obj.current.user_id,
-        pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.api_base,
-    )
-    nodepool.delete_deployments([deployment_id])
+
+    from clarifai.cli.model import _print_deployment_detail  # noqa: E402
+    from clarifai.errors import UserError
+    from clarifai.runners.models.model_deploy import get_deployment
+
+    try:
+        dep = get_deployment(
+            deployment_id,
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        _print_deployment_detail(dep)
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+
+@deployment.command()
+@click.argument('deployment_id')
+@click.option(
+    '--follow/--no-follow',
+    default=True,
+    help='Continuously tail new logs. Use --no-follow to print and exit.',
+)
+@click.option(
+    '--duration',
+    default=None,
+    type=int,
+    help='Stop after N seconds (default: unlimited, Ctrl+C to stop).',
+)
+@click.option(
+    '--log-type',
+    default='model',
+    type=click.Choice(['model', 'events'], case_sensitive=False),
+    help='Log type: model (stdout/stderr) or events (k8s scheduling/scaling).',
+)
+@click.pass_context
+def logs(ctx, deployment_id, follow, duration, log_type):
+    """Stream logs from a deployment's runner.
+
+    \b
+    Resolves the model, version, and nodepool from the deployment
+    and streams runner stdout/stderr or k8s events.
+
+    \b
+    Examples:
+      clarifai deployment logs deploy-abc123
+      clarifai deployment logs deploy-abc123 --log-type events
+      clarifai deployment logs deploy-abc123 --no-follow
+      clarifai deployment logs deploy-abc123 --duration 60
+    """
+    validate_context(ctx)
+
+    from clarifai.errors import UserError
+    from clarifai.runners.models.model_deploy import get_deployment, stream_model_logs
+
+    user_id = ctx.obj.current.user_id
+    pat = ctx.obj.current.pat
+    base_url = ctx.obj.current.api_base
+
+    try:
+        dep = get_deployment(deployment_id, user_id=user_id, pat=pat, base_url=base_url)
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+    # Extract model/version/nodepool from deployment proto
+    model_id = app_id = model_version_id = None
+    compute_cluster_id = nodepool_id = None
+
+    w = dep.worker
+    if w and w.model:
+        model_id = w.model.id
+        user_id = w.model.user_id or user_id
+        app_id = w.model.app_id
+        if w.model.model_version and w.model.model_version.id:
+            model_version_id = w.model.model_version.id
+    if dep.nodepools:
+        np = dep.nodepools[0]
+        nodepool_id = np.id
+        if np.compute_cluster and np.compute_cluster.id:
+            compute_cluster_id = np.compute_cluster.id
+
+    # Map user-friendly names to API log_type values
+    api_log_type = {"model": "runner", "events": "runner.events"}[log_type.lower()]
+
+    try:
+        stream_model_logs(
+            model_id=model_id,
+            user_id=user_id,
+            app_id=app_id,
+            model_version_id=model_version_id,
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            pat=pat,
+            base_url=base_url,
+            follow=follow,
+            duration=duration,
+            log_type=api_log_type,
+        )
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
+
+
+@deployment.command(['rm'])
+@click.argument('deployment_id')
+@click.pass_context
+def delete(ctx, deployment_id):
+    """Delete a deployment.
+
+    \b
+    Examples:
+      clarifai deployment rm deploy-abc123
+    """
+    validate_context(ctx)
+
+    from clarifai.errors import UserError
+    from clarifai.runners.models.model_deploy import delete_deployment
+
+    try:
+        delete_deployment(
+            deployment_id,
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        click.echo(click.style(f"  Deployment '{deployment_id}' deleted.", fg="green"))
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)

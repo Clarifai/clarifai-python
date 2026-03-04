@@ -1,58 +1,15 @@
-import os
+"""Tests for model init with huggingface toolkit (embedded templates, no GitHub clone)."""
 
-"""Tests for model init with huggingface toolkit.
-
-These tests run fully offline by setting CLARIFAI_SKIP_GITHUB_LISTING so the
-command won't attempt to hit the GitHub contents API (which could rate-limit in CI).
-"""
 import yaml
 from click.testing import CliRunner
 
-import clarifai.cli.model as model_module
 from clarifai.cli.base import cli
 
 
 def test_model_init_huggingface_toolkit(monkeypatch, tmp_path):
-    """Happy path: model-name provided -> checkpoints.repo_id created and set."""
+    """Happy path: --model-name provided -> checkpoints.repo_id set, model.id sanitized."""
     runner = CliRunner()
     runner.invoke(cli, ["login", "--user_id", "test_user"])
-    called = {'clone': False, 'repo_url': None, 'branch': None}
-
-    def fake_clone(repo_url, clone_dir, github_pat, branch):
-        called['clone'] = True
-        called['repo_url'] = repo_url
-        called['branch'] = branch
-        version_dir = os.path.join(clone_dir, '1')
-        os.makedirs(version_dir, exist_ok=True)
-        # minimal model file (content should remain unchanged by huggingface customization)
-        with open(os.path.join(version_dir, 'model.py'), 'w') as f:
-            f.write('pass')
-        # config WITHOUT checkpoints so code path adds it
-        with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
-            f.write('model:\n  id: dummy\n')
-        with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
-            f.write('# none')
-        return True
-
-    # Stub remote folder listing instead of relying on env flags
-    monkeypatch.setattr(
-        model_module.GitHubDownloader,
-        'get_folder_contents',
-        lambda self, owner, repo, path, branch: [
-            {'name': '1', 'type': 'dir', 'path': '1'},
-            {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
-            {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
-        ],
-        raising=True,
-    )
-
-    # Patches
-    monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
-    monkeypatch.setattr(
-        model_module, 'check_requirements_installed', lambda path: True, raising=False
-    )
-    # Simulate pressing Enter for interactive confirmation
-    monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
     model_dir = tmp_path / 'hf_model'
     result = runner.invoke(
@@ -70,8 +27,6 @@ def test_model_init_huggingface_toolkit(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0, result.output
-    assert called['clone'] is True
-    assert called['repo_url'] is not None  # sanity that our fake saw a value
 
     cfg_path = model_dir / 'config.yaml'
     assert cfg_path.exists(), 'config.yaml not created'
@@ -80,57 +35,33 @@ def test_model_init_huggingface_toolkit(monkeypatch, tmp_path):
         'checkpoints section missing'
     )
     assert data['checkpoints']['repo_id'] == 'UnsLOTH/Llama-1B'
+    assert data['model']['id'] == 'llama-1b'
 
     model_py = model_dir / '1' / 'model.py'
     assert model_py.exists(), 'model.py missing'
-    assert model_py.read_text() == 'pass', 'model.py unexpectedly modified'
+    assert 'HuggingFaceModel' in model_py.read_text(), 'embedded hf model class missing'
+
+    requirements = model_dir / 'requirements.txt'
+    assert requirements.exists(), 'requirements.txt missing'
+    assert 'transformers' in requirements.read_text()
 
 
 def test_model_init_hf_no_model_name(monkeypatch, tmp_path):
-    """No --model-name: checkpoints section should NOT be added (mirrors current logic)."""
+    """No --model-name: default checkpoint from embedded template remains."""
     runner = CliRunner()
     runner.invoke(cli, ["login", "--user_id", "test_user"])
-    called = {'clone': False}
-
-    def fake_clone(repo_url, clone_dir, github_pat, branch):
-        called['clone'] = True
-        version_dir = os.path.join(clone_dir, '1')
-        os.makedirs(version_dir, exist_ok=True)
-        with open(os.path.join(version_dir, 'model.py'), 'w') as f:
-            f.write('pass')
-        with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
-            f.write('model:\n  id: dummy\n')
-        with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
-            f.write('# none')
-        return True
-
-    monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
-    monkeypatch.setattr(
-        model_module.GitHubDownloader,
-        'get_folder_contents',
-        lambda self, owner, repo, path, branch: [
-            {'name': '1', 'type': 'dir', 'path': '1'},
-            {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
-            {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
-        ],
-        raising=True,
-    )
-    monkeypatch.setattr(
-        model_module, 'check_requirements_installed', lambda path: True, raising=False
-    )
-    monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
     model_dir = tmp_path / 'hf_model2'
     result = runner.invoke(
         cli,
-        ['model', 'init', str(model_dir), '--toolkit', 'huggingface'],  # no --model-name
+        ['model', 'init', str(model_dir), '--toolkit', 'huggingface'],
         standalone_mode=False,
     )
 
     assert result.exit_code == 0, result.output
-    assert called['clone'] is True
 
     cfg_path = model_dir / 'config.yaml'
     data = yaml.safe_load(cfg_path.read_text())
-    assert 'checkpoints' not in data, 'checkpoints unexpectedly added without model-name'
+    assert 'checkpoints' in data
+    assert data['checkpoints']['repo_id'] == 'unsloth/Llama-3.2-1B-Instruct'
     assert (model_dir / '1' / 'model.py').exists()

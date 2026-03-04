@@ -50,7 +50,7 @@ setuptools.setup(
     },
     entry_points={
         "console_scripts": [
-            "clarifai = clarifai.cli.base:cli",
+            "clarifai = clarifai.cli.base:main",
         ],
     },
     include_package_data=True,
