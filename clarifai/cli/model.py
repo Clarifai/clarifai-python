@@ -1489,11 +1489,17 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
                 raise UserError(
                     "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
                 )
+            toolkit_model = config.get('toolkit', {}).get('model')
+            if toolkit_model and not os.environ.get('OLLAMA_MODEL_NAME'):
+                os.environ['OLLAMA_MODEL_NAME'] = toolkit_model
         elif toolkit == 'lmstudio':
             if not check_lmstudio_installed():
                 raise UserError(
                     "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
                 )
+            toolkit_model = config.get('toolkit', {}).get('model')
+            if toolkit_model and not os.environ.get('LMS_MODEL_NAME'):
+                os.environ['LMS_MODEL_NAME'] = toolkit_model
 
     # Get method signatures to generate test snippet
     use_mocking = mode in ("container", "env")
@@ -1760,11 +1766,19 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             raise UserError(
                 "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
             )
+        # Inject toolkit.model from config.yaml so model.py picks it up via OLLAMA_MODEL_NAME
+        toolkit_model = config.get('toolkit', {}).get('model')
+        if toolkit_model and not os.environ.get('OLLAMA_MODEL_NAME'):
+            os.environ['OLLAMA_MODEL_NAME'] = toolkit_model
     elif toolkit == 'lmstudio':
         if not check_lmstudio_installed():
             raise UserError(
                 "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
             )
+        # Inject toolkit.model from config.yaml so model.py picks it up via LMS_MODEL_NAME
+        toolkit_model = config.get('toolkit', {}).get('model')
+        if toolkit_model and not os.environ.get('LMS_MODEL_NAME'):
+            os.environ['LMS_MODEL_NAME'] = toolkit_model
 
     # Method signatures from ModelBuilder (same as upload/deploy).
     # Use mocking=False for "none" mode since requirements are verified installed.
