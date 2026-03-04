@@ -60,7 +60,7 @@ def _is_model_available(model_name):
     """Check if a model is already available locally in LM Studio."""
     try:
         result = subprocess.run(
-            "lms ls --json", shell=True, capture_output=True, text=True, timeout=10
+            "lms ls --json", shell=True, capture_output=True, text=True, timeout=10, check=False
         )
         if result.returncode == 0 and result.stdout.strip():
             models = json.loads(result.stdout)
@@ -76,7 +76,7 @@ def _is_model_loaded(model_name):
     """Check if a model is currently loaded in LM Studio."""
     try:
         result = subprocess.run(
-            "lms ps --json", shell=True, capture_output=True, text=True, timeout=10
+            "lms ps --json", shell=True, capture_output=True, text=True, timeout=10, check=False
         )
         if result.returncode == 0 and result.stdout.strip():
             models = json.loads(result.stdout)
