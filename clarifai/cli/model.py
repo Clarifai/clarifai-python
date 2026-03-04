@@ -1072,13 +1072,12 @@ def _print_deploy_result(result):
 
     out.phase_header("Next Steps")
     if timed_out:
-        # Prioritize status/logs/events when pod isn't ready
-        out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
-        out.hint("Logs", f'clarifai model logs --deployment "{result["deployment_id"]}"')
+        # Prioritize event logs when pod isn't ready (model logs will be empty)
         out.hint(
             "Events",
             f'clarifai model logs --deployment "{result["deployment_id"]}" --log-type events',
         )
+        out.hint("Status", f'clarifai model status --deployment "{result["deployment_id"]}"')
         out.hint("Predict", predict_cmd)
         out.link("Playground", playground_url)
     else:

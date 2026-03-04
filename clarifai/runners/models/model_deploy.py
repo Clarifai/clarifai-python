@@ -812,9 +812,8 @@ class ModelDeployer:
         out.status("    - Model is loading checkpoints into GPU memory")
         out.status("")
         out.status("  Check progress with:")
-        out.hint("Status", f'clarifai model status --deployment "{deployment_id}"')
-        out.hint("Logs", f'clarifai model logs --deployment "{deployment_id}"')
         out.hint("Events", f'clarifai model logs --deployment "{deployment_id}" --log-type events')
+        out.hint("Status", f'clarifai model status --deployment "{deployment_id}"')
 
         return True  # Timed out
 
