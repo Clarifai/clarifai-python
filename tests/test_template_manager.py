@@ -264,6 +264,39 @@ class TestYAMLSubstitution:
         custom_manager = TemplateManager('https://github.com/example/public-templates.git')
         assert custom_manager.git_repo_url == 'https://github.com/example/public-templates.git'
 
+    def test_default_git_repo_url(self):
+        """Test that the default URL is used when no argument and no env var are provided."""
+        env_var = TemplateManager.ENV_VAR_GIT_REPO_URL
+        original = os.environ.pop(env_var, None)
+        try:
+            manager = TemplateManager()
+            assert manager.git_repo_url == TemplateManager.DEFAULT_GIT_REPO_URL
+        finally:
+            if original is not None:
+                os.environ[env_var] = original
+
+    def test_git_repo_url_from_env_var(self):
+        """Test that the env var URL is used when no explicit argument is provided."""
+        env_var = TemplateManager.ENV_VAR_GIT_REPO_URL
+        custom_url = 'https://github.com/example/custom-templates.git'
+        os.environ[env_var] = custom_url
+        try:
+            manager = TemplateManager()
+            assert manager.git_repo_url == custom_url
+        finally:
+            os.environ.pop(env_var, None)
+
+    def test_explicit_url_overrides_env_var(self):
+        """Test that an explicitly passed URL takes precedence over the env var."""
+        env_var = TemplateManager.ENV_VAR_GIT_REPO_URL
+        os.environ[env_var] = 'https://github.com/example/env-templates.git'
+        explicit_url = 'https://github.com/example/explicit-templates.git'
+        try:
+            manager = TemplateManager(explicit_url)
+            assert manager.git_repo_url == explicit_url
+        finally:
+            os.environ.pop(env_var, None)
+
     def test_dynamic_parameter_handling(self):
         """Test that substitution works with any template-specific parameters."""
         manager = TemplateManager()
