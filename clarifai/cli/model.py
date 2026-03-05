@@ -657,9 +657,12 @@ def init(
         logger.error("--model-name can only be used with --toolkit")
         raise click.Abort()
 
-    # Resolve model_path: explicit > derived from model-name > current dir
+    # Resolve model_path: explicit > current dir (if already init'd) > derived from model-name > current dir
     if model_path is None:
-        if model_name:
+        if os.path.exists(os.path.join(".", "config.yaml")):
+            # Current directory is already an initialized model — update in place
+            model_path = "."
+        elif model_name:
             # "Qwen/Qwen3-0.6B" -> "./Qwen3-0.6B"
             model_path = model_name.split('/')[-1]
         else:
@@ -1486,11 +1489,17 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
                 raise UserError(
                     "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
                 )
+            toolkit_model = config.get('toolkit', {}).get('model')
+            if toolkit_model and not os.environ.get('OLLAMA_MODEL_NAME'):
+                os.environ['OLLAMA_MODEL_NAME'] = toolkit_model
         elif toolkit == 'lmstudio':
             if not check_lmstudio_installed():
                 raise UserError(
                     "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
                 )
+            toolkit_model = config.get('toolkit', {}).get('model')
+            if toolkit_model and not os.environ.get('LMS_MODEL_NAME'):
+                os.environ['LMS_MODEL_NAME'] = toolkit_model
 
     # Get method signatures to generate test snippet
     use_mocking = mode in ("container", "env")
@@ -1757,11 +1766,19 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             raise UserError(
                 "Ollama is not installed. Install from https://ollama.com/ to use the Ollama toolkit."
             )
+        # Inject toolkit.model from config.yaml so model.py picks it up via OLLAMA_MODEL_NAME
+        toolkit_model = config.get('toolkit', {}).get('model')
+        if toolkit_model and not os.environ.get('OLLAMA_MODEL_NAME'):
+            os.environ['OLLAMA_MODEL_NAME'] = toolkit_model
     elif toolkit == 'lmstudio':
         if not check_lmstudio_installed():
             raise UserError(
                 "LM Studio is not installed. Install from https://lmstudio.com/ to use the LM Studio toolkit."
             )
+        # Inject toolkit.model from config.yaml so model.py picks it up via LMS_MODEL_NAME
+        toolkit_model = config.get('toolkit', {}).get('model')
+        if toolkit_model and not os.environ.get('LMS_MODEL_NAME'):
+            os.environ['LMS_MODEL_NAME'] = toolkit_model
 
     # Method signatures from ModelBuilder (same as upload/deploy).
     # Use mocking=False for "none" mode since requirements are verified installed.
