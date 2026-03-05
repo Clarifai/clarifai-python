@@ -220,6 +220,10 @@ def resolve_user_id(pat=None, base_url=None):
     1. CLI config file (~/.config/clarifai/config) current context's CLARIFAI_USER_ID
     2. API call using PAT: GET /v2/users/me
 
+    If user_id comes from CLI config, we validate it against the PAT by calling
+    /v2/users/me. If the PAT belongs to a different user, we warn and use the
+    PAT's actual user instead, avoiding cryptic CONN_DOES_NOT_EXIST errors.
+
     Args:
         pat: Optional PAT for API auth (used for API fallback).
         base_url: Optional API base URL (used for API fallback).
@@ -227,17 +231,51 @@ def resolve_user_id(pat=None, base_url=None):
     Returns:
         str or None: The resolved user_id, or None if resolution fails.
     """
+    pat_user_id = _get_user_id_from_pat(pat=pat, base_url=base_url)
+
     # 1. Try CLI config file
+    config_user_id = None
+    config_context_name = None
     try:
         config = Config.from_yaml()
-        user_id = config.current.get('user_id')
-        if user_id and user_id != '_empty_':
-            logger.debug(f"Resolved user_id from CLI config: {user_id}")
-            return user_id
+        config_user_id = config.current.get('user_id')
+        config_context_name = config.context_override or config.current_context
+        if not config_user_id or config_user_id == '_empty_':
+            config_user_id = None
     except Exception:
         pass
 
-    # 2. Try API call using PAT
+    if config_user_id:
+        # Validate that the PAT actually has access to this user
+        if pat_user_id and pat_user_id != config_user_id:
+            logger.warning(
+                f"PAT belongs to user '{pat_user_id}' but CLI config context "
+                f"'{config_context_name}' has user_id '{config_user_id}'. "
+                f"Using PAT's user '{pat_user_id}'. To fix this, either:\n"
+                f"  - Switch config context: clarifai config use <context-name>\n"
+                f"  - Set user_id in config.yaml\n"
+                f"  - Set the correct PAT for user '{config_user_id}'"
+            )
+            return pat_user_id
+        logger.debug(
+            f"Resolved user_id from CLI config (context '{config_context_name}'): {config_user_id}"
+        )
+        return config_user_id
+
+    # 2. Fall back to PAT-based resolution
+    if pat_user_id:
+        logger.debug(f"Resolved user_id from API (PAT owner): {pat_user_id}")
+        return pat_user_id
+
+    return None
+
+
+def _get_user_id_from_pat(pat=None, base_url=None):
+    """Get the user_id that owns the given PAT via /v2/users/me.
+
+    Returns:
+        str or None: The user_id of the PAT owner, or None if the call fails.
+    """
     try:
         from clarifai.client.user import User
 
@@ -249,9 +287,7 @@ def resolve_user_id(pat=None, base_url=None):
         user = User(**kwargs)
         user_id = user.get_user_info(user_id='me').user.id
         if user_id:
-            logger.debug(f"Resolved user_id from API: {user_id}")
             return user_id
     except Exception as e:
-        logger.debug(f"Failed to resolve user_id from API: {e}")
-
+        logger.debug(f"Failed to resolve user_id from PAT: {e}")
     return None
