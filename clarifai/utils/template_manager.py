@@ -15,13 +15,22 @@ from clarifai.utils.logging import logger
 class TemplateManager:
     """Manages pipeline templates from remote public Git repository."""
 
-    def __init__(self, git_repo_url: str = "https://github.com/Clarifai/pipeline-examples.git"):
+    DEFAULT_GIT_REPO_URL = "https://github.com/Clarifai/pipeline-examples.git"
+    ENV_VAR_GIT_REPO_URL = "CLARIFAI_PIPELINE_TEMPLATES_GIT_REPO_URL"
+
+    def __init__(self, git_repo_url: Optional[str] = None):
         """Initialize template manager with Git repository.
 
         Args:
-            git_repo_url: URL of the public Git repository containing templates
+            git_repo_url: URL of the public Git repository containing templates.
+                If not provided, the value of the environment variable
+                ``CLARIFAI_PIPELINE_TEMPLATES_GIT_REPO_URL`` is used. When that
+                variable is also absent the default
+                ``https://github.com/Clarifai/pipeline-examples.git`` is used.
         """
-        self.git_repo_url = git_repo_url
+        self.git_repo_url = (
+            git_repo_url or os.environ.get(self.ENV_VAR_GIT_REPO_URL) or self.DEFAULT_GIT_REPO_URL
+        )
 
     def _shallow_clone_repo(self, target_dir: str) -> bool:
         """Perform a shallow clone of the public repository.
