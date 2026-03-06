@@ -574,9 +574,16 @@ class ModelBuilder:
                 try:
                     ici = get_inference_compute_for_gpu(instance)
                     # Always use wildcard accelerator_type so the model can be scheduled
-                    # on any compatible NVIDIA GPU, not locked to a specific type.
+                    # on any compatible GPU, not locked to a specific type.
                     if ici.get('num_accelerators', 0) > 0:
-                        ici['accelerator_type'] = ['NVIDIA-*']
+                        from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+                        ici['accelerator_type'] = [
+                            get_accelerator_wildcard(
+                                instance_type_id=instance,
+                                accelerator_types=ici.get('accelerator_type'),
+                            )
+                        ]
                     config['inference_compute_info'] = ici
                 except ValueError:
                     logger.debug(

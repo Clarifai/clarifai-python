@@ -292,7 +292,15 @@ class ModelDeployer:
                 self.instance_type, pat=self.pat, base_url=self.base_url
             )
             if ici.get('num_accelerators', 0) > 0:
-                ici.setdefault('accelerator_type', ['NVIDIA-*'])
+                from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+                wildcard = get_accelerator_wildcard(
+                    instance_type_id=self._gpu_preset.get("instance_type_id")
+                    if self._gpu_preset
+                    else None,
+                    accelerator_types=ici.get('accelerator_type'),
+                )
+                ici.setdefault('accelerator_type', [wildcard])
             self._builder.config['inference_compute_info'] = ici
             self._builder.inference_compute_info = self._builder._get_inference_compute_info()
 
@@ -515,7 +523,18 @@ class ModelDeployer:
         # Build a ComputeInfo that preserves the existing accelerator_type
         # (the API rejects changes to accelerator_type) while updating
         # num_accelerators and accelerator_memory.
-        existing_acc_type = list(model_compute.accelerator_type) if model_compute else ["NVIDIA-*"]
+        if model_compute and model_compute.accelerator_type:
+            existing_acc_type = list(model_compute.accelerator_type)
+        else:
+            from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+            wildcard = get_accelerator_wildcard(
+                instance_type_id=self._gpu_preset.get("instance_type_id")
+                if self._gpu_preset
+                else None,
+                accelerator_types=instance_compute.get("accelerator_type"),
+            )
+            existing_acc_type = [wildcard]
         patch_compute = resources_pb2.ComputeInfo(
             num_accelerators=instance_compute.get("num_accelerators", 0),
             accelerator_memory=instance_compute.get("accelerator_memory", ""),
@@ -555,6 +574,47 @@ class ModelDeployer:
 
         return cloud, region
 
+    def _validate_nodepool_instance_type(self, compute_cluster_id, nodepool_id):
+        """Validate that the specified instance type exists in the given nodepool.
+
+        Raises UserError if the instance type is not found in the nodepool.
+        """
+        from clarifai.client.compute_cluster import ComputeCluster
+
+        suppress = not self.verbose
+        gpu_preset = self._resolve_gpu()
+        if not gpu_preset:
+            return
+
+        instance_type_id = gpu_preset["instance_type_id"]
+
+        with _quiet_sdk_logger(suppress):
+            cc = ComputeCluster(
+                compute_cluster_id=compute_cluster_id,
+                user_id=self.user_id,
+                pat=self.pat,
+                base_url=self.base_url,
+            )
+            try:
+                np = cc.nodepool(nodepool_id)
+            except Exception:
+                raise UserError(
+                    f"Nodepool '{nodepool_id}' not found in compute cluster '{compute_cluster_id}'."
+                )
+
+        # Get instance type IDs from the nodepool
+        np_instance_types = list(np.instance_types)
+        np_instance_ids = [it.id for it in np_instance_types]
+
+        if instance_type_id not in np_instance_ids:
+            available = ", ".join(np_instance_ids) if np_instance_ids else "(none)"
+            raise UserError(
+                f"Instance type '{instance_type_id}' is not available in nodepool '{nodepool_id}'.\n"
+                f"  Available instance types: {available}\n"
+                f"  Either use one of the available types with --instance, or omit --nodepool-id "
+                f"to auto-create infrastructure."
+            )
+
     def _ensure_compute_infrastructure(self):
         """Auto-create compute cluster and nodepool if needed.
 
@@ -562,6 +622,8 @@ class ModelDeployer:
             tuple: (compute_cluster_id, nodepool_id, cluster_user_id)
         """
         if self.nodepool_id and self.compute_cluster_id:
+            if self.instance_type:
+                self._validate_nodepool_instance_type(self.compute_cluster_id, self.nodepool_id)
             return self.compute_cluster_id, self.nodepool_id, self.user_id
 
         from clarifai.client.user import User
@@ -589,6 +651,8 @@ class ModelDeployer:
         # Determine nodepool ID
         if self.nodepool_id:
             np_id = self.nodepool_id
+            if self.instance_type:
+                self._validate_nodepool_instance_type(cc_id, np_id)
         else:
             instance_type_id = gpu_preset["instance_type_id"] if gpu_preset else "cpu-t3a-2xlarge"
             np_id = get_deploy_nodepool_id(instance_type_id)

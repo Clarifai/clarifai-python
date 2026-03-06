@@ -795,7 +795,6 @@ def init(
         inferred_type = infer_model_type_from_hf(hf_info)
         if inferred_type:
             config.setdefault('model', {})['model_type_id'] = inferred_type
-            click.echo(f"  Model type: {inferred_type}")
 
         # Instance recommendation (pass pre-fetched hf_info to avoid re-fetch)
         recommended, reason = recommend_instance(
@@ -825,7 +824,6 @@ def init(
                 config = from_yaml(config_path)
                 config.setdefault('model', {})['model_type_id'] = toolkit_type
                 dump_yaml(config, config_path)
-                click.echo(f"  Model type: {toolkit_type}")
 
     # Set streaming_video_consumer in config if --streaming-video flag is used
     if streaming_video:

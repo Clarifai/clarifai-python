@@ -17,6 +17,7 @@ from clarifai.utils.compute_presets import (
     _get_hf_model_config,
     _get_hf_token,
     _select_instance_by_vram,
+    get_accelerator_wildcard,
     get_compute_cluster_config,
     get_deploy_compute_cluster_id,
     get_deploy_nodepool_id,
@@ -2646,3 +2647,149 @@ class TestKVCacheEstimation:
         assert inst_id == "gpu-nvidia-a10g"
         assert "KV cache" in reason
         assert "40960 ctx" in reason
+
+
+class TestNodepoolInstanceTypeValidation:
+    """Test validation of instance type against nodepool's available instance types."""
+
+    def _make_deployer(self, **kwargs):
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        defaults = dict(
+            model_url="https://clarifai.com/user/app/models/test-model",
+            user_id="test-user",
+            instance_type="a10g",
+            compute_cluster_id="cc-1",
+            nodepool_id="np-1",
+            pat="test-pat",
+            base_url="https://api.clarifai.com",
+        )
+        defaults.update(kwargs)
+        return ModelDeployer(**defaults)
+
+    def _mock_nodepool(self, instance_type_ids):
+        """Create a mock nodepool with given instance type IDs."""
+        from unittest.mock import MagicMock
+
+        np = MagicMock()
+        instance_types = []
+        for it_id in instance_type_ids:
+            it = MagicMock()
+            it.id = it_id
+            instance_types.append(it)
+        np.instance_types = instance_types
+        return np
+
+    def test_valid_instance_type_passes(self):
+        """No error when instance type exists in nodepool."""
+        from unittest.mock import MagicMock, patch
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-a10g", "gpu-nvidia-l40s"])
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            # Should not raise
+            deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_invalid_instance_type_raises(self):
+        """UserError when instance type is not in nodepool."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-l40s"])
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="not available in nodepool"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_error_message_lists_available_types(self):
+        """Error message includes available instance types."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(
+            ["gpu-nvidia-l40s", "gpu-nvidia-g6e-2x-large"]
+        )
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="gpu-nvidia-l40s"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_nodepool_not_found_raises(self):
+        """UserError when nodepool doesn't exist."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.side_effect = Exception("not found")
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="not found in compute cluster"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_no_instance_type_skips_validation(self):
+        """When no instance type specified, validation is skipped."""
+        deployer = self._make_deployer(instance_type=None)
+        deployer._gpu_preset = None
+        # Should not raise — no validation needed
+        deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+
+class TestAcceleratorWildcard:
+    """Test accelerator wildcard detection for NVIDIA vs AMD instances."""
+
+    def test_nvidia_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-nvidia-a10g") == "NVIDIA-*"
+
+    def test_amd_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-amd-mi300x") == "AMD-*"
+
+    def test_amd_mi250_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-amd-mi250") == "AMD-*"
+
+    def test_amd_accelerator_types(self):
+        assert get_accelerator_wildcard(accelerator_types=["AMD-MI300X"]) == "AMD-*"
+
+    def test_nvidia_accelerator_types(self):
+        assert get_accelerator_wildcard(accelerator_types=["NVIDIA-A10G"]) == "NVIDIA-*"
+
+    def test_no_info_defaults_to_nvidia(self):
+        assert get_accelerator_wildcard() == "NVIDIA-*"
+
+    def test_accelerator_types_takes_precedence(self):
+        """accelerator_types from API should take precedence over instance_type_id."""
+        assert (
+            get_accelerator_wildcard(
+                instance_type_id="gpu-nvidia-a10g", accelerator_types=["AMD-MI300X"]
+            )
+            == "AMD-*"
+        )

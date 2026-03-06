@@ -270,6 +270,27 @@ def _normalize_gpu_name(gpu_name):
     return name.upper()
 
 
+def get_accelerator_wildcard(instance_type_id=None, accelerator_types=None):
+    """Determine the correct accelerator wildcard pattern based on instance type or existing accelerator types.
+
+    Args:
+        instance_type_id: Instance type ID (e.g. 'gpu-nvidia-a10g', 'gpu-amd-mi300x').
+        accelerator_types: Existing accelerator_type list from a preset or API response.
+
+    Returns:
+        str: 'AMD-*' for AMD instances, 'NVIDIA-*' otherwise.
+    """
+    if accelerator_types:
+        for acc in accelerator_types:
+            if isinstance(acc, str) and acc.upper().startswith("AMD"):
+                return "AMD-*"
+    if instance_type_id:
+        lower = instance_type_id.lower()
+        if "amd" in lower or "mi300" in lower or "mi250" in lower:
+            return "AMD-*"
+    return "NVIDIA-*"
+
+
 def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=None):
     """Resolve a GPU/instance type name to its full preset info.
 
