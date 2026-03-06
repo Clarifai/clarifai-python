@@ -15,12 +15,12 @@ from clarifai.utils.compute_presets import (
     _estimate_vram_bytes,
     _estimate_weight_bytes,
     _get_hf_model_config,
-    _get_hf_model_info,
     _get_hf_token,
     _select_instance_by_vram,
     get_compute_cluster_config,
     get_deploy_compute_cluster_id,
     get_deploy_nodepool_id,
+    get_hf_model_info,
     get_inference_compute_for_gpu,
     get_nodepool_config,
     infer_gpu_from_config,
@@ -1592,7 +1592,7 @@ class TestDeployModelQuiet:
 class TestRecommendInstance:
     """Test auto-selection of GPU instance based on model size."""
 
-    def test_get_hf_model_info_success(self):
+    def testget_hf_model_info_success(self):
         """Parses safetensors.total and config from mocked HF API."""
         from unittest.mock import MagicMock, patch
 
@@ -1607,14 +1607,14 @@ class TestRecommendInstance:
             "pipeline_tag": "text-generation",
         }
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("meta-llama/Llama-3-8B")
+            info = get_hf_model_info("meta-llama/Llama-3-8B")
         assert info is not None
         assert info["num_params"] == 7_000_000_000
         assert info["dtype_breakdown"] == {"BF16": 7_000_000_000}
         assert info["pipeline_tag"] == "text-generation"
         assert info["quant_method"] is None
 
-    def test_get_hf_model_info_with_quantization(self):
+    def testget_hf_model_info_with_quantization(self):
         """Detects AWQ quantization from API response."""
         from unittest.mock import MagicMock, patch
 
@@ -1625,28 +1625,28 @@ class TestRecommendInstance:
             "config": {"quantization_config": {"quant_method": "awq", "bits": 4}},
         }
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("some/model-awq")
+            info = get_hf_model_info("some/model-awq")
         assert info["quant_method"] == "awq"
         assert info["quant_bits"] == 4
 
-    def test_get_hf_model_info_api_failure(self):
+    def testget_hf_model_info_api_failure(self):
         """Returns None when API fails."""
         from unittest.mock import patch
 
         with patch(
             "clarifai.utils.compute_presets.requests.get", side_effect=Exception("timeout")
         ):
-            info = _get_hf_model_info("nonexistent/model")
+            info = get_hf_model_info("nonexistent/model")
         assert info is None
 
-    def test_get_hf_model_info_no_safetensors(self):
+    def testget_hf_model_info_no_safetensors(self):
         """Returns num_params=None when safetensors field missing."""
         from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"config": {}, "pipeline_tag": "text-generation"}
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("some/old-model")
+            info = get_hf_model_info("some/old-model")
         assert info is not None
         assert info["num_params"] is None
 
@@ -1806,7 +1806,7 @@ class TestRecommendInstance:
             "checkpoints": {"repo_id": "some/model"},
         }
         with patch(
-            "clarifai.utils.compute_presets._get_hf_model_info",
+            "clarifai.utils.compute_presets.get_hf_model_info",
             return_value={
                 "num_params": None,
                 "quant_method": None,
@@ -1835,7 +1835,7 @@ class TestRecommendInstance:
             "model": {"model_type_id": "any-to-any"},
             "checkpoints": {"repo_id": "nonexistent/model"},
         }
-        with patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=None):
+        with patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=None):
             with patch(
                 "clarifai.runners.utils.loader.HuggingFaceLoader.get_huggingface_checkpoint_total_size",
                 return_value=0,
@@ -1883,7 +1883,7 @@ class TestRecommendInstance:
         small_vram = {"num_params": 600_000_000}  # ~3 GiB, fits T4
 
         with (
-            patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram),
+            patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=small_vram),
             patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
             patch(
                 "clarifai.utils.compute_presets._try_list_all_instance_types",
@@ -1928,9 +1928,7 @@ class TestRecommendInstance:
                 f.write("sglang\nclarifai\n")
 
             with (
-                patch(
-                    "clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram
-                ),
+                patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=small_vram),
                 patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
                 patch(
                     "clarifai.utils.compute_presets._try_list_all_instance_types",
@@ -2496,7 +2494,7 @@ class TestKVCacheEstimation:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ),
         ):
-            # First call: _get_hf_model_info (HF API)
+            # First call: get_hf_model_info (HF API)
             # Second call: _get_hf_model_config (config.json)
             mock_config_resp = MagicMock()
             mock_config_resp.json.return_value = {
@@ -2598,7 +2596,7 @@ class TestKVCacheEstimation:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ),
         ):
-            # First call: _get_hf_model_info succeeds
+            # First call: get_hf_model_info succeeds
             # Second call: _get_hf_model_config fails (gated)
             mock_config_fail = MagicMock()
             mock_config_fail.raise_for_status.side_effect = requests.exceptions.HTTPError("403")
@@ -2621,7 +2619,7 @@ class TestKVCacheEstimation:
         }
         with (
             patch(
-                "clarifai.utils.compute_presets._get_hf_model_info",
+                "clarifai.utils.compute_presets.get_hf_model_info",
                 return_value={
                     "num_params": None,
                     "quant_method": None,

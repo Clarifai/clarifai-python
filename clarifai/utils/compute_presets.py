@@ -521,7 +521,7 @@ def list_gpu_presets(
     return header + table + example
 
 
-def _get_hf_model_info(repo_id):
+def get_hf_model_info(repo_id):
     """Fetch model metadata from HuggingFace API.
 
     Returns dict with: num_params, quant_method, quant_bits, dtype_breakdown, pipeline_tag.
@@ -560,6 +560,59 @@ def _get_hf_model_info(repo_id):
         result["quant_bits"] = quant_config.get("bits")
 
     return result
+
+
+# HuggingFace pipeline_tag → Clarifai model_type_id mapping
+HF_PIPELINE_TAG_TO_MODEL_TYPE = {
+    'text-generation': 'text-to-text',
+    'text2text-generation': 'text-to-text',
+    'conversational': 'text-to-text',
+    'image-text-to-text': 'multimodal-to-text',
+    'visual-question-answering': 'multimodal-to-text',
+    'image-classification': 'visual-classifier',
+    'object-detection': 'visual-detector',
+    'image-segmentation': 'visual-segmenter',
+    'mask-generation': 'visual-segmenter',
+    'text-classification': 'text-classifier',
+    'sentiment-analysis': 'text-classifier',
+    'zero-shot-classification': 'text-classifier',
+    'feature-extraction': 'text-embedder',
+    'sentence-similarity': 'text-embedder',
+    'image-feature-extraction': 'visual-embedder',
+    'text-to-image': 'text-to-image',
+    'automatic-speech-recognition': 'multimodal-to-text',
+}
+
+# Toolkit → default Clarifai model_type_id (used when HF info is unavailable).
+# Most toolkits (vllm, sglang, etc.) can serve both text-to-text and multimodal-to-text,
+# so they default to any-to-any. HF pipeline_tag or class introspection resolves the actual type.
+TOOLKIT_MODEL_TYPE_MAP = {
+    'vllm': 'any-to-any',
+    'sglang': 'any-to-any',
+    'huggingface': 'any-to-any',
+    'ollama': 'any-to-any',
+    'lmstudio': 'any-to-any',
+    'openai': 'any-to-any',
+    'mcp': 'mcp',
+    'python': 'any-to-any',
+}
+
+
+def infer_model_type_from_hf(hf_info):
+    """Map HuggingFace model info to a Clarifai model_type_id.
+
+    Args:
+        hf_info: Dict from get_hf_model_info() (must contain 'pipeline_tag').
+
+    Returns:
+        Clarifai model_type_id string, or None if unmappable.
+    """
+    if not hf_info:
+        return None
+    pipeline_tag = hf_info.get('pipeline_tag')
+    if not pipeline_tag:
+        return None
+    return HF_PIPELINE_TAG_TO_MODEL_TYPE.get(pipeline_tag)
 
 
 def _detect_quant_from_repo_name(repo_id):
@@ -905,7 +958,9 @@ def _detect_toolkit_from_config(config, model_path=None):
     return ''
 
 
-def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path=None):
+def recommend_instance(
+    config, pat=None, base_url=None, toolkit=None, model_path=None, hf_info=None
+):
     """Recommend instance type based on model config.
 
     Args:
@@ -915,6 +970,8 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
         toolkit: Explicit toolkit name (e.g. 'vllm', 'sglang'). If not provided,
             detected from build_info.image or requirements.txt.
         model_path: Path to model directory (for requirements.txt-based toolkit detection).
+        hf_info: Pre-fetched HuggingFace model info dict (from get_hf_model_info).
+            If None, will be fetched automatically when needed.
 
     Returns (instance_type_id, reason) or (None, reason).
     """
@@ -946,7 +1003,7 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
     hf_token = _get_hf_token(config) if toolkit in ('vllm', 'sglang') else None
 
     # Try HF metadata API for parameter count + quantization
-    hf_info = _get_hf_model_info(repo_id)
+    hf_info = hf_info or get_hf_model_info(repo_id)
     num_params = hf_info.get("num_params") if hf_info else None
 
     if num_params:

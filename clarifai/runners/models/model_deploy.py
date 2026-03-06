@@ -279,10 +279,8 @@ class ModelDeployer:
         with _quiet_sdk_logger(suppress):
             if checkpoint_when and checkpoint_when != 'runtime':
                 self._builder.download_checkpoints(stage=self.stage)
-            if has_dockerfile:
-                pass  # Use existing
-            else:
-                self._builder.create_dockerfile(generate_dockerfile=True)
+            # Create Dockerfile if missing, or warn if existing one differs from config
+            self._builder.create_dockerfile()
 
         # Resolve inference_compute_info from --instance flag.
         # Always override when --instance is provided, even if normalize_config

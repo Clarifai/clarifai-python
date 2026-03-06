@@ -567,6 +567,10 @@ def _print_init_success(model_path, toolkit, instance=None):
     if toolkit in ('python', 'mcp', 'openai', None):
         click.echo("  1. Edit 1/model.py with your model logic")
         click.echo("  2. Add dependencies to requirements.txt")
+        click.echo("  3. Customize Dockerfile if needed (auto-regenerated on upload if deleted)")
+        click.echo()
+    else:
+        click.echo("  Customize Dockerfile if needed (auto-regenerated on upload if deleted)")
         click.echo()
     click.echo("  Test locally:")
     click.echo(f"    clarifai model serve {model_path}")
@@ -607,12 +611,19 @@ def _print_init_success(model_path, toolkit, instance=None):
     required=False,
     help='Model checkpoint (HF repo_id or ollama tag). Auto-creates directory from name.',
 )
+@click.option(
+    '--streaming-video',
+    is_flag=True,
+    default=False,
+    help='Enable streaming video consumer (adds ffmpeg/av to Dockerfile).',
+)
 @click.pass_context
 def init(
     ctx,
     model_path,
     toolkit,
     model_name,
+    streaming_video,
 ):
     """Scaffold a new model project with a specific toolkit like vLLM, SGLang, HuggingFace, Ollama, etc.
 
@@ -750,30 +761,94 @@ def init(
         if os.path.exists(config_path):
             logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            config_model_type_id = model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+            from clarifai.utils.compute_presets import TOOLKIT_MODEL_TYPE_MAP
+
+            config_model_type_id = TOOLKIT_MODEL_TYPE_MAP.get(
+                toolkit, model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+            )
             with open(config_path, 'w') as f:
                 f.write(get_config_template(model_type_id=config_model_type_id, model_id=model_id))
             logger.info(f"Created {config_path}")
 
-    # Auto-select instance based on model size when --model-name is provided
+    # Auto-detect model_type_id and instance from HuggingFace when --model-name is provided
     resolved_instance = None
-    if model_name and toolkit in ('vllm', 'sglang', 'huggingface'):
-        config_path = os.path.join(model_path, "config.yaml")
-        if os.path.exists(config_path):
-            from clarifai.utils.cli import dump_yaml, from_yaml
-            from clarifai.utils.compute_presets import recommend_instance
+    config_path = os.path.join(model_path, "config.yaml")
+    if model_name and toolkit in ('vllm', 'sglang', 'huggingface') and os.path.exists(config_path):
+        from clarifai.utils.cli import dump_yaml, from_yaml
+        from clarifai.utils.compute_presets import (
+            TOOLKIT_MODEL_TYPE_MAP,
+            get_hf_model_info,
+            infer_model_type_from_hf,
+            recommend_instance,
+        )
 
-            pat_val = getattr(ctx.obj.current, 'pat', None)
-            base_url_val = getattr(ctx.obj.current, 'api_base', None)
-            config = from_yaml(config_path)
-            recommended, reason = recommend_instance(
-                config, pat=pat_val, base_url=base_url_val, toolkit=toolkit, model_path=model_path
-            )
-            if recommended:
-                config.setdefault('compute', {})['instance'] = recommended
+        pat_val = getattr(ctx.obj.current, 'pat', None)
+        base_url_val = getattr(ctx.obj.current, 'api_base', None)
+        config = from_yaml(config_path)
+
+        # Fetch HF model info once — used for both model_type_id and instance sizing
+        checkpoints = config.get('checkpoints', {})
+        repo_id = checkpoints.get('repo_id') if checkpoints else None
+        hf_info = get_hf_model_info(repo_id) if repo_id else None
+
+        # Infer model_type_id from HF pipeline_tag
+        inferred_type = infer_model_type_from_hf(hf_info)
+        if inferred_type:
+            config.setdefault('model', {})['model_type_id'] = inferred_type
+            click.echo(f"  Model type: {inferred_type}")
+
+        # Instance recommendation (pass pre-fetched hf_info to avoid re-fetch)
+        recommended, reason = recommend_instance(
+            config,
+            pat=pat_val,
+            base_url=base_url_val,
+            toolkit=toolkit,
+            model_path=model_path,
+            hf_info=hf_info,
+        )
+        if recommended:
+            config.setdefault('compute', {})['instance'] = recommended
+            click.echo(f"  Instance: {recommended} ({reason})")
+            resolved_instance = recommended
+
+        dump_yaml(config, config_path)
+    else:
+        # Toolkit-based model_type_id fallback (no HF model info available)
+        from clarifai.utils.compute_presets import TOOLKIT_MODEL_TYPE_MAP
+
+        toolkit_type = TOOLKIT_MODEL_TYPE_MAP.get(toolkit) if toolkit else None
+        if toolkit_type and toolkit_type != 'any-to-any':
+            from clarifai.utils.cli import dump_yaml, from_yaml
+
+            config_path = os.path.join(model_path, "config.yaml")
+            if os.path.exists(config_path):
+                config = from_yaml(config_path)
+                config.setdefault('model', {})['model_type_id'] = toolkit_type
                 dump_yaml(config, config_path)
-                click.echo(f"  Instance: {recommended} ({reason})")
-                resolved_instance = recommended
+                click.echo(f"  Model type: {toolkit_type}")
+
+    # Set streaming_video_consumer in config if --streaming-video flag is used
+    if streaming_video:
+        from clarifai.utils.cli import dump_yaml, from_yaml
+
+        config_path = os.path.join(model_path, "config.yaml")
+        config = from_yaml(config_path)
+        config['streaming_video_consumer'] = True
+        dump_yaml(config, config_path)
+        logger.info("Enabled streaming_video_consumer in config.yaml")
+
+    # Generate Dockerfile so engineers can customize it before upload/deploy
+    dockerfile_path = os.path.join(model_path, "Dockerfile")
+    if os.path.exists(dockerfile_path):
+        logger.warning(f"File {dockerfile_path} already exists, skipping...")
+    else:
+        from clarifai.runners.models.model_builder import generate_dockerfile
+
+        dockerfile_content = generate_dockerfile(model_path)
+        if dockerfile_content:
+            with open(dockerfile_path, 'w') as f:
+                f.write(dockerfile_content)
+            logger.info(f"Created {dockerfile_path}")
 
     _print_init_success(model_path, toolkit, instance=resolved_instance)
 
@@ -1550,8 +1625,9 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            # Create Dockerfile if missing, or warn if existing one differs from config
             with _quiet_sdk_logger(suppress):
-                manager.builder.create_dockerfile(generate_dockerfile=True)
+                manager.builder.create_dockerfile()
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
@@ -2030,8 +2106,9 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            # Create Dockerfile if missing, or warn if existing one differs from config
             with _quiet_sdk_logger(suppress):
-                manager.builder.create_dockerfile(generate_dockerfile=True)
+                manager.builder.create_dockerfile()
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
