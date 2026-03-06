@@ -567,6 +567,10 @@ def _print_init_success(model_path, toolkit, instance=None):
     if toolkit in ('python', 'mcp', 'openai', None):
         click.echo("  1. Edit 1/model.py with your model logic")
         click.echo("  2. Add dependencies to requirements.txt")
+        click.echo("  3. Customize Dockerfile if needed (auto-regenerated on upload if deleted)")
+        click.echo()
+    else:
+        click.echo("  Customize Dockerfile if needed (auto-regenerated on upload if deleted)")
         click.echo()
     click.echo("  Test locally:")
     click.echo(f"    clarifai model serve {model_path}")
@@ -607,12 +611,19 @@ def _print_init_success(model_path, toolkit, instance=None):
     required=False,
     help='Model checkpoint (HF repo_id or ollama tag). Auto-creates directory from name.',
 )
+@click.option(
+    '--streaming-video',
+    is_flag=True,
+    default=False,
+    help='Enable streaming video consumer (adds ffmpeg/av to Dockerfile).',
+)
 @click.pass_context
 def init(
     ctx,
     model_path,
     toolkit,
     model_name,
+    streaming_video,
 ):
     """Scaffold a new model project with a specific toolkit like vLLM, SGLang, HuggingFace, Ollama, etc.
 
@@ -654,7 +665,7 @@ def init(
 
     # Validate option combinations
     if model_name and not toolkit:
-        logger.error("--model-name can only be used with --toolkit")
+        click.echo(click.style("Error: --model-name can only be used with --toolkit", fg="red"))
         raise click.Abort()
 
     # Resolve model_path: explicit > current dir (if already init'd) > derived from model-name > current dir
@@ -684,15 +695,19 @@ def init(
     if toolkit in EMBEDDED_TOOLKITS:
         # Pre-flight checks for local server toolkits
         if toolkit == 'ollama' and not check_ollama_installed():
-            logger.error("Ollama is not installed. Please install it from https://ollama.com/")
+            click.echo(
+                click.style("Error: ", fg="red")
+                + "Ollama is not installed. Please install it from https://ollama.com/"
+            )
             raise click.Abort()
         if toolkit == 'lmstudio' and not check_lmstudio_installed():
-            logger.error(
-                "LM Studio is not installed. Please install it from https://lmstudio.com/"
+            click.echo(
+                click.style("Error: ", fg="red")
+                + "LM Studio is not installed. Please install it from https://lmstudio.com/"
             )
             raise click.Abort()
 
-        logger.info(f"Initializing model with {toolkit} toolkit...")
+        click.echo(f"Initializing model with {click.style(toolkit, bold=True)} toolkit...")
         _copy_embedded_toolkit(toolkit, model_path)
 
         # Toolkit-specific customization (updates toolkit.model, model.py defaults, etc.)
@@ -715,9 +730,11 @@ def init(
         model_type_id = toolkit if toolkit in TEMPLATE_TOOLKITS else None
 
         if model_type_id:
-            logger.info(f"Initializing {model_type_id} model from template...")
+            click.echo(
+                f"Initializing {click.style(model_type_id, bold=True)} model from template..."
+            )
         else:
-            logger.info("Initializing model with default template...")
+            click.echo("Initializing model with default template...")
 
         from clarifai.cli.templates.model_templates import (
             get_config_template,
@@ -730,50 +747,109 @@ def init(
         os.makedirs(model_version_dir, exist_ok=True)
         model_py_path = os.path.join(model_version_dir, "model.py")
         if os.path.exists(model_py_path):
-            logger.warning(f"File {model_py_path} already exists, skipping...")
+            click.echo(f"  {click.style('Skipped', fg='yellow')} 1/model.py (already exists)")
         else:
             with open(model_py_path, 'w') as f:
                 f.write(get_model_template(model_type_id))
-            logger.info(f"Created {model_py_path}")
 
         # Create requirements.txt
         requirements_path = os.path.join(model_path, "requirements.txt")
         if os.path.exists(requirements_path):
-            logger.warning(f"File {requirements_path} already exists, skipping...")
+            click.echo(
+                f"  {click.style('Skipped', fg='yellow')} requirements.txt (already exists)"
+            )
         else:
             with open(requirements_path, 'w') as f:
                 f.write(get_requirements_template(model_type_id))
-            logger.info(f"Created {requirements_path}")
 
         # Create config.yaml
         config_path = os.path.join(model_path, "config.yaml")
         if os.path.exists(config_path):
-            logger.warning(f"File {config_path} already exists, skipping...")
+            click.echo(f"  {click.style('Skipped', fg='yellow')} config.yaml (already exists)")
         else:
-            config_model_type_id = model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+            from clarifai.utils.compute_presets import TOOLKIT_MODEL_TYPE_MAP
+
+            config_model_type_id = TOOLKIT_MODEL_TYPE_MAP.get(
+                toolkit, model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+            )
             with open(config_path, 'w') as f:
                 f.write(get_config_template(model_type_id=config_model_type_id, model_id=model_id))
-            logger.info(f"Created {config_path}")
 
-    # Auto-select instance based on model size when --model-name is provided
+    # Auto-detect model_type_id and instance from HuggingFace when --model-name is provided
     resolved_instance = None
-    if model_name and toolkit in ('vllm', 'sglang', 'huggingface'):
-        config_path = os.path.join(model_path, "config.yaml")
-        if os.path.exists(config_path):
-            from clarifai.utils.cli import dump_yaml, from_yaml
-            from clarifai.utils.compute_presets import recommend_instance
+    config_path = os.path.join(model_path, "config.yaml")
+    if model_name and toolkit in ('vllm', 'sglang', 'huggingface') and os.path.exists(config_path):
+        from clarifai.utils.cli import dump_yaml, from_yaml
+        from clarifai.utils.compute_presets import (
+            TOOLKIT_MODEL_TYPE_MAP,
+            get_hf_model_info,
+            infer_model_type_from_hf,
+            recommend_instance,
+        )
 
-            pat_val = getattr(ctx.obj.current, 'pat', None)
-            base_url_val = getattr(ctx.obj.current, 'api_base', None)
-            config = from_yaml(config_path)
-            recommended, reason = recommend_instance(
-                config, pat=pat_val, base_url=base_url_val, toolkit=toolkit, model_path=model_path
-            )
-            if recommended:
-                config.setdefault('compute', {})['instance'] = recommended
+        pat_val = getattr(ctx.obj.current, 'pat', None)
+        base_url_val = getattr(ctx.obj.current, 'api_base', None)
+        config = from_yaml(config_path)
+
+        # Fetch HF model info once — used for both model_type_id and instance sizing
+        checkpoints = config.get('checkpoints', {})
+        repo_id = checkpoints.get('repo_id') if checkpoints else None
+        hf_info = get_hf_model_info(repo_id) if repo_id else None
+
+        # Infer model_type_id from HF pipeline_tag
+        inferred_type = infer_model_type_from_hf(hf_info)
+        if inferred_type:
+            config.setdefault('model', {})['model_type_id'] = inferred_type
+
+        # Instance recommendation (pass pre-fetched hf_info to avoid re-fetch)
+        recommended, reason = recommend_instance(
+            config,
+            pat=pat_val,
+            base_url=base_url_val,
+            toolkit=toolkit,
+            model_path=model_path,
+            hf_info=hf_info,
+        )
+        if recommended:
+            config.setdefault('compute', {})['instance'] = recommended
+            click.echo(f"  Instance: {recommended} ({reason})")
+            resolved_instance = recommended
+
+        dump_yaml(config, config_path)
+    else:
+        # Toolkit-based model_type_id fallback (no HF model info available)
+        from clarifai.utils.compute_presets import TOOLKIT_MODEL_TYPE_MAP
+
+        toolkit_type = TOOLKIT_MODEL_TYPE_MAP.get(toolkit) if toolkit else None
+        if toolkit_type and toolkit_type != 'any-to-any':
+            from clarifai.utils.cli import dump_yaml, from_yaml
+
+            config_path = os.path.join(model_path, "config.yaml")
+            if os.path.exists(config_path):
+                config = from_yaml(config_path)
+                config.setdefault('model', {})['model_type_id'] = toolkit_type
                 dump_yaml(config, config_path)
-                click.echo(f"  Instance: {recommended} ({reason})")
-                resolved_instance = recommended
+
+    # Set streaming_video_consumer in config if --streaming-video flag is used
+    if streaming_video:
+        from clarifai.utils.cli import dump_yaml, from_yaml
+
+        config_path = os.path.join(model_path, "config.yaml")
+        config = from_yaml(config_path)
+        config['streaming_video_consumer'] = True
+        dump_yaml(config, config_path)
+
+    # Generate Dockerfile so engineers can customize it before upload/deploy
+    dockerfile_path = os.path.join(model_path, "Dockerfile")
+    if os.path.exists(dockerfile_path):
+        click.echo(f"  {click.style('Skipped', fg='yellow')} Dockerfile (already exists)")
+    else:
+        from clarifai.runners.models.model_builder import generate_dockerfile
+
+        dockerfile_content = generate_dockerfile(model_path)
+        if dockerfile_content:
+            with open(dockerfile_path, 'w') as f:
+                f.write(dockerfile_content)
 
     _print_init_success(model_path, toolkit, instance=resolved_instance)
 
@@ -1268,6 +1344,31 @@ def _resolve_deployment_id(deployment, model_ref, model_url, user_id, pat, base_
     )
 
 
+def _format_deployment_status(dep):
+    """Format deployment status with color."""
+    # Deployment-level status enum: ENABLED=0, DISABLED=1
+    status_val = dep.status
+    if status_val == 0:
+        return click.style("Enabled", fg="green")
+    elif status_val == 1:
+        return click.style("Disabled", fg="red")
+    return click.style("Unknown", fg="yellow")
+
+
+def _format_replicas(dep):
+    """Format replica count from deployment metrics."""
+    metrics = dep.deployment_metrics
+    if not metrics:
+        return None
+    live = metrics.live_replicas
+    desired = metrics.desired_replicas
+    if desired == 0 and live == 0:
+        return click.style("0/0 (scaled to zero)", fg="yellow")
+    if live == desired:
+        return click.style(f"{live}/{desired}", fg="green")
+    return click.style(f"{live}/{desired}", fg="yellow")
+
+
 def _print_deployment_detail(dep):
     """Print formatted details for a deployment proto."""
     from clarifai.runners.models import deploy_output as out
@@ -1275,6 +1376,17 @@ def _print_deployment_detail(dep):
     dep_id = dep.id
     bar = "\u2500" * max(1, 56 - len(dep_id) - 4)
     click.echo(click.style(f"\n\u2500\u2500 Deployment: {dep_id} {bar}", fg="cyan", bold=True))
+
+    # Status
+    out.info("Status", _format_deployment_status(dep))
+
+    # Replicas (from deployment metrics)
+    replicas_str = _format_replicas(dep)
+    if replicas_str:
+        out.info("Replicas (live/desired)", replicas_str)
+        metrics = dep.deployment_metrics
+        if metrics.rollout_in_progress:
+            out.info("Rollout", click.style("in progress", fg="yellow"))
 
     # Model info
     worker = dep.worker
@@ -1289,11 +1401,30 @@ def _print_deployment_detail(dep):
     if dep.autoscale_config:
         ac = dep.autoscale_config
         if ac.min_replicas or ac.max_replicas:
-            out.info("Min replicas", str(ac.min_replicas))
-            out.info("Max replicas", str(ac.max_replicas))
+            out.info("Autoscale range", f"{ac.min_replicas} - {ac.max_replicas}")
 
-    # Nodepool / compute cluster
-    if dep.nodepools:
+    # Instance type from deployment_nodepools (richer info)
+    if dep.deployment_nodepools:
+        dnp = dep.deployment_nodepools[0]
+        np = dnp.nodepool if dnp.nodepool else None
+        if np:
+            out.info("Nodepool", np.id)
+            if np.compute_cluster and np.compute_cluster.id:
+                out.info("Compute cluster", np.compute_cluster.id)
+            if np.instance_types:
+                it = np.instance_types[0]
+                out.info("Instance type", it.id)
+                ci = it.compute_info if it.compute_info else None
+                if ci:
+                    acc_type = ", ".join(ci.accelerator_type) if ci.accelerator_type else None
+                    if ci.num_accelerators and acc_type:
+                        out.info(
+                            "GPU",
+                            f"{ci.num_accelerators}x {acc_type}"
+                            + (f" ({ci.accelerator_memory})" if ci.accelerator_memory else ""),
+                        )
+    elif dep.nodepools:
+        # Fallback to basic nodepools field
         np = dep.nodepools[0]
         out.info("Nodepool", np.id)
         if np.compute_cluster and np.compute_cluster.id:
@@ -1550,8 +1681,9 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            # Create Dockerfile if missing, or warn if existing one differs from config
             with _quiet_sdk_logger(suppress):
-                manager.builder.create_dockerfile(generate_dockerfile=True)
+                manager.builder.create_dockerfile()
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"
@@ -2030,8 +2162,9 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             manager = ModelRunLocally(model_path)
             if not manager.is_docker_installed():
                 raise UserError("Docker is not installed.")
+            # Create Dockerfile if missing, or warn if existing one differs from config
             with _quiet_sdk_logger(suppress):
-                manager.builder.create_dockerfile(generate_dockerfile=True)
+                manager.builder.create_dockerfile()
             image_tag = manager._docker_hash()
             container_name = model_id.lower()
             image_name = f"{container_name}:{image_tag}"

@@ -184,7 +184,7 @@ class TestComputeOrchestration:
         result = cli_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
 
         assert result.exit_code == 0, logger.exception(result)
-        assert "USER_ID" in result.output
+        assert "MODEL_ID" in result.output
 
     @pytest.mark.coverage_only
     def test_delete_deployment(self, cli_runner):
