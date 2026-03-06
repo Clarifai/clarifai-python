@@ -29,6 +29,8 @@ from clarifai.utils.logging import logger
 DEFAULT_MONITOR_TIMEOUT = 1200  # 20 minutes
 DEFAULT_POLL_INTERVAL = 5  # seconds
 DEFAULT_LOG_TAIL_DURATION = 15  # seconds to check for runner logs after pods are ready
+DEFAULT_READY_TIMEOUT = 600  # 10 minutes to wait for model to become ready after pod starts
+DEFAULT_READY_POLL_INTERVAL = 5  # seconds between readiness checks
 
 # K8s events to skip in default (non-verbose) mode — transient scheduler noise
 _SKIP_EVENTS = {"TaintManagerEviction", "SandboxChanged", "FailedCreatePodSandBox"}
@@ -830,18 +832,19 @@ class ModelDeployer:
                     if has_inline_progress:
                         out.clear_inline()
                         has_inline_progress = False
-                    out.success(
-                        f"Model is running! Pods: {pods_running}/{pods_total} ({elapsed}s)"
-                    )
-                    # Tail model logs briefly to show startup output
-                    self._tail_runner_logs(
+                    out.status(f"Pod started ({elapsed}s). Waiting for model to be ready...")
+                    # Wait for model to become truly ready (live_replicas > 0)
+                    # while tailing startup logs so the user sees loading progress.
+                    ready = self._wait_for_model_ready(
                         stub,
                         user_app_id,
+                        deployment_id,
                         compute_cluster_id,
                         nodepool_id,
                         runner.id,
+                        start_time,
                     )
-                    return False  # Not timed out
+                    return not ready
 
                 status_msg = f"Pods: {pods_running}/{pods_total} running ({elapsed}s elapsed)"
             else:
@@ -1053,6 +1056,180 @@ class ModelDeployer:
         out.status("")
         out.status("Stream model logs:")
         out.status(f'  clarifai model logs --model-url "{model_url}"')
+
+    def _get_deployment_metrics(self, stub, user_app_id, deployment_id):
+        """Fetch deployment metrics (live_replicas, desired_replicas, rollout_in_progress)."""
+        from clarifai_grpc.grpc.api import service_pb2
+        from clarifai_grpc.grpc.api.status import status_code_pb2
+
+        try:
+            resp = stub.GetDeployment(
+                service_pb2.GetDeploymentRequest(
+                    user_app_id=user_app_id, deployment_id=deployment_id
+                )
+            )
+            if resp.status.code == status_code_pb2.SUCCESS:
+                return resp.deployment.deployment_metrics
+        except Exception as e:
+            logger.debug(f"Error fetching deployment metrics: {e}")
+        return None
+
+    def _wait_for_model_ready(
+        self,
+        stub,
+        user_app_id,
+        deployment_id,
+        compute_cluster_id,
+        nodepool_id,
+        runner_id,
+        overall_start_time,
+    ):
+        """Wait for live_replicas > 0, tailing startup logs while waiting.
+
+        This phase starts after pods are running but before the model is ready.
+        During this time, the model is loading weights / starting the inference
+        server. We show the startup logs and poll deployment_metrics.live_replicas.
+
+        Args:
+            stub: gRPC stub.
+            user_app_id: UserAppIDSet proto.
+            deployment_id: The deployment ID.
+            compute_cluster_id: Compute cluster ID.
+            nodepool_id: Nodepool ID.
+            runner_id: Runner ID for log fetching.
+            overall_start_time: Start time of the entire monitor phase.
+
+        Returns:
+            True if model became ready, False if timed out.
+        """
+        from clarifai_grpc.grpc.api import service_pb2
+
+        from clarifai.runners.models import deploy_output as out
+
+        model_url = f"https://clarifai.com/{self.user_id}/{self.app_id}/models/{self.model_id}"
+
+        seen_logs = set()
+        log_page = 1
+        has_logs = False
+        ready_start = time.time()
+        total_api_entries = 0
+
+        while True:
+            elapsed_total = int(time.time() - overall_start_time)
+            elapsed_ready = int(time.time() - ready_start)
+
+            # Check overall timeout
+            if elapsed_total >= DEFAULT_MONITOR_TIMEOUT:
+                break
+
+            # Check readiness timeout
+            if elapsed_ready >= DEFAULT_READY_TIMEOUT:
+                break
+
+            # Check deployment metrics for live_replicas
+            metrics = self._get_deployment_metrics(stub, user_app_id, deployment_id)
+            if metrics and metrics.live_replicas >= 1:
+                # Model is truly ready — flush any remaining logs
+                if has_logs:
+                    # One final log fetch
+                    try:
+                        resp = stub.ListLogEntries(
+                            service_pb2.ListLogEntriesRequest(
+                                log_type="runner",
+                                user_app_id=user_app_id,
+                                compute_cluster_id=compute_cluster_id or "",
+                                nodepool_id=nodepool_id or "",
+                                runner_id=runner_id,
+                                page=log_page,
+                                per_page=50,
+                            )
+                        )
+                        for entry in resp.log_entries:
+                            log_key = entry.url or entry.message[:100]
+                            if log_key in seen_logs:
+                                continue
+                            seen_logs.add(log_key)
+                            msg = entry.message.strip()
+                            if msg:
+                                parsed = _parse_runner_log(msg, verbose=self.verbose)
+                                if parsed:
+                                    out.status(parsed)
+                    except Exception:
+                        pass
+
+                out.success(
+                    f"Model is ready! Live replicas: {metrics.live_replicas} ({elapsed_total}s)"
+                )
+                out.status("")
+                out.status("Stream model logs:")
+                out.status(f'  clarifai model logs --model-url "{model_url}"')
+                return True
+
+            # Tail startup logs while waiting
+            new_entries = 0
+            try:
+                resp = stub.ListLogEntries(
+                    service_pb2.ListLogEntriesRequest(
+                        log_type="runner",
+                        user_app_id=user_app_id,
+                        compute_cluster_id=compute_cluster_id or "",
+                        nodepool_id=nodepool_id or "",
+                        runner_id=runner_id,
+                        page=log_page,
+                        per_page=50,
+                    )
+                )
+                entries_count = 0
+                for entry in resp.log_entries:
+                    entries_count += 1
+                    total_api_entries += 1
+                    log_key = entry.url or entry.message[:100]
+                    if log_key in seen_logs:
+                        continue
+                    seen_logs.add(log_key)
+                    msg = entry.message.strip()
+                    if not msg:
+                        continue
+
+                    parsed = _parse_runner_log(msg, verbose=self.verbose)
+                    display = parsed
+                    if not display and self.verbose:
+                        display = msg[:200]
+
+                    if display:
+                        if not has_logs:
+                            out.phase_header("Startup Logs")
+                            has_logs = True
+                        out.status(display)
+                        new_entries += 1
+                if entries_count == 50:
+                    log_page += 1
+            except Exception as e:
+                out.event(f"Log fetch error: {e}")
+
+            time.sleep(DEFAULT_READY_POLL_INTERVAL)
+
+        # Timed out waiting for readiness
+        if not has_logs:
+            out.phase_header("Startup Logs")
+            if total_api_entries > 0:
+                out.status(
+                    f"{total_api_entries} log entries found but all filtered "
+                    f"(use --verbose to see)."
+                )
+            else:
+                out.status("No startup logs available yet.")
+
+        out.status("")
+        out.warning("Model pod is running but not yet ready to serve requests.")
+        out.status("")
+        out.status("  The model is likely still loading (downloading checkpoints,")
+        out.status("  initializing inference engine, or warming up).")
+        out.status("")
+        out.status("  Check progress with:")
+        out.hint("Logs", f'clarifai model logs --deployment "{deployment_id}"')
+        out.hint("Status", f'clarifai model status --deployment "{deployment_id}"')
+        return False
 
 
 def _parse_runner_log(raw_msg, verbose=False):
