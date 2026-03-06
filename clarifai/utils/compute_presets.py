@@ -115,7 +115,7 @@ FALLBACK_GPU_PRESETS = {
             "cpu_memory": "64Gi",
             "num_accelerators": 2,
             "accelerator_type": ["NVIDIA-L40S"],
-            "accelerator_memory": "96Gi",
+            "accelerator_memory": "48Gi",
         },
     },
 }
@@ -897,12 +897,20 @@ def _select_instance_by_vram(
             ci = it.compute_info if it.compute_info else None
             if not ci or not ci.num_accelerators or ci.num_accelerators == 0:
                 continue
+            # Skip AMD instances — only recommend NVIDIA GPUs automatically.
+            # AMD instances require explicit user selection via --instance flag.
+            acc_types = list(ci.accelerator_type) if ci.accelerator_type else []
+            if any(a.upper().startswith("AMD") for a in acc_types):
+                continue
             acc_mem = ci.accelerator_memory
             if not acc_mem:
                 continue
-            mem_bytes = parse_k8s_quantity(acc_mem)
-            if mem_bytes > 0:
-                gpu_instances.append((it.id, mem_bytes))
+            per_gpu_bytes = parse_k8s_quantity(acc_mem)
+            # Total VRAM = per-GPU memory × number of GPUs.
+            # With tensor parallelism, models are sharded across all GPUs.
+            total_bytes = per_gpu_bytes * (ci.num_accelerators or 1)
+            if total_bytes > 0:
+                gpu_instances.append((it.id, total_bytes))
 
         # Deduplicate by instance ID, keeping largest VRAM for each
         seen = {}

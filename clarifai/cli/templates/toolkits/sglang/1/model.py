@@ -67,10 +67,16 @@ class SGLangModel(OpenAIModelClass):
     model = True
 
     def load_model(self):
+        model_path = os.path.dirname(os.path.dirname(__file__))
+        builder = ModelBuilder(model_path, download_validation_only=True)
+        config = builder.config
+
+        # Set tensor parallelism to match the number of GPUs allocated
+        num_gpus = config.get("inference_compute_info", {}).get("num_accelerators", 1) or 1
         server_args = {
             'dtype': 'auto',
             'kv_cache_dtype': 'auto',
-            'tp_size': 1,
+            'tp_size': num_gpus,
             'context_length': None,
             'device': 'cuda',
             'port': 23333,
@@ -78,9 +84,6 @@ class SGLangModel(OpenAIModelClass):
             'mem_fraction_static': 0.9,
         }
 
-        model_path = os.path.dirname(os.path.dirname(__file__))
-        builder = ModelBuilder(model_path, download_validation_only=True)
-        config = builder.config
         stage = config["checkpoints"]["when"]
         checkpoints = config["checkpoints"]["repo_id"]
         if stage in ["build", "runtime"]:

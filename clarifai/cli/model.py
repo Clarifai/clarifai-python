@@ -665,7 +665,7 @@ def init(
 
     # Validate option combinations
     if model_name and not toolkit:
-        logger.error("--model-name can only be used with --toolkit")
+        click.echo(click.style("Error: --model-name can only be used with --toolkit", fg="red"))
         raise click.Abort()
 
     # Resolve model_path: explicit > current dir (if already init'd) > derived from model-name > current dir
@@ -695,15 +695,19 @@ def init(
     if toolkit in EMBEDDED_TOOLKITS:
         # Pre-flight checks for local server toolkits
         if toolkit == 'ollama' and not check_ollama_installed():
-            logger.error("Ollama is not installed. Please install it from https://ollama.com/")
+            click.echo(
+                click.style("Error: ", fg="red")
+                + "Ollama is not installed. Please install it from https://ollama.com/"
+            )
             raise click.Abort()
         if toolkit == 'lmstudio' and not check_lmstudio_installed():
-            logger.error(
-                "LM Studio is not installed. Please install it from https://lmstudio.com/"
+            click.echo(
+                click.style("Error: ", fg="red")
+                + "LM Studio is not installed. Please install it from https://lmstudio.com/"
             )
             raise click.Abort()
 
-        logger.info(f"Initializing model with {toolkit} toolkit...")
+        click.echo(f"Initializing model with {click.style(toolkit, bold=True)} toolkit...")
         _copy_embedded_toolkit(toolkit, model_path)
 
         # Toolkit-specific customization (updates toolkit.model, model.py defaults, etc.)
@@ -726,9 +730,11 @@ def init(
         model_type_id = toolkit if toolkit in TEMPLATE_TOOLKITS else None
 
         if model_type_id:
-            logger.info(f"Initializing {model_type_id} model from template...")
+            click.echo(
+                f"Initializing {click.style(model_type_id, bold=True)} model from template..."
+            )
         else:
-            logger.info("Initializing model with default template...")
+            click.echo("Initializing model with default template...")
 
         from clarifai.cli.templates.model_templates import (
             get_config_template,
@@ -741,25 +747,25 @@ def init(
         os.makedirs(model_version_dir, exist_ok=True)
         model_py_path = os.path.join(model_version_dir, "model.py")
         if os.path.exists(model_py_path):
-            logger.warning(f"File {model_py_path} already exists, skipping...")
+            click.echo(f"  {click.style('Skipped', fg='yellow')} 1/model.py (already exists)")
         else:
             with open(model_py_path, 'w') as f:
                 f.write(get_model_template(model_type_id))
-            logger.info(f"Created {model_py_path}")
 
         # Create requirements.txt
         requirements_path = os.path.join(model_path, "requirements.txt")
         if os.path.exists(requirements_path):
-            logger.warning(f"File {requirements_path} already exists, skipping...")
+            click.echo(
+                f"  {click.style('Skipped', fg='yellow')} requirements.txt (already exists)"
+            )
         else:
             with open(requirements_path, 'w') as f:
                 f.write(get_requirements_template(model_type_id))
-            logger.info(f"Created {requirements_path}")
 
         # Create config.yaml
         config_path = os.path.join(model_path, "config.yaml")
         if os.path.exists(config_path):
-            logger.warning(f"File {config_path} already exists, skipping...")
+            click.echo(f"  {click.style('Skipped', fg='yellow')} config.yaml (already exists)")
         else:
             from clarifai.utils.compute_presets import TOOLKIT_MODEL_TYPE_MAP
 
@@ -768,7 +774,6 @@ def init(
             )
             with open(config_path, 'w') as f:
                 f.write(get_config_template(model_type_id=config_model_type_id, model_id=model_id))
-            logger.info(f"Created {config_path}")
 
     # Auto-detect model_type_id and instance from HuggingFace when --model-name is provided
     resolved_instance = None
@@ -833,12 +838,11 @@ def init(
         config = from_yaml(config_path)
         config['streaming_video_consumer'] = True
         dump_yaml(config, config_path)
-        logger.info("Enabled streaming_video_consumer in config.yaml")
 
     # Generate Dockerfile so engineers can customize it before upload/deploy
     dockerfile_path = os.path.join(model_path, "Dockerfile")
     if os.path.exists(dockerfile_path):
-        logger.warning(f"File {dockerfile_path} already exists, skipping...")
+        click.echo(f"  {click.style('Skipped', fg='yellow')} Dockerfile (already exists)")
     else:
         from clarifai.runners.models.model_builder import generate_dockerfile
 
@@ -846,7 +850,6 @@ def init(
         if dockerfile_content:
             with open(dockerfile_path, 'w') as f:
                 f.write(dockerfile_content)
-            logger.info(f"Created {dockerfile_path}")
 
     _print_init_success(model_path, toolkit, instance=resolved_instance)
 
@@ -1341,6 +1344,31 @@ def _resolve_deployment_id(deployment, model_ref, model_url, user_id, pat, base_
     )
 
 
+def _format_deployment_status(dep):
+    """Format deployment status with color."""
+    # Deployment-level status enum: ENABLED=0, DISABLED=1
+    status_val = dep.status
+    if status_val == 0:
+        return click.style("Enabled", fg="green")
+    elif status_val == 1:
+        return click.style("Disabled", fg="red")
+    return click.style("Unknown", fg="yellow")
+
+
+def _format_replicas(dep):
+    """Format replica count from deployment metrics."""
+    metrics = dep.deployment_metrics
+    if not metrics:
+        return None
+    live = metrics.live_replicas
+    desired = metrics.desired_replicas
+    if desired == 0 and live == 0:
+        return click.style("0/0 (scaled to zero)", fg="yellow")
+    if live == desired:
+        return click.style(f"{live}/{desired}", fg="green")
+    return click.style(f"{live}/{desired}", fg="yellow")
+
+
 def _print_deployment_detail(dep):
     """Print formatted details for a deployment proto."""
     from clarifai.runners.models import deploy_output as out
@@ -1348,6 +1376,17 @@ def _print_deployment_detail(dep):
     dep_id = dep.id
     bar = "\u2500" * max(1, 56 - len(dep_id) - 4)
     click.echo(click.style(f"\n\u2500\u2500 Deployment: {dep_id} {bar}", fg="cyan", bold=True))
+
+    # Status
+    out.info("Status", _format_deployment_status(dep))
+
+    # Replicas (from deployment metrics)
+    replicas_str = _format_replicas(dep)
+    if replicas_str:
+        out.info("Replicas (live/desired)", replicas_str)
+        metrics = dep.deployment_metrics
+        if metrics.rollout_in_progress:
+            out.info("Rollout", click.style("in progress", fg="yellow"))
 
     # Model info
     worker = dep.worker
@@ -1362,11 +1401,30 @@ def _print_deployment_detail(dep):
     if dep.autoscale_config:
         ac = dep.autoscale_config
         if ac.min_replicas or ac.max_replicas:
-            out.info("Min replicas", str(ac.min_replicas))
-            out.info("Max replicas", str(ac.max_replicas))
+            out.info("Autoscale range", f"{ac.min_replicas} - {ac.max_replicas}")
 
-    # Nodepool / compute cluster
-    if dep.nodepools:
+    # Instance type from deployment_nodepools (richer info)
+    if dep.deployment_nodepools:
+        dnp = dep.deployment_nodepools[0]
+        np = dnp.nodepool if dnp.nodepool else None
+        if np:
+            out.info("Nodepool", np.id)
+            if np.compute_cluster and np.compute_cluster.id:
+                out.info("Compute cluster", np.compute_cluster.id)
+            if np.instance_types:
+                it = np.instance_types[0]
+                out.info("Instance type", it.id)
+                ci = it.compute_info if it.compute_info else None
+                if ci:
+                    acc_type = ", ".join(ci.accelerator_type) if ci.accelerator_type else None
+                    if ci.num_accelerators and acc_type:
+                        out.info(
+                            "GPU",
+                            f"{ci.num_accelerators}x {acc_type}"
+                            + (f" ({ci.accelerator_memory})" if ci.accelerator_memory else ""),
+                        )
+    elif dep.nodepools:
+        # Fallback to basic nodepools field
         np = dep.nodepools[0]
         out.info("Nodepool", np.id)
         if np.compute_cluster and np.compute_cluster.id:
