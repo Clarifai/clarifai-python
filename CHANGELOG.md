@@ -1,3 +1,11 @@
+## [[12.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.1) - [PyPI](https://pypi.org/project/clarifai/12.3.1/) - 2026-03-05
+
+### Added
+- Added support for reading pipeline templates git repo URL from `CLARIFAI_PIPELINE_TEMPLATES_GIT_REPO_URL` environment variable [(#975)](https://github.com/Clarifai/clarifai-python/pull/975)
+
+### Fixed
+- Fixed `clarifai model init` creating a subdirectory instead of updating the existing model directory [(#972)](https://github.com/Clarifai/clarifai-python/pull/972)
+
 ## [[12.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.0) - [PyPI](https://pypi.org/project/clarifai/12.3.0/) - 2026-03-04
 
 ### Added
