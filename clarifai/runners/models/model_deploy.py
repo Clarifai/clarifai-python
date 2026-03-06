@@ -14,6 +14,8 @@ import re
 import time
 import uuid
 
+import click
+
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.compute_presets import (
@@ -832,7 +834,12 @@ class ModelDeployer:
                     if has_inline_progress:
                         out.clear_inline()
                         has_inline_progress = False
-                    out.status(f"Pod started ({elapsed}s). Waiting for model to be ready...")
+                    click.echo(
+                        click.style(
+                            f"  Pod started ({elapsed}s). Waiting for model to be ready...",
+                            fg="cyan",
+                        )
+                    )
                     # Wait for model to become truly ready (live_replicas > 0)
                     # while tailing startup logs so the user sees loading progress.
                     ready = self._wait_for_model_ready(
@@ -1113,6 +1120,9 @@ class ModelDeployer:
         has_logs = False
         ready_start = time.time()
         total_api_entries = 0
+        last_log_time = time.time()
+        has_heartbeat = False
+        HEARTBEAT_INTERVAL = 5  # seconds of silence before showing heartbeat
 
         while True:
             elapsed_total = int(time.time() - overall_start_time)
@@ -1129,7 +1139,9 @@ class ModelDeployer:
             # Check deployment metrics for live_replicas
             metrics = self._get_deployment_metrics(stub, user_app_id, deployment_id)
             if metrics and metrics.live_replicas >= 1:
-                # Model is truly ready — flush any remaining logs
+                # Model is truly ready — clear heartbeat and flush remaining logs
+                if has_heartbeat:
+                    out.clear_inline()
                 if has_logs:
                     # One final log fetch
                     try:
@@ -1197,19 +1209,33 @@ class ModelDeployer:
                         display = msg[:200]
 
                     if display:
+                        if has_heartbeat:
+                            out.clear_inline()
+                            has_heartbeat = False
                         if not has_logs:
                             out.phase_header("Startup Logs")
                             has_logs = True
                         out.status(display)
                         new_entries += 1
+                        last_log_time = time.time()
                 if entries_count == 50:
                     log_page += 1
             except Exception as e:
                 out.event(f"Log fetch error: {e}")
 
+            # Heartbeat when logs are idle (e.g. during weight download)
+            silence = int(time.time() - last_log_time)
+            if new_entries == 0 and silence >= HEARTBEAT_INTERVAL:
+                out.inline_progress(
+                    f"Still loading... ({elapsed_total}s elapsed, no new logs for {silence}s)"
+                )
+                has_heartbeat = True
+
             time.sleep(DEFAULT_READY_POLL_INTERVAL)
 
         # Timed out waiting for readiness
+        if has_heartbeat:
+            out.clear_inline()
         if not has_logs:
             out.phase_header("Startup Logs")
             if total_api_entries > 0:
