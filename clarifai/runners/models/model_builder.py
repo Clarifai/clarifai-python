@@ -209,10 +209,13 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         # Auto-resolve user_id if not provided and not in config
-        if not user_id and 'user_id' not in self.config.get('model', {}):
+        config_had_user_id = 'user_id' in self.config.get('model', {})
+        if not user_id and not config_had_user_id:
             from clarifai.utils.config import resolve_user_id
 
             user_id = resolve_user_id(pat=pat, base_url=base_url)
+            if user_id:
+                logger.info(f"Using user_id '{user_id}' (auto-resolved from CLI config/PAT).")
         self.config = self.normalize_config(self.config, user_id=user_id, app_id=app_id)
         self._validate_config()
         self._validate_config_secrets()
@@ -498,8 +501,23 @@ class ModelBuilder:
             )
 
             def create_app():
-                logger.info(f"Creating App `{app_id}` user `{user_id}`.")
-                user.create_app(app_id=app_id)
+                logger.info(f"Creating App `{app_id}` for user `{user_id}`.")
+                try:
+                    user.create_app(app_id=app_id)
+                except Exception as e:
+                    error_msg = str(e)
+                    if 'CONN_DOES_NOT_EXIST' in error_msg or 'not found' in error_msg:
+                        logger.error(
+                            f"Failed to create app '{app_id}' for user '{user_id}'. "
+                            f"This usually means your PAT doesn't have access to this user account.\n"
+                            f"To fix this, verify your PAT matches the user_id:\n"
+                            f"  - Run 'clarifai config list' to check your saved configs\n"
+                            f"  - Run 'clarifai config use <context>' to switch to the correct config\n"
+                            f"  - Or set 'user_id' explicitly in your config.yaml"
+                        )
+                    else:
+                        logger.error(f"Failed to create app '{app_id}': {e}")
+                    raise
 
             logger.info(f"App {app_id} not found for user {user_id}.")
 
