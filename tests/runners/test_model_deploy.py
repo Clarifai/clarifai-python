@@ -455,8 +455,13 @@ class TestResolveUserId:
 
         mock_config = MagicMock()
         mock_config.current.get.return_value = "config-user"
+        mock_config.context_override = None
+        mock_config.current_context = "test-context"
 
-        with patch('clarifai.utils.config.Config.from_yaml', return_value=mock_config):
+        with (
+            patch('clarifai.utils.config.Config.from_yaml', return_value=mock_config),
+            patch('clarifai.utils.config._get_user_id_from_pat', return_value="config-user"),
+        ):
             user_id = resolve_user_id()
             assert user_id == "config-user"
 
@@ -470,13 +475,9 @@ class TestResolveUserId:
         mock_config = MagicMock()
         mock_config.current.get.return_value = None
 
-        # Mock User API call
-        mock_user = MagicMock()
-        mock_user.get_user_info.return_value.user.id = "api-user"
-
         with (
             patch('clarifai.utils.config.Config.from_yaml', return_value=mock_config),
-            patch('clarifai.client.user.User', return_value=mock_user),
+            patch('clarifai.utils.config._get_user_id_from_pat', return_value="api-user"),
         ):
             user_id = resolve_user_id(pat="test-pat")
             assert user_id == "api-user"
@@ -489,30 +490,46 @@ class TestResolveUserId:
 
         with (
             patch('clarifai.utils.config.Config.from_yaml', side_effect=Exception("no config")),
-            patch('clarifai.client.user.User', side_effect=Exception("no api")),
+            patch('clarifai.utils.config._get_user_id_from_pat', return_value=None),
         ):
             user_id = resolve_user_id()
             assert user_id is None
 
     def test_config_user_id_takes_priority_over_api(self):
-        """Config file user_id is used without making API call."""
+        """Config file user_id is used when PAT matches."""
         from unittest.mock import MagicMock, patch
 
         from clarifai.utils.config import resolve_user_id
 
         mock_config = MagicMock()
         mock_config.current.get.return_value = "config-user"
-
-        mock_user_cls = MagicMock()
+        mock_config.context_override = None
+        mock_config.current_context = "test-context"
 
         with (
             patch('clarifai.utils.config.Config.from_yaml', return_value=mock_config),
-            patch('clarifai.client.user.User', mock_user_cls),
+            patch('clarifai.utils.config._get_user_id_from_pat', return_value="config-user"),
         ):
             user_id = resolve_user_id(pat="test-pat")
             assert user_id == "config-user"
-            # User class should NOT have been called
-            mock_user_cls.assert_not_called()
+
+    def test_pat_user_wins_on_mismatch(self):
+        """When PAT user differs from config user, PAT user is used with a warning."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.utils.config import resolve_user_id
+
+        mock_config = MagicMock()
+        mock_config.current.get.return_value = "config-user"
+        mock_config.context_override = None
+        mock_config.current_context = "test-context"
+
+        with (
+            patch('clarifai.utils.config.Config.from_yaml', return_value=mock_config),
+            patch('clarifai.utils.config._get_user_id_from_pat', return_value="pat-user"),
+        ):
+            user_id = resolve_user_id(pat="test-pat")
+            assert user_id == "pat-user"
 
 
 class TestModelDeployerValidation:
