@@ -1708,7 +1708,9 @@ def delete_deployment(deployment_id, user_id, pat=None, base_url=None):
     response = stub.DeleteDeployments(request)
 
     if response.status.code != status_code_pb2.SUCCESS:
+        detail = response.status.details or response.status.description
         raise UserError(
             f"Failed to delete deployment '{deployment_id}'.\n"
-            f"  Status: {response.status.description}"
+            f"  {detail}\n"
+            f"  Check the deployment ID and current context (user: {user_id})."
         )

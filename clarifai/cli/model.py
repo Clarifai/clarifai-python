@@ -1447,8 +1447,8 @@ def status(ctx, model_ref, model_url, deployment):
     """Show deployment status for a model.
 
     \b
-    Shows replica count, instance type, cloud, nodepool, and timing
-    for each deployment.
+    Shows status (enabled/disabled), live/desired replicas, rollout state,
+    instance type with GPU info, nodepool, compute cluster, and timing.
 
     \b
     MODEL_REF  Model reference: user_id/app_id/models/model_id

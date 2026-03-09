@@ -137,6 +137,10 @@ def get(ctx, deployment_id):
     """Show details for a single deployment.
 
     \b
+    Shows status (enabled/disabled), live/desired replicas, rollout state,
+    instance type with GPU info, nodepool, compute cluster, and timing.
+
+    \b
     Examples:
       clarifai deployment get deploy-abc123
       clarifai deployment status deploy-abc123
