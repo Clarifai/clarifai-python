@@ -291,7 +291,9 @@ def get_accelerator_wildcard(instance_type_id=None, accelerator_types=None):
     return "NVIDIA-*"
 
 
-def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=None):
+def resolve_gpu(
+    gpu_name, pat=None, base_url=None, cloud_provider=None, region=None, num_gpus=None
+):
     """Resolve a GPU/instance type name to its full preset info.
 
     Accepts either:
@@ -308,6 +310,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         base_url: Optional API base URL.
         cloud_provider: Optional cloud provider filter (e.g. 'aws', 'gcp').
         region: Optional region filter (e.g. 'us-east-1').
+        num_gpus: Optional number of GPUs to filter by (e.g. 2, 4).
 
     Returns:
         dict with keys: description, instance_type_id, cloud_provider, region, inference_compute_info
@@ -338,6 +341,12 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
             ]
         if region:
             filtered = [it for it in filtered if it.region == region]
+        if num_gpus:
+            filtered = [
+                it
+                for it in filtered
+                if it.compute_info and it.compute_info.num_accelerators == int(num_gpus)
+            ]
 
         # 1. Exact match by instance type ID (e.g. 'g5.xlarge')
         for it in filtered:
@@ -351,8 +360,9 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         if matched:
             return _instance_type_to_preset(matched)
 
-        # If filtering narrowed results too much, try unfiltered
-        if filtered != instance_types:
+        # If filtering narrowed results too much, try unfiltered — but only
+        # when no explicit cloud_provider was requested (avoid cross-cloud fallback).
+        if filtered != instance_types and not cloud_provider:
             for it in instance_types:
                 if it.id.lower() == gpu_name.lower():
                     return _instance_type_to_preset(it)

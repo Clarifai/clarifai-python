@@ -117,6 +117,7 @@ class ModelDeployer:
         self.instance_type = instance_type
         self.cloud_provider = cloud_provider
         self.region = region
+        self.num_gpus = None
         self.compute_cluster_id = compute_cluster_id
         self.nodepool_id = nodepool_id
         self.min_replicas = min_replicas
@@ -129,6 +130,7 @@ class ModelDeployer:
         # Resolved during deploy
         self._builder = None
         self._gpu_preset = None
+        self._gpu_preset_key = None  # (cloud, region) used for resolution
 
     def deploy(self):
         """Run the full deployment pipeline. Returns a result dict."""
@@ -163,6 +165,21 @@ class ModelDeployer:
                     "  Run 'clarifai list-instances' to see available options."
                 )
 
+        # For local models, read cloud/region from config.yaml before resolving
+        # the instance type, so that resolve_gpu picks the correct provider.
+        if self.model_path and self.instance_type:
+            config_path = os.path.join(self.model_path, 'config.yaml')
+            if os.path.exists(config_path):
+                from clarifai.utils.cli import from_yaml
+
+                compute = from_yaml(config_path).get('compute', {})
+                if not self.cloud_provider:
+                    self.cloud_provider = compute.get('cloud')
+                if not self.region:
+                    self.region = compute.get('region')
+                if not self.num_gpus:
+                    self.num_gpus = compute.get('num_gpus')
+
         # Validate instance type early (before upload/deployment work)
         if self.instance_type:
             try:
@@ -172,14 +189,20 @@ class ModelDeployer:
 
     def _resolve_gpu(self):
         """Resolve GPU name to preset info if gpu is specified."""
-        if self.instance_type and not self._gpu_preset:
+        if not self.instance_type:
+            return None
+        # Re-resolve if cloud/region/num_gpus changed since last resolution
+        current_key = (self.cloud_provider, self.region, self.num_gpus)
+        if not self._gpu_preset or self._gpu_preset_key != current_key:
             self._gpu_preset = resolve_gpu(
                 self.instance_type,
                 pat=self.pat,
                 base_url=self.base_url,
                 cloud_provider=self.cloud_provider,
                 region=self.region,
+                num_gpus=self.num_gpus,
             )
+            self._gpu_preset_key = current_key
         return self._gpu_preset
 
     def _write_instance_to_config(self, instance_type_id):
@@ -221,11 +244,13 @@ class ModelDeployer:
         # Read compute section from config (instance, cloud, region)
         compute = self._builder.config.get('compute', {})
 
-        # Cloud and region from config (CLI flags take priority)
+        # Cloud, region, num_gpus from config (CLI flags take priority)
         if not self.cloud_provider:
             self.cloud_provider = compute.get('cloud')
         if not self.region:
             self.region = compute.get('region')
+        if not self.num_gpus:
+            self.num_gpus = compute.get('num_gpus')
 
         # If instance not specified, try to read from config
         if not self.instance_type and not self.nodepool_id:
@@ -264,6 +289,21 @@ class ModelDeployer:
         # Show clean validation summary
         model_type_id = model_config.get('model_type_id', 'unknown')
         instance_label = self.instance_type or 'cpu'
+        gpu_preset = self._resolve_gpu()
+        if gpu_preset:
+            resolved_id = gpu_preset.get("instance_type_id", "")
+            cloud = gpu_preset.get("cloud_provider", "")
+            region = gpu_preset.get("region", "")
+            # Show resolved instance if different from input (e.g. 'cpu' → 's-2vcpu-2gb')
+            num_acc = gpu_preset.get("inference_compute_info", {}).get("num_accelerators", 0)
+            gpu_suffix = f", {num_acc}× GPU" if num_acc > 1 else ""
+            if resolved_id and resolved_id.lower() != instance_label.lower():
+                instance_label = f"{resolved_id}{gpu_suffix} (from '{self.instance_type}')"
+            elif resolved_id:
+                instance_label = f"{resolved_id}{gpu_suffix}" if gpu_suffix else resolved_id
+        else:
+            cloud = ""
+            region = ""
         checkpoints = self._builder.config.get('checkpoints', {})
         has_checkpoints = bool(checkpoints and checkpoints.get('repo_id'))
         dockerfile_path = os.path.join(self.model_path, 'Dockerfile')
@@ -272,6 +312,8 @@ class ModelDeployer:
         out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
         out.info("Type", model_type_id)
         out.info("Instance", instance_label)
+        if cloud:
+            out.info("Cloud", f"{cloud} / {region}" if region else cloud)
         if has_checkpoints:
             out.info("Checkpoints", checkpoints.get('repo_id', ''))
         out.info("Dockerfile", "existing" if has_dockerfile else "auto-generated")
@@ -384,9 +426,25 @@ class ModelDeployer:
             # Fetch method signatures from the model version for client script & predict hint
             self._fetch_method_signatures(model)
 
+        instance_label = self.instance_type or "cpu"
+        gpu_preset = self._resolve_gpu()
+        if gpu_preset:
+            resolved_id = gpu_preset.get("instance_type_id", "")
+            cloud = gpu_preset.get("cloud_provider", "")
+            region = gpu_preset.get("region", "")
+            if resolved_id and resolved_id.lower() != instance_label.lower():
+                instance_label = f"{resolved_id} (from '{self.instance_type}')"
+            elif resolved_id:
+                instance_label = resolved_id
+        else:
+            cloud = ""
+            region = ""
+
         out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
         out.info("Version", self.model_version_id)
-        out.info("Instance", self.instance_type or "cpu")
+        out.info("Instance", instance_label)
+        if cloud:
+            out.info("Cloud", f"{cloud} / {region}" if region else cloud)
 
         return self._create_deployment()
 

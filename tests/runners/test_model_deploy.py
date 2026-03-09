@@ -2689,6 +2689,7 @@ class TestNodepoolInstanceTypeValidation:
             "instance_type_id": "gpu-nvidia-a10g",
             "inference_compute_info": {},
         }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
 
         mock_cc = MagicMock()
         mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-a10g", "gpu-nvidia-l40s"])
@@ -2708,6 +2709,7 @@ class TestNodepoolInstanceTypeValidation:
             "instance_type_id": "gpu-nvidia-a10g",
             "inference_compute_info": {},
         }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
 
         mock_cc = MagicMock()
         mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-l40s"])
@@ -2727,6 +2729,7 @@ class TestNodepoolInstanceTypeValidation:
             "instance_type_id": "gpu-nvidia-a10g",
             "inference_compute_info": {},
         }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
 
         mock_cc = MagicMock()
         mock_cc.nodepool.return_value = self._mock_nodepool(
@@ -2748,6 +2751,7 @@ class TestNodepoolInstanceTypeValidation:
             "instance_type_id": "gpu-nvidia-a10g",
             "inference_compute_info": {},
         }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
 
         mock_cc = MagicMock()
         mock_cc.nodepool.side_effect = Exception("not found")
