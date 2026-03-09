@@ -1589,6 +1589,76 @@ class TestDeployModelQuiet:
         captured = capsys.readouterr()
         assert "Deployment" in captured.out
 
+    def test_deploy_model_raise_on_error_surfaces_detail(self, capsys):
+        """deploy_model can raise a detailed UserError for CLI callers."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+        from clarifai.runners.models.model_builder import deploy_model
+
+        mock_nodepool = MagicMock()
+        mock_nodepool.create_deployment.side_effect = Exception(
+            "Insufficient capacity in nodepool"
+        )
+
+        with (
+            patch('clarifai.runners.models.model_builder.Nodepool', return_value=mock_nodepool),
+            pytest.raises(UserError, match="Insufficient capacity in nodepool"),
+        ):
+            deploy_model(
+                model_id="test-model",
+                app_id="test-app",
+                user_id="test-user",
+                deployment_id="deploy-test",
+                model_version_id="v1",
+                nodepool_id="np-1",
+                compute_cluster_id="cc-1",
+                cluster_user_id="test-user",
+                quiet=True,
+                raise_on_error=True,
+            )
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+
+class TestCreateDeploymentErrors:
+    """Test deployment creation error surfacing."""
+
+    def test_create_deployment_bubbles_up_backend_error(self):
+        """_create_deployment should surface the backend deployment error."""
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        deployer = ModelDeployer(
+            model_url="https://clarifai.com/test-user/test-app/models/test-model",
+            user_id="test-user",
+            app_id="test-app",
+            model_version_id="v1",
+            instance_type="a10g",
+            pat="test-pat",
+            base_url="https://api.clarifai.com",
+        )
+        deployer.model_id = "test-model"
+
+        with (
+            patch.object(
+                deployer,
+                '_ensure_compute_infrastructure',
+                return_value=("cc-1", "np-1", "test-user"),
+            ),
+            patch(
+                'clarifai.runners.models.model_builder.deploy_model',
+                side_effect=UserError(
+                    "Failed to create deployment 'deploy-test': Insufficient capacity in nodepool"
+                ),
+            ),
+            pytest.raises(UserError, match="Insufficient capacity in nodepool"),
+        ):
+            deployer._create_deployment()
+
 
 class TestRecommendInstance:
     """Test auto-selection of GPU instance based on model size."""

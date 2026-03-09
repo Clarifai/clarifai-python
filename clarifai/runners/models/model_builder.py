@@ -730,9 +730,20 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+        dereference_symlinks = self.config.get("build_info", {}).get("dereference_symlinks")
+        if dereference_symlinks is not None and not isinstance(dereference_symlinks, bool):
+            raise UserError(
+                "build_info.dereference_symlinks must be a boolean when provided. "
+                f"Got: {dereference_symlinks!r}"
+            )
+
         # Validate AgenticModelClass requirements
         if not self.download_validation_only:
             self._validate_agentic_model_requirements()
+
+    def _should_dereference_symlinks(self):
+        """Whether tar packaging should follow symlinks and embed target file contents."""
+        return self.config.get("build_info", {}).get("dereference_symlinks", False)
 
     @staticmethod
     def _raise_hf_access_error(repo_id, reason):
@@ -1961,7 +1972,7 @@ class ModelBuilder:
 
         import io
 
-        with tarfile.open(self.tar_file, "w:gz") as tar:
+        with tarfile.open(self.tar_file, "w:gz", dereference=True) as tar:
             tar.add(self.folder, arcname=".", filter=filter_func)
             # Inject the normalized in-memory config (with user_id, app_id,
             # inference_compute_info, etc.) so the packaged image has the full config
@@ -2523,6 +2534,7 @@ def deploy_model(
     pat=None,
     base_url=None,
     quiet=False,
+    raise_on_error=False,
 ):
     """
     Deploy a model on Clarifai platform.
@@ -2540,6 +2552,8 @@ def deploy_model(
         max_replicas (int): Maximum number of replicas for autoscaling.
         pat (str): Personal access token for authentication.
         base_url (str): Base URL for the API.
+        quiet (bool): Suppress success and failure prints.
+        raise_on_error (bool): Raise a UserError with backend details instead of returning False.
     """
     if model_url and model_id:
         raise UserError("You can only specify one of url or model_id.")
@@ -2609,8 +2623,11 @@ def deploy_model(
             )
         return True
     except Exception as e:
+        error_message = f"Failed to create deployment '{deployment_id}': {e}"
         if not quiet:
-            print(f"❌ Failed to create deployment '{deployment_id}': {e}")
+            print(f"❌ {error_message}")
+        if raise_on_error:
+            raise UserError(error_message) from e
         return False
 
 

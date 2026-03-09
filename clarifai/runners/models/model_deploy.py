@@ -771,12 +771,11 @@ class ModelDeployer:
                 pat=self.pat,
                 base_url=self.base_url,
                 quiet=suppress,
+                raise_on_error=True,
             )
 
         if not success:
-            raise UserError(
-                f"Deployment failed for model '{self.model_id}'. Check logs above for details."
-            )
+            raise UserError(f"Deployment failed for model '{self.model_id}'.")
 
         out.success(f"Deployment '{deployment_id}' created")
 

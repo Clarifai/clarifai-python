@@ -60,6 +60,47 @@ def cli(ctx, config, context):
 @click.argument('shell', type=click.Choice(['bash', 'zsh']))
 def shell_completion(shell):
     """Generate shell completion script for bash or zsh."""
+
+    if shell == 'bash':
+        click.echo("""
+_clarifai_completion() {
+    local IFS=$'\n'
+    local response
+
+    response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD _CLARIFAI_COMPLETE=bash_complete $1)
+
+    for completion in $response; do
+        IFS=',' read type value <<< "$completion"
+
+        if [[ $type == 'dir' ]]; then
+            COMPREPLY=()
+            # compopt was introduced in bash 4.0
+            [[ ${BASH_VERSINFO[0]} -ge 4 ]] && compopt -o dirnames
+        elif [[ $type == 'file' ]]; then
+            COMPREPLY=()
+            [[ ${BASH_VERSINFO[0]} -ge 4 ]] && compopt -o default
+        elif [[ $type == 'plain' ]]; then
+            COMPREPLY+=($value)
+        fi
+    done
+
+    return 0
+}
+
+_clarifai_completion_setup() {
+    # Check if bash version is 4.4 or higher for 'nosort' support
+    if [[ ${BASH_VERSINFO[0]} -gt 4 || ( ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4 ) ]]; then
+        complete -o nosort -F _clarifai_completion clarifai
+    else
+        # Fallback for older bash: remove -o nosort
+        complete -F _clarifai_completion clarifai
+    fi
+}
+
+_clarifai_completion_setup;
+""")
+        return
+
     os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
