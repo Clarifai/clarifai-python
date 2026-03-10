@@ -574,9 +574,16 @@ class ModelBuilder:
                 try:
                     ici = get_inference_compute_for_gpu(instance)
                     # Always use wildcard accelerator_type so the model can be scheduled
-                    # on any compatible NVIDIA GPU, not locked to a specific type.
+                    # on any compatible GPU, not locked to a specific type.
                     if ici.get('num_accelerators', 0) > 0:
-                        ici['accelerator_type'] = ['NVIDIA-*']
+                        from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+                        ici['accelerator_type'] = [
+                            get_accelerator_wildcard(
+                                instance_type_id=instance,
+                                accelerator_types=ici.get('accelerator_type'),
+                            )
+                        ]
                     config['inference_compute_info'] = ici
                 except ValueError:
                     logger.debug(
@@ -723,9 +730,20 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+        dereference_symlinks = self.config.get("build_info", {}).get("dereference_symlinks")
+        if dereference_symlinks is not None and not isinstance(dereference_symlinks, bool):
+            raise UserError(
+                "build_info.dereference_symlinks must be a boolean when provided. "
+                f"Got: {dereference_symlinks!r}"
+            )
+
         # Validate AgenticModelClass requirements
         if not self.download_validation_only:
             self._validate_agentic_model_requirements()
+
+    def _should_dereference_symlinks(self):
+        """Whether tar packaging should follow symlinks and embed target file contents."""
+        return self.config.get("build_info", {}).get("dereference_symlinks", False)
 
     @staticmethod
     def _raise_hf_access_error(repo_id, reason):
@@ -1583,7 +1601,10 @@ class ModelBuilder:
                     should_create_dockerfile = False
                 else:
                     logger.warning(
-                        "Custom Dockerfile differs from auto-generated one — keeping yours."
+                        "Dockerfile differs from what would be auto-generated from your current "
+                        "config.yaml. Keeping your existing Dockerfile. If your config has changed "
+                        "(e.g. streaming_video_consumer, build_info), delete the Dockerfile to "
+                        "regenerate it, or update it manually."
                     )
                     should_create_dockerfile = False
 
@@ -1951,7 +1972,7 @@ class ModelBuilder:
 
         import io
 
-        with tarfile.open(self.tar_file, "w:gz") as tar:
+        with tarfile.open(self.tar_file, "w:gz", dereference=True) as tar:
             tar.add(self.folder, arcname=".", filter=filter_func)
             # Inject the normalized in-memory config (with user_id, app_id,
             # inference_compute_info, etc.) so the packaged image has the full config
@@ -2212,6 +2233,156 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
+def infer_model_type_from_class(model_class):
+    """Infer Clarifai model_type_id from a model class hierarchy.
+
+    Checks the base class to determine the most specific model type.
+    Returns a model_type_id string, or None if it can't be determined
+    (i.e., it's a plain ModelClass with no further type info).
+    """
+    from clarifai.runners.models.mcp_class import MCPModelClass
+
+    # Import optional classes that may not be available
+    try:
+        from clarifai.runners.models.stdio_mcp_class import StdioMCPModelClass
+    except ImportError:
+        StdioMCPModelClass = None
+    try:
+        from clarifai.runners.models.visual_classifier_class import VisualClassifierClass
+    except ImportError:
+        VisualClassifierClass = None
+    try:
+        from clarifai.runners.models.visual_detector_class import VisualDetectorClass
+    except ImportError:
+        VisualDetectorClass = None
+
+    # Order matters: check most specific subclasses first
+    if StdioMCPModelClass and issubclass(model_class, StdioMCPModelClass):
+        return 'mcp'
+    if issubclass(model_class, MCPModelClass):
+        return 'mcp'
+    if issubclass(model_class, AgenticModelClass):
+        return 'text-to-text'
+    if VisualDetectorClass and issubclass(model_class, VisualDetectorClass):
+        return 'visual-detector'
+    if VisualClassifierClass and issubclass(model_class, VisualClassifierClass):
+        return 'visual-classifier'
+    from clarifai.runners.models.openai_class import OpenAIModelClass
+
+    if issubclass(model_class, OpenAIModelClass):
+        return 'text-to-text'
+
+    # Plain ModelClass — can't determine type without method signature analysis
+    return None
+
+
+def _parse_requirements_file(filepath):
+    """Parse requirements.txt into a {package: version} dict."""
+    dependencies = {}
+    if not os.path.exists(filepath):
+        return dependencies
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            line = re.split(r'\s+#', line)[0]
+            for sep in ('==', '>=', '>', '<=', '<'):
+                if sep in line:
+                    pkg, version = line.split(sep, 1)
+                    dependencies[pkg.strip()] = version.strip()
+                    break
+            else:
+                if '@' in line:
+                    pkg, version = line.split('@', 1)
+                    dependencies[pkg.strip()] = version.strip()
+                else:
+                    dependencies[line.strip()] = None
+    return dependencies
+
+
+def generate_dockerfile(folder):
+    """Generate a Dockerfile for a model directory without a full ModelBuilder instance.
+
+    Used during `model init` to create a starting Dockerfile that engineers can customize
+    before upload/deploy. Skips validation, linting, and API calls.
+
+    Returns the generated content string, or None if required files are missing.
+    """
+    config_path = os.path.join(folder, 'config.yaml')
+    requirements_path = os.path.join(folder, 'requirements.txt')
+
+    if not os.path.exists(config_path) or not os.path.exists(requirements_path):
+        return None
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f) or {}
+
+    build_info = config.get('build_info', {}) or {}
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dockerfile_template')
+
+    # Custom base image
+    custom_image = (build_info.get('image', '') or '').strip()
+    if custom_image:
+        with open(os.path.join(template_dir, 'Dockerfile.custom_image.template'), 'r') as f:
+            template = Template(f.read())
+        return template.safe_substitute(IMAGE=custom_image)
+
+    # Node.js template
+    node_version = (build_info.get('node_version', '') or '').strip()
+    if node_version:
+        python_version = build_info.get('python_version', DEFAULT_PYTHON_VERSION)
+        with open(os.path.join(template_dir, 'Dockerfile.node.template'), 'r') as f:
+            template = Template(f.read())
+        return template.safe_substitute(
+            PYTHON_VERSION=python_version,
+            NODE_VERSION=node_version,
+        )
+
+    # Standard template
+    python_version = build_info.get('python_version', DEFAULT_PYTHON_VERSION)
+    if python_version not in AVAILABLE_PYTHON_IMAGES:
+        python_version = DEFAULT_PYTHON_VERSION
+
+    dependencies = _parse_requirements_file(requirements_path)
+
+    # Determine base images (default to non-AMD since we don't have compute info at init time)
+    final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+
+    if 'torch' in dependencies and dependencies['torch']:
+        torch_version = dependencies['torch']
+        for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+            if image.find('rocm') >= 0:
+                continue
+            if torch_version in image and f'py{python_version}' in image:
+                gpu_version = image.split('-')[-1]
+                final_image = TORCH_BASE_IMAGE.format(
+                    torch_version=torch_version,
+                    python_version=python_version,
+                    gpu_version=gpu_version,
+                )
+                break
+
+    clarifai_version = dependencies.get('clarifai') or CLARIFAI_LATEST_VERSION
+
+    # Check streaming_video_consumer config for additional packages
+    additional_packages = ""
+    if config.get('streaming_video_consumer', False):
+        additional_packages = STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION
+
+    with open(os.path.join(template_dir, 'Dockerfile.template'), 'r') as f:
+        template = Template(f.read())
+
+    return template.safe_substitute(
+        name='main',
+        FINAL_IMAGE=final_image,
+        DOWNLOADER_IMAGE=downloader_image,
+        CLARIFAI_VERSION=clarifai_version,
+        ADDITIONAL_PACKAGES=additional_packages,
+    )
+
+
 def upload_model(
     folder,
     platform: Optional[str] = None,
@@ -2247,12 +2418,22 @@ def upload_model(
             compute_info_required=True,
         )
         builder.download_checkpoints(stage="upload")
-        # Use existing Dockerfile if present, otherwise auto-generate
-        if not os.path.exists(os.path.join(folder, 'Dockerfile')):
-            builder.create_dockerfile(generate_dockerfile=True)
+        # Create Dockerfile if missing, or warn if existing one differs from config
+        builder.create_dockerfile()
+
+    # Auto-detect model_type_id from model class if still any-to-any
+    model_config = builder.config.get('model', {})
+    if model_config.get('model_type_id') == 'any-to-any':
+        try:
+            model_class = builder.load_model_class(mocking=True)
+            inferred = infer_model_type_from_class(model_class)
+            if inferred:
+                model_config['model_type_id'] = inferred
+                logger.info(f"Auto-detected model_type_id '{inferred}' from model class")
+        except Exception:
+            pass  # Can't load class — keep any-to-any
 
     # Validation summary
-    model_config = builder.config.get('model', {})
     out.info(
         "Model",
         f"{model_config.get('user_id', '')}/{model_config.get('app_id', '')}/models/{builder.model_id}",
@@ -2353,6 +2534,7 @@ def deploy_model(
     pat=None,
     base_url=None,
     quiet=False,
+    raise_on_error=False,
 ):
     """
     Deploy a model on Clarifai platform.
@@ -2370,6 +2552,8 @@ def deploy_model(
         max_replicas (int): Maximum number of replicas for autoscaling.
         pat (str): Personal access token for authentication.
         base_url (str): Base URL for the API.
+        quiet (bool): Suppress success and failure prints.
+        raise_on_error (bool): Raise a UserError with backend details instead of returning False.
     """
     if model_url and model_id:
         raise UserError("You can only specify one of url or model_id.")
@@ -2439,8 +2623,11 @@ def deploy_model(
             )
         return True
     except Exception as e:
+        error_message = f"Failed to create deployment '{deployment_id}': {e}"
         if not quiet:
-            print(f"❌ Failed to create deployment '{deployment_id}': {e}")
+            print(f"❌ {error_message}")
+        if raise_on_error:
+            raise UserError(error_message) from e
         return False
 
 

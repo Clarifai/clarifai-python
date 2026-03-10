@@ -67,15 +67,18 @@ class VLLMModel(OpenAIModelClass):
     model = True
 
     def load_model(self):
+        model_path = os.path.dirname(os.path.dirname(__file__))
+        builder = ModelBuilder(model_path, download_validation_only=True)
+        config = builder.config
+
+        # Set tensor parallelism to match the number of GPUs allocated
+        num_gpus = config.get("inference_compute_info", {}).get("num_accelerators", 1) or 1
         server_args = {
-            'tensor_parallel_size': 1,
+            'tensor_parallel_size': num_gpus,
             'port': 23333,
             'host': 'localhost',
         }
 
-        model_path = os.path.dirname(os.path.dirname(__file__))
-        builder = ModelBuilder(model_path, download_validation_only=True)
-        config = builder.config
         stage = config["checkpoints"]["when"]
         checkpoints = config["checkpoints"]["repo_id"]
         if stage in ["build", "runtime"]:

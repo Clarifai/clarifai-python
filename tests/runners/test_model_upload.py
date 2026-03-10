@@ -1,5 +1,6 @@
 import os
 import shutil
+import tarfile
 import uuid
 from pathlib import Path
 
@@ -317,3 +318,52 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     # Test non supported action
     with pytest.raises(AssertionError):
         ModelBuilder(target_folder, app_not_found_action="a")
+
+
+def test_upload_model_version_dereferences_symlinks(tmp_path, monkeypatch):
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_runner_models"
+
+    target_folder = tmp_path / "dummy_runner_models"
+    shutil.copytree(original_dummy_path, target_folder)
+
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+
+    config["model"]["user_id"] = "test-user"
+    config["model"]["app_id"] = "test-app"
+    config.pop("checkpoints", None)
+
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+
+    external_file = tmp_path / "external.txt"
+    external_contents = "symlinked file contents\n"
+    with external_file.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(external_contents)
+
+    symlink_path = target_folder / "1" / "linked.txt"
+    symlink_path.symlink_to(external_file)
+
+    builder = ModelBuilder(folder=str(target_folder), validate_api_ids=False)
+
+    monkeypatch.setattr(builder, "get_model_version_proto", lambda git_info=None: object())
+
+    def stop_after_tar():
+        raise RuntimeError("stop-after-tar")
+
+    monkeypatch.setattr(builder, "maybe_create_model", stop_after_tar)
+
+    with pytest.raises(RuntimeError, match="stop-after-tar"):
+        builder.upload_model_version()
+
+    tar_path = Path(builder.tar_file)
+    assert tar_path.exists(), "Tarball was not created"
+
+    with tarfile.open(tar_path, "r:gz") as tar:
+        member_name = next(name for name in tar.getnames() if name.endswith("1/linked.txt"))
+        member = tar.getmember(member_name)
+        assert member.isfile(), "Symlink target should be embedded as a regular file"
+        assert not member.issym(), "Symlink should not be stored as a symlink entry"
+        assert tar.extractfile(member).read().decode("utf-8") == external_contents
