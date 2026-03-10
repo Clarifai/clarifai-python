@@ -159,13 +159,22 @@ class OpenAIModelClass(ModelClass):
                 prompt_tokens = getattr(resp.usage, "prompt_tokens", 0) or getattr(
                     resp.usage, "input_tokens", 0
                 )
-                completion_tokens = getattr(resp.usage, "completion_tokens", 0) or getattr(
-                    resp.usage, "output_tokens", 0
-                )
+                # Use total_tokens - prompt_tokens to capture reasoning/thinking tokens
+                total_tokens = getattr(resp.usage, "total_tokens", None)
+                if total_tokens:
+                    completion_tokens = total_tokens - prompt_tokens
+                else:
+                    completion_tokens = getattr(resp.usage, "completion_tokens", 0) or getattr(
+                        resp.usage, "output_tokens", 0
+                    )
             # stream responses.create
             else:
                 prompt_tokens = getattr(resp.response.usage, "input_tokens", 0)
-                completion_tokens = getattr(resp.response.usage, "output_tokens", 0)
+                total_tokens = getattr(resp.response.usage, "total_tokens", None)
+                if total_tokens:
+                    completion_tokens = total_tokens - prompt_tokens
+                else:
+                    completion_tokens = getattr(resp.response.usage, "output_tokens", 0)
             if prompt_tokens is None:
                 prompt_tokens = 0
             if completion_tokens is None:
