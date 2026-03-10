@@ -235,10 +235,28 @@ class ModelDeployer:
                 app_id=self.app_id,
             )
 
-        # Resolve IDs from the builder's config
+        # Resolve IDs from the builder's normalized config.
+        # The builder already applied the precedence: config.yaml > injected user_id/app_id.
+        # We must use the SAME values the builder uses for upload, so that deployment
+        # targets the same user/app. If config.yaml defines user_id/app_id, they win.
         model_config = self._builder.config.get('model', {})
-        self.user_id = self.user_id or model_config.get('user_id')
-        self.app_id = self.app_id or model_config.get('app_id')
+        resolved_user = model_config.get('user_id', self.user_id)
+        resolved_app = model_config.get('app_id', self.app_id)
+
+        # Warn if config.yaml overrides CLI context
+        if resolved_user and self.user_id and resolved_user != self.user_id:
+            out.warning(
+                f"config.yaml overrides CLI context: user_id='{resolved_user}' "
+                f"(context: '{self.user_id}')"
+            )
+        if resolved_app and self.app_id and resolved_app != self.app_id:
+            out.warning(
+                f"config.yaml overrides CLI context: app_id='{resolved_app}' "
+                f"(context: '{self.app_id}')"
+            )
+
+        self.user_id = resolved_user
+        self.app_id = resolved_app
         self.model_id = self._builder.model_id
 
         # Read compute section from config (instance, cloud, region)
