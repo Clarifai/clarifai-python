@@ -340,7 +340,8 @@ def test_upload_model_version_dereferences_symlinks(tmp_path, monkeypatch):
 
     external_file = tmp_path / "external.txt"
     external_contents = "symlinked file contents\n"
-    external_file.write_text(external_contents, encoding="utf-8")
+    with external_file.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(external_contents)
 
     symlink_path = target_folder / "1" / "linked.txt"
     symlink_path.symlink_to(external_file)
