@@ -115,7 +115,7 @@ FALLBACK_GPU_PRESETS = {
             "cpu_memory": "64Gi",
             "num_accelerators": 2,
             "accelerator_type": ["NVIDIA-L40S"],
-            "accelerator_memory": "96Gi",
+            "accelerator_memory": "48Gi",
         },
     },
 }
@@ -270,7 +270,30 @@ def _normalize_gpu_name(gpu_name):
     return name.upper()
 
 
-def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=None):
+def get_accelerator_wildcard(instance_type_id=None, accelerator_types=None):
+    """Determine the correct accelerator wildcard pattern based on instance type or existing accelerator types.
+
+    Args:
+        instance_type_id: Instance type ID (e.g. 'gpu-nvidia-a10g', 'gpu-amd-mi300x').
+        accelerator_types: Existing accelerator_type list from a preset or API response.
+
+    Returns:
+        str: 'AMD-*' for AMD instances, 'NVIDIA-*' otherwise.
+    """
+    if accelerator_types:
+        for acc in accelerator_types:
+            if isinstance(acc, str) and acc.upper().startswith("AMD"):
+                return "AMD-*"
+    if instance_type_id:
+        lower = instance_type_id.lower()
+        if "amd" in lower or "mi300" in lower or "mi250" in lower:
+            return "AMD-*"
+    return "NVIDIA-*"
+
+
+def resolve_gpu(
+    gpu_name, pat=None, base_url=None, cloud_provider=None, region=None, num_gpus=None
+):
     """Resolve a GPU/instance type name to its full preset info.
 
     Accepts either:
@@ -287,6 +310,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         base_url: Optional API base URL.
         cloud_provider: Optional cloud provider filter (e.g. 'aws', 'gcp').
         region: Optional region filter (e.g. 'us-east-1').
+        num_gpus: Optional number of GPUs to filter by (e.g. 2, 4).
 
     Returns:
         dict with keys: description, instance_type_id, cloud_provider, region, inference_compute_info
@@ -317,6 +341,12 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
             ]
         if region:
             filtered = [it for it in filtered if it.region == region]
+        if num_gpus:
+            filtered = [
+                it
+                for it in filtered
+                if it.compute_info and it.compute_info.num_accelerators == int(num_gpus)
+            ]
 
         # 1. Exact match by instance type ID (e.g. 'g5.xlarge')
         for it in filtered:
@@ -330,8 +360,9 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         if matched:
             return _instance_type_to_preset(matched)
 
-        # If filtering narrowed results too much, try unfiltered
-        if filtered != instance_types:
+        # If filtering narrowed results too much, try unfiltered — but only
+        # when no explicit cloud_provider was requested (avoid cross-cloud fallback).
+        if filtered != instance_types and not cloud_provider:
             for it in instance_types:
                 if it.id.lower() == gpu_name.lower():
                     return _instance_type_to_preset(it)
@@ -521,7 +552,7 @@ def list_gpu_presets(
     return header + table + example
 
 
-def _get_hf_model_info(repo_id):
+def get_hf_model_info(repo_id):
     """Fetch model metadata from HuggingFace API.
 
     Returns dict with: num_params, quant_method, quant_bits, dtype_breakdown, pipeline_tag.
@@ -560,6 +591,59 @@ def _get_hf_model_info(repo_id):
         result["quant_bits"] = quant_config.get("bits")
 
     return result
+
+
+# HuggingFace pipeline_tag → Clarifai model_type_id mapping
+HF_PIPELINE_TAG_TO_MODEL_TYPE = {
+    'text-generation': 'text-to-text',
+    'text2text-generation': 'text-to-text',
+    'conversational': 'text-to-text',
+    'image-text-to-text': 'multimodal-to-text',
+    'visual-question-answering': 'multimodal-to-text',
+    'image-classification': 'visual-classifier',
+    'object-detection': 'visual-detector',
+    'image-segmentation': 'visual-segmenter',
+    'mask-generation': 'visual-segmenter',
+    'text-classification': 'text-classifier',
+    'sentiment-analysis': 'text-classifier',
+    'zero-shot-classification': 'text-classifier',
+    'feature-extraction': 'text-embedder',
+    'sentence-similarity': 'text-embedder',
+    'image-feature-extraction': 'visual-embedder',
+    'text-to-image': 'text-to-image',
+    'automatic-speech-recognition': 'multimodal-to-text',
+}
+
+# Toolkit → default Clarifai model_type_id (used when HF info is unavailable).
+# Most toolkits (vllm, sglang, etc.) can serve both text-to-text and multimodal-to-text,
+# so they default to any-to-any. HF pipeline_tag or class introspection resolves the actual type.
+TOOLKIT_MODEL_TYPE_MAP = {
+    'vllm': 'any-to-any',
+    'sglang': 'any-to-any',
+    'huggingface': 'any-to-any',
+    'ollama': 'any-to-any',
+    'lmstudio': 'any-to-any',
+    'openai': 'any-to-any',
+    'mcp': 'mcp',
+    'python': 'any-to-any',
+}
+
+
+def infer_model_type_from_hf(hf_info):
+    """Map HuggingFace model info to a Clarifai model_type_id.
+
+    Args:
+        hf_info: Dict from get_hf_model_info() (must contain 'pipeline_tag').
+
+    Returns:
+        Clarifai model_type_id string, or None if unmappable.
+    """
+    if not hf_info:
+        return None
+    pipeline_tag = hf_info.get('pipeline_tag')
+    if not pipeline_tag:
+        return None
+    return HF_PIPELINE_TAG_TO_MODEL_TYPE.get(pipeline_tag)
 
 
 def _detect_quant_from_repo_name(repo_id):
@@ -823,12 +907,20 @@ def _select_instance_by_vram(
             ci = it.compute_info if it.compute_info else None
             if not ci or not ci.num_accelerators or ci.num_accelerators == 0:
                 continue
+            # Skip AMD instances — only recommend NVIDIA GPUs automatically.
+            # AMD instances require explicit user selection via --instance flag.
+            acc_types = list(ci.accelerator_type) if ci.accelerator_type else []
+            if any(a.upper().startswith("AMD") for a in acc_types):
+                continue
             acc_mem = ci.accelerator_memory
             if not acc_mem:
                 continue
-            mem_bytes = parse_k8s_quantity(acc_mem)
-            if mem_bytes > 0:
-                gpu_instances.append((it.id, mem_bytes))
+            per_gpu_bytes = parse_k8s_quantity(acc_mem)
+            # Total VRAM = per-GPU memory × number of GPUs.
+            # With tensor parallelism, models are sharded across all GPUs.
+            total_bytes = per_gpu_bytes * (ci.num_accelerators or 1)
+            if total_bytes > 0:
+                gpu_instances.append((it.id, total_bytes))
 
         # Deduplicate by instance ID, keeping largest VRAM for each
         seen = {}
@@ -905,7 +997,9 @@ def _detect_toolkit_from_config(config, model_path=None):
     return ''
 
 
-def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path=None):
+def recommend_instance(
+    config, pat=None, base_url=None, toolkit=None, model_path=None, hf_info=None
+):
     """Recommend instance type based on model config.
 
     Args:
@@ -915,6 +1009,8 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
         toolkit: Explicit toolkit name (e.g. 'vllm', 'sglang'). If not provided,
             detected from build_info.image or requirements.txt.
         model_path: Path to model directory (for requirements.txt-based toolkit detection).
+        hf_info: Pre-fetched HuggingFace model info dict (from get_hf_model_info).
+            If None, will be fetched automatically when needed.
 
     Returns (instance_type_id, reason) or (None, reason).
     """
@@ -946,7 +1042,7 @@ def recommend_instance(config, pat=None, base_url=None, toolkit=None, model_path
     hf_token = _get_hf_token(config) if toolkit in ('vllm', 'sglang') else None
 
     # Try HF metadata API for parameter count + quantization
-    hf_info = _get_hf_model_info(repo_id)
+    hf_info = hf_info or get_hf_model_info(repo_id)
     num_params = hf_info.get("num_params") if hf_info else None
 
     if num_params:

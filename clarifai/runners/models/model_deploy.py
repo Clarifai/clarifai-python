@@ -14,6 +14,8 @@ import re
 import time
 import uuid
 
+import click
+
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.compute_presets import (
@@ -29,6 +31,8 @@ from clarifai.utils.logging import logger
 DEFAULT_MONITOR_TIMEOUT = 1200  # 20 minutes
 DEFAULT_POLL_INTERVAL = 5  # seconds
 DEFAULT_LOG_TAIL_DURATION = 15  # seconds to check for runner logs after pods are ready
+DEFAULT_READY_TIMEOUT = 600  # 10 minutes to wait for model to become ready after pod starts
+DEFAULT_READY_POLL_INTERVAL = 5  # seconds between readiness checks
 
 # K8s events to skip in default (non-verbose) mode — transient scheduler noise
 _SKIP_EVENTS = {"TaintManagerEviction", "SandboxChanged", "FailedCreatePodSandBox"}
@@ -113,6 +117,7 @@ class ModelDeployer:
         self.instance_type = instance_type
         self.cloud_provider = cloud_provider
         self.region = region
+        self.num_gpus = None
         self.compute_cluster_id = compute_cluster_id
         self.nodepool_id = nodepool_id
         self.min_replicas = min_replicas
@@ -125,6 +130,7 @@ class ModelDeployer:
         # Resolved during deploy
         self._builder = None
         self._gpu_preset = None
+        self._gpu_preset_key = None  # (cloud, region) used for resolution
 
     def deploy(self):
         """Run the full deployment pipeline. Returns a result dict."""
@@ -159,6 +165,21 @@ class ModelDeployer:
                     "  Run 'clarifai list-instances' to see available options."
                 )
 
+        # For local models, read cloud/region from config.yaml before resolving
+        # the instance type, so that resolve_gpu picks the correct provider.
+        if self.model_path and self.instance_type:
+            config_path = os.path.join(self.model_path, 'config.yaml')
+            if os.path.exists(config_path):
+                from clarifai.utils.cli import from_yaml
+
+                compute = from_yaml(config_path).get('compute', {})
+                if not self.cloud_provider:
+                    self.cloud_provider = compute.get('cloud')
+                if not self.region:
+                    self.region = compute.get('region')
+                if not self.num_gpus:
+                    self.num_gpus = compute.get('num_gpus')
+
         # Validate instance type early (before upload/deployment work)
         if self.instance_type:
             try:
@@ -168,14 +189,20 @@ class ModelDeployer:
 
     def _resolve_gpu(self):
         """Resolve GPU name to preset info if gpu is specified."""
-        if self.instance_type and not self._gpu_preset:
+        if not self.instance_type:
+            return None
+        # Re-resolve if cloud/region/num_gpus changed since last resolution
+        current_key = (self.cloud_provider, self.region, self.num_gpus)
+        if not self._gpu_preset or self._gpu_preset_key != current_key:
             self._gpu_preset = resolve_gpu(
                 self.instance_type,
                 pat=self.pat,
                 base_url=self.base_url,
                 cloud_provider=self.cloud_provider,
                 region=self.region,
+                num_gpus=self.num_gpus,
             )
+            self._gpu_preset_key = current_key
         return self._gpu_preset
 
     def _write_instance_to_config(self, instance_type_id):
@@ -217,11 +244,13 @@ class ModelDeployer:
         # Read compute section from config (instance, cloud, region)
         compute = self._builder.config.get('compute', {})
 
-        # Cloud and region from config (CLI flags take priority)
+        # Cloud, region, num_gpus from config (CLI flags take priority)
         if not self.cloud_provider:
             self.cloud_provider = compute.get('cloud')
         if not self.region:
             self.region = compute.get('region')
+        if not self.num_gpus:
+            self.num_gpus = compute.get('num_gpus')
 
         # If instance not specified, try to read from config
         if not self.instance_type and not self.nodepool_id:
@@ -260,6 +289,21 @@ class ModelDeployer:
         # Show clean validation summary
         model_type_id = model_config.get('model_type_id', 'unknown')
         instance_label = self.instance_type or 'cpu'
+        gpu_preset = self._resolve_gpu()
+        if gpu_preset:
+            resolved_id = gpu_preset.get("instance_type_id", "")
+            cloud = gpu_preset.get("cloud_provider", "")
+            region = gpu_preset.get("region", "")
+            # Show resolved instance if different from input (e.g. 'cpu' → 's-2vcpu-2gb')
+            num_acc = gpu_preset.get("inference_compute_info", {}).get("num_accelerators", 0)
+            gpu_suffix = f", {num_acc}× GPU" if num_acc > 1 else ""
+            if resolved_id and resolved_id.lower() != instance_label.lower():
+                instance_label = f"{resolved_id}{gpu_suffix} (from '{self.instance_type}')"
+            elif resolved_id:
+                instance_label = f"{resolved_id}{gpu_suffix}" if gpu_suffix else resolved_id
+        else:
+            cloud = ""
+            region = ""
         checkpoints = self._builder.config.get('checkpoints', {})
         has_checkpoints = bool(checkpoints and checkpoints.get('repo_id'))
         dockerfile_path = os.path.join(self.model_path, 'Dockerfile')
@@ -268,6 +312,8 @@ class ModelDeployer:
         out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
         out.info("Type", model_type_id)
         out.info("Instance", instance_label)
+        if cloud:
+            out.info("Cloud", f"{cloud} / {region}" if region else cloud)
         if has_checkpoints:
             out.info("Checkpoints", checkpoints.get('repo_id', ''))
         out.info("Dockerfile", "existing" if has_dockerfile else "auto-generated")
@@ -279,10 +325,8 @@ class ModelDeployer:
         with _quiet_sdk_logger(suppress):
             if checkpoint_when and checkpoint_when != 'runtime':
                 self._builder.download_checkpoints(stage=self.stage)
-            if has_dockerfile:
-                pass  # Use existing
-            else:
-                self._builder.create_dockerfile(generate_dockerfile=True)
+            # Create Dockerfile if missing, or warn if existing one differs from config
+            self._builder.create_dockerfile()
 
         # Resolve inference_compute_info from --instance flag.
         # Always override when --instance is provided, even if normalize_config
@@ -294,7 +338,15 @@ class ModelDeployer:
                 self.instance_type, pat=self.pat, base_url=self.base_url
             )
             if ici.get('num_accelerators', 0) > 0:
-                ici.setdefault('accelerator_type', ['NVIDIA-*'])
+                from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+                wildcard = get_accelerator_wildcard(
+                    instance_type_id=self._gpu_preset.get("instance_type_id")
+                    if self._gpu_preset
+                    else None,
+                    accelerator_types=ici.get('accelerator_type'),
+                )
+                ici.setdefault('accelerator_type', [wildcard])
             self._builder.config['inference_compute_info'] = ici
             self._builder.inference_compute_info = self._builder._get_inference_compute_info()
 
@@ -374,9 +426,25 @@ class ModelDeployer:
             # Fetch method signatures from the model version for client script & predict hint
             self._fetch_method_signatures(model)
 
+        instance_label = self.instance_type or "cpu"
+        gpu_preset = self._resolve_gpu()
+        if gpu_preset:
+            resolved_id = gpu_preset.get("instance_type_id", "")
+            cloud = gpu_preset.get("cloud_provider", "")
+            region = gpu_preset.get("region", "")
+            if resolved_id and resolved_id.lower() != instance_label.lower():
+                instance_label = f"{resolved_id} (from '{self.instance_type}')"
+            elif resolved_id:
+                instance_label = resolved_id
+        else:
+            cloud = ""
+            region = ""
+
         out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
         out.info("Version", self.model_version_id)
-        out.info("Instance", self.instance_type or "cpu")
+        out.info("Instance", instance_label)
+        if cloud:
+            out.info("Cloud", f"{cloud} / {region}" if region else cloud)
 
         return self._create_deployment()
 
@@ -517,7 +585,18 @@ class ModelDeployer:
         # Build a ComputeInfo that preserves the existing accelerator_type
         # (the API rejects changes to accelerator_type) while updating
         # num_accelerators and accelerator_memory.
-        existing_acc_type = list(model_compute.accelerator_type) if model_compute else ["NVIDIA-*"]
+        if model_compute and model_compute.accelerator_type:
+            existing_acc_type = list(model_compute.accelerator_type)
+        else:
+            from clarifai.utils.compute_presets import get_accelerator_wildcard
+
+            wildcard = get_accelerator_wildcard(
+                instance_type_id=self._gpu_preset.get("instance_type_id")
+                if self._gpu_preset
+                else None,
+                accelerator_types=instance_compute.get("accelerator_type"),
+            )
+            existing_acc_type = [wildcard]
         patch_compute = resources_pb2.ComputeInfo(
             num_accelerators=instance_compute.get("num_accelerators", 0),
             accelerator_memory=instance_compute.get("accelerator_memory", ""),
@@ -557,6 +636,47 @@ class ModelDeployer:
 
         return cloud, region
 
+    def _validate_nodepool_instance_type(self, compute_cluster_id, nodepool_id):
+        """Validate that the specified instance type exists in the given nodepool.
+
+        Raises UserError if the instance type is not found in the nodepool.
+        """
+        from clarifai.client.compute_cluster import ComputeCluster
+
+        suppress = not self.verbose
+        gpu_preset = self._resolve_gpu()
+        if not gpu_preset:
+            return
+
+        instance_type_id = gpu_preset["instance_type_id"]
+
+        with _quiet_sdk_logger(suppress):
+            cc = ComputeCluster(
+                compute_cluster_id=compute_cluster_id,
+                user_id=self.user_id,
+                pat=self.pat,
+                base_url=self.base_url,
+            )
+            try:
+                np = cc.nodepool(nodepool_id)
+            except Exception:
+                raise UserError(
+                    f"Nodepool '{nodepool_id}' not found in compute cluster '{compute_cluster_id}'."
+                )
+
+        # Get instance type IDs from the nodepool
+        np_instance_types = list(np.instance_types)
+        np_instance_ids = [it.id for it in np_instance_types]
+
+        if instance_type_id not in np_instance_ids:
+            available = ", ".join(np_instance_ids) if np_instance_ids else "(none)"
+            raise UserError(
+                f"Instance type '{instance_type_id}' is not available in nodepool '{nodepool_id}'.\n"
+                f"  Available instance types: {available}\n"
+                f"  Either use one of the available types with --instance, or omit --nodepool-id "
+                f"to auto-create infrastructure."
+            )
+
     def _ensure_compute_infrastructure(self):
         """Auto-create compute cluster and nodepool if needed.
 
@@ -564,6 +684,8 @@ class ModelDeployer:
             tuple: (compute_cluster_id, nodepool_id, cluster_user_id)
         """
         if self.nodepool_id and self.compute_cluster_id:
+            if self.instance_type:
+                self._validate_nodepool_instance_type(self.compute_cluster_id, self.nodepool_id)
             return self.compute_cluster_id, self.nodepool_id, self.user_id
 
         from clarifai.client.user import User
@@ -591,6 +713,8 @@ class ModelDeployer:
         # Determine nodepool ID
         if self.nodepool_id:
             np_id = self.nodepool_id
+            if self.instance_type:
+                self._validate_nodepool_instance_type(cc_id, np_id)
         else:
             instance_type_id = gpu_preset["instance_type_id"] if gpu_preset else "cpu-t3a-2xlarge"
             np_id = get_deploy_nodepool_id(instance_type_id)
@@ -647,12 +771,11 @@ class ModelDeployer:
                 pat=self.pat,
                 base_url=self.base_url,
                 quiet=suppress,
+                raise_on_error=True,
             )
 
         if not success:
-            raise UserError(
-                f"Deployment failed for model '{self.model_id}'. Check logs above for details."
-            )
+            raise UserError(f"Deployment failed for model '{self.model_id}'.")
 
         out.success(f"Deployment '{deployment_id}' created")
 
@@ -768,18 +891,24 @@ class ModelDeployer:
                     if has_inline_progress:
                         out.clear_inline()
                         has_inline_progress = False
-                    out.success(
-                        f"Model is running! Pods: {pods_running}/{pods_total} ({elapsed}s)"
+                    click.echo(
+                        click.style(
+                            f"  Pod started ({elapsed}s). Waiting for model to be ready...",
+                            fg="cyan",
+                        )
                     )
-                    # Tail model logs briefly to show startup output
-                    self._tail_runner_logs(
+                    # Wait for model to become truly ready (live_replicas > 0)
+                    # while tailing startup logs so the user sees loading progress.
+                    ready = self._wait_for_model_ready(
                         stub,
                         user_app_id,
+                        deployment_id,
                         compute_cluster_id,
                         nodepool_id,
                         runner.id,
+                        start_time,
                     )
-                    return False  # Not timed out
+                    return not ready
 
                 status_msg = f"Pods: {pods_running}/{pods_total} running ({elapsed}s elapsed)"
             else:
@@ -991,6 +1120,199 @@ class ModelDeployer:
         out.status("")
         out.status("Stream model logs:")
         out.status(f'  clarifai model logs --model-url "{model_url}"')
+
+    def _get_deployment_metrics(self, stub, user_app_id, deployment_id):
+        """Fetch deployment metrics (live_replicas, desired_replicas, rollout_in_progress)."""
+        from clarifai_grpc.grpc.api import service_pb2
+        from clarifai_grpc.grpc.api.status import status_code_pb2
+
+        try:
+            resp = stub.GetDeployment(
+                service_pb2.GetDeploymentRequest(
+                    user_app_id=user_app_id, deployment_id=deployment_id
+                )
+            )
+            if resp.status.code == status_code_pb2.SUCCESS:
+                return resp.deployment.deployment_metrics
+        except Exception as e:
+            logger.debug(f"Error fetching deployment metrics: {e}")
+        return None
+
+    def _wait_for_model_ready(
+        self,
+        stub,
+        user_app_id,
+        deployment_id,
+        compute_cluster_id,
+        nodepool_id,
+        runner_id,
+        overall_start_time,
+    ):
+        """Wait for live_replicas > 0, tailing startup logs while waiting.
+
+        This phase starts after pods are running but before the model is ready.
+        During this time, the model is loading weights / starting the inference
+        server. We show the startup logs and poll deployment_metrics.live_replicas.
+
+        Args:
+            stub: gRPC stub.
+            user_app_id: UserAppIDSet proto.
+            deployment_id: The deployment ID.
+            compute_cluster_id: Compute cluster ID.
+            nodepool_id: Nodepool ID.
+            runner_id: Runner ID for log fetching.
+            overall_start_time: Start time of the entire monitor phase.
+
+        Returns:
+            True if model became ready, False if timed out.
+        """
+        from clarifai_grpc.grpc.api import service_pb2
+
+        from clarifai.runners.models import deploy_output as out
+
+        model_url = f"https://clarifai.com/{self.user_id}/{self.app_id}/models/{self.model_id}"
+
+        seen_logs = set()
+        log_page = 1
+        has_logs = False
+        ready_start = time.time()
+        total_api_entries = 0
+        last_log_time = time.time()
+        has_heartbeat = False
+        HEARTBEAT_INTERVAL = 5  # seconds of silence before showing heartbeat
+
+        while True:
+            elapsed_total = int(time.time() - overall_start_time)
+            elapsed_ready = int(time.time() - ready_start)
+
+            # Check overall timeout
+            if elapsed_total >= DEFAULT_MONITOR_TIMEOUT:
+                break
+
+            # Check readiness timeout
+            if elapsed_ready >= DEFAULT_READY_TIMEOUT:
+                break
+
+            # Check deployment metrics for live_replicas
+            metrics = self._get_deployment_metrics(stub, user_app_id, deployment_id)
+            if metrics and metrics.live_replicas >= 1:
+                # Model is truly ready — clear heartbeat and flush remaining logs
+                if has_heartbeat:
+                    out.clear_inline()
+                if has_logs:
+                    # One final log fetch
+                    try:
+                        resp = stub.ListLogEntries(
+                            service_pb2.ListLogEntriesRequest(
+                                log_type="runner",
+                                user_app_id=user_app_id,
+                                compute_cluster_id=compute_cluster_id or "",
+                                nodepool_id=nodepool_id or "",
+                                runner_id=runner_id,
+                                page=log_page,
+                                per_page=50,
+                            )
+                        )
+                        for entry in resp.log_entries:
+                            log_key = entry.url or entry.message[:100]
+                            if log_key in seen_logs:
+                                continue
+                            seen_logs.add(log_key)
+                            msg = entry.message.strip()
+                            if msg:
+                                parsed = _parse_runner_log(msg, verbose=self.verbose)
+                                if parsed:
+                                    out.status(parsed)
+                    except Exception:
+                        pass
+
+                out.success(
+                    f"Model is ready! Live replicas: {metrics.live_replicas} ({elapsed_total}s)"
+                )
+                out.status("")
+                out.status("Stream model logs:")
+                out.status(f'  clarifai model logs --model-url "{model_url}"')
+                return True
+
+            # Tail startup logs while waiting
+            new_entries = 0
+            try:
+                resp = stub.ListLogEntries(
+                    service_pb2.ListLogEntriesRequest(
+                        log_type="runner",
+                        user_app_id=user_app_id,
+                        compute_cluster_id=compute_cluster_id or "",
+                        nodepool_id=nodepool_id or "",
+                        runner_id=runner_id,
+                        page=log_page,
+                        per_page=50,
+                    )
+                )
+                entries_count = 0
+                for entry in resp.log_entries:
+                    entries_count += 1
+                    total_api_entries += 1
+                    log_key = entry.url or entry.message[:100]
+                    if log_key in seen_logs:
+                        continue
+                    seen_logs.add(log_key)
+                    msg = entry.message.strip()
+                    if not msg:
+                        continue
+
+                    parsed = _parse_runner_log(msg, verbose=self.verbose)
+                    display = parsed
+                    if not display and self.verbose:
+                        display = msg[:200]
+
+                    if display:
+                        if has_heartbeat:
+                            out.clear_inline()
+                            has_heartbeat = False
+                        if not has_logs:
+                            out.phase_header("Startup Logs")
+                            has_logs = True
+                        out.status(display)
+                        new_entries += 1
+                        last_log_time = time.time()
+                if entries_count == 50:
+                    log_page += 1
+            except Exception as e:
+                out.event(f"Log fetch error: {e}")
+
+            # Heartbeat when logs are idle (e.g. during weight download)
+            silence = int(time.time() - last_log_time)
+            if new_entries == 0 and silence >= HEARTBEAT_INTERVAL:
+                out.inline_progress(
+                    f"Still loading... ({elapsed_total}s elapsed, no new logs for {silence}s)"
+                )
+                has_heartbeat = True
+
+            time.sleep(DEFAULT_READY_POLL_INTERVAL)
+
+        # Timed out waiting for readiness
+        if has_heartbeat:
+            out.clear_inline()
+        if not has_logs:
+            out.phase_header("Startup Logs")
+            if total_api_entries > 0:
+                out.status(
+                    f"{total_api_entries} log entries found but all filtered "
+                    f"(use --verbose to see)."
+                )
+            else:
+                out.status("No startup logs available yet.")
+
+        out.status("")
+        out.warning("Model pod is running but not yet ready to serve requests.")
+        out.status("")
+        out.status("  The model is likely still loading (downloading checkpoints,")
+        out.status("  initializing inference engine, or warming up).")
+        out.status("")
+        out.status("  Check progress with:")
+        out.hint("Logs", f'clarifai model logs --deployment "{deployment_id}"')
+        out.hint("Status", f'clarifai model status --deployment "{deployment_id}"')
+        return False
 
 
 def _parse_runner_log(raw_msg, verbose=False):
@@ -1443,7 +1765,9 @@ def delete_deployment(deployment_id, user_id, pat=None, base_url=None):
     response = stub.DeleteDeployments(request)
 
     if response.status.code != status_code_pb2.SUCCESS:
+        detail = response.status.details or response.status.description
         raise UserError(
             f"Failed to delete deployment '{deployment_id}'.\n"
-            f"  Status: {response.status.description}"
+            f"  {detail}\n"
+            f"  Check the deployment ID and current context (user: {user_id})."
         )

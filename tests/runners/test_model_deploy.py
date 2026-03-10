@@ -15,12 +15,13 @@ from clarifai.utils.compute_presets import (
     _estimate_vram_bytes,
     _estimate_weight_bytes,
     _get_hf_model_config,
-    _get_hf_model_info,
     _get_hf_token,
     _select_instance_by_vram,
+    get_accelerator_wildcard,
     get_compute_cluster_config,
     get_deploy_compute_cluster_id,
     get_deploy_nodepool_id,
+    get_hf_model_info,
     get_inference_compute_for_gpu,
     get_nodepool_config,
     infer_gpu_from_config,
@@ -1588,11 +1589,81 @@ class TestDeployModelQuiet:
         captured = capsys.readouterr()
         assert "Deployment" in captured.out
 
+    def test_deploy_model_raise_on_error_surfaces_detail(self, capsys):
+        """deploy_model can raise a detailed UserError for CLI callers."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+        from clarifai.runners.models.model_builder import deploy_model
+
+        mock_nodepool = MagicMock()
+        mock_nodepool.create_deployment.side_effect = Exception(
+            "Insufficient capacity in nodepool"
+        )
+
+        with (
+            patch('clarifai.runners.models.model_builder.Nodepool', return_value=mock_nodepool),
+            pytest.raises(UserError, match="Insufficient capacity in nodepool"),
+        ):
+            deploy_model(
+                model_id="test-model",
+                app_id="test-app",
+                user_id="test-user",
+                deployment_id="deploy-test",
+                model_version_id="v1",
+                nodepool_id="np-1",
+                compute_cluster_id="cc-1",
+                cluster_user_id="test-user",
+                quiet=True,
+                raise_on_error=True,
+            )
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+
+class TestCreateDeploymentErrors:
+    """Test deployment creation error surfacing."""
+
+    def test_create_deployment_bubbles_up_backend_error(self):
+        """_create_deployment should surface the backend deployment error."""
+        from unittest.mock import patch
+
+        from clarifai.errors import UserError
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        deployer = ModelDeployer(
+            model_url="https://clarifai.com/test-user/test-app/models/test-model",
+            user_id="test-user",
+            app_id="test-app",
+            model_version_id="v1",
+            instance_type="a10g",
+            pat="test-pat",
+            base_url="https://api.clarifai.com",
+        )
+        deployer.model_id = "test-model"
+
+        with (
+            patch.object(
+                deployer,
+                '_ensure_compute_infrastructure',
+                return_value=("cc-1", "np-1", "test-user"),
+            ),
+            patch(
+                'clarifai.runners.models.model_builder.deploy_model',
+                side_effect=UserError(
+                    "Failed to create deployment 'deploy-test': Insufficient capacity in nodepool"
+                ),
+            ),
+            pytest.raises(UserError, match="Insufficient capacity in nodepool"),
+        ):
+            deployer._create_deployment()
+
 
 class TestRecommendInstance:
     """Test auto-selection of GPU instance based on model size."""
 
-    def test_get_hf_model_info_success(self):
+    def testget_hf_model_info_success(self):
         """Parses safetensors.total and config from mocked HF API."""
         from unittest.mock import MagicMock, patch
 
@@ -1607,14 +1678,14 @@ class TestRecommendInstance:
             "pipeline_tag": "text-generation",
         }
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("meta-llama/Llama-3-8B")
+            info = get_hf_model_info("meta-llama/Llama-3-8B")
         assert info is not None
         assert info["num_params"] == 7_000_000_000
         assert info["dtype_breakdown"] == {"BF16": 7_000_000_000}
         assert info["pipeline_tag"] == "text-generation"
         assert info["quant_method"] is None
 
-    def test_get_hf_model_info_with_quantization(self):
+    def testget_hf_model_info_with_quantization(self):
         """Detects AWQ quantization from API response."""
         from unittest.mock import MagicMock, patch
 
@@ -1625,28 +1696,28 @@ class TestRecommendInstance:
             "config": {"quantization_config": {"quant_method": "awq", "bits": 4}},
         }
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("some/model-awq")
+            info = get_hf_model_info("some/model-awq")
         assert info["quant_method"] == "awq"
         assert info["quant_bits"] == 4
 
-    def test_get_hf_model_info_api_failure(self):
+    def testget_hf_model_info_api_failure(self):
         """Returns None when API fails."""
         from unittest.mock import patch
 
         with patch(
             "clarifai.utils.compute_presets.requests.get", side_effect=Exception("timeout")
         ):
-            info = _get_hf_model_info("nonexistent/model")
+            info = get_hf_model_info("nonexistent/model")
         assert info is None
 
-    def test_get_hf_model_info_no_safetensors(self):
+    def testget_hf_model_info_no_safetensors(self):
         """Returns num_params=None when safetensors field missing."""
         from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"config": {}, "pipeline_tag": "text-generation"}
         with patch("clarifai.utils.compute_presets.requests.get", return_value=mock_resp):
-            info = _get_hf_model_info("some/old-model")
+            info = get_hf_model_info("some/old-model")
         assert info is not None
         assert info["num_params"] is None
 
@@ -1806,7 +1877,7 @@ class TestRecommendInstance:
             "checkpoints": {"repo_id": "some/model"},
         }
         with patch(
-            "clarifai.utils.compute_presets._get_hf_model_info",
+            "clarifai.utils.compute_presets.get_hf_model_info",
             return_value={
                 "num_params": None,
                 "quant_method": None,
@@ -1835,7 +1906,7 @@ class TestRecommendInstance:
             "model": {"model_type_id": "any-to-any"},
             "checkpoints": {"repo_id": "nonexistent/model"},
         }
-        with patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=None):
+        with patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=None):
             with patch(
                 "clarifai.runners.utils.loader.HuggingFaceLoader.get_huggingface_checkpoint_total_size",
                 return_value=0,
@@ -1883,7 +1954,7 @@ class TestRecommendInstance:
         small_vram = {"num_params": 600_000_000}  # ~3 GiB, fits T4
 
         with (
-            patch("clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram),
+            patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=small_vram),
             patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
             patch(
                 "clarifai.utils.compute_presets._try_list_all_instance_types",
@@ -1928,9 +1999,7 @@ class TestRecommendInstance:
                 f.write("sglang\nclarifai\n")
 
             with (
-                patch(
-                    "clarifai.utils.compute_presets._get_hf_model_info", return_value=small_vram
-                ),
+                patch("clarifai.utils.compute_presets.get_hf_model_info", return_value=small_vram),
                 patch("clarifai.utils.compute_presets._get_hf_model_config", return_value=None),
                 patch(
                     "clarifai.utils.compute_presets._try_list_all_instance_types",
@@ -2496,7 +2565,7 @@ class TestKVCacheEstimation:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ),
         ):
-            # First call: _get_hf_model_info (HF API)
+            # First call: get_hf_model_info (HF API)
             # Second call: _get_hf_model_config (config.json)
             mock_config_resp = MagicMock()
             mock_config_resp.json.return_value = {
@@ -2598,7 +2667,7 @@ class TestKVCacheEstimation:
                 "clarifai.utils.compute_presets._try_list_all_instance_types", return_value=None
             ),
         ):
-            # First call: _get_hf_model_info succeeds
+            # First call: get_hf_model_info succeeds
             # Second call: _get_hf_model_config fails (gated)
             mock_config_fail = MagicMock()
             mock_config_fail.raise_for_status.side_effect = requests.exceptions.HTTPError("403")
@@ -2621,7 +2690,7 @@ class TestKVCacheEstimation:
         }
         with (
             patch(
-                "clarifai.utils.compute_presets._get_hf_model_info",
+                "clarifai.utils.compute_presets.get_hf_model_info",
                 return_value={
                     "num_params": None,
                     "quant_method": None,
@@ -2648,3 +2717,153 @@ class TestKVCacheEstimation:
         assert inst_id == "gpu-nvidia-a10g"
         assert "KV cache" in reason
         assert "40960 ctx" in reason
+
+
+class TestNodepoolInstanceTypeValidation:
+    """Test validation of instance type against nodepool's available instance types."""
+
+    def _make_deployer(self, **kwargs):
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        defaults = dict(
+            model_url="https://clarifai.com/user/app/models/test-model",
+            user_id="test-user",
+            instance_type="a10g",
+            compute_cluster_id="cc-1",
+            nodepool_id="np-1",
+            pat="test-pat",
+            base_url="https://api.clarifai.com",
+        )
+        defaults.update(kwargs)
+        return ModelDeployer(**defaults)
+
+    def _mock_nodepool(self, instance_type_ids):
+        """Create a mock nodepool with given instance type IDs."""
+        from unittest.mock import MagicMock
+
+        np = MagicMock()
+        instance_types = []
+        for it_id in instance_type_ids:
+            it = MagicMock()
+            it.id = it_id
+            instance_types.append(it)
+        np.instance_types = instance_types
+        return np
+
+    def test_valid_instance_type_passes(self):
+        """No error when instance type exists in nodepool."""
+        from unittest.mock import MagicMock, patch
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-a10g", "gpu-nvidia-l40s"])
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            # Should not raise
+            deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_invalid_instance_type_raises(self):
+        """UserError when instance type is not in nodepool."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(["gpu-nvidia-l40s"])
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="not available in nodepool"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_error_message_lists_available_types(self):
+        """Error message includes available instance types."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.return_value = self._mock_nodepool(
+            ["gpu-nvidia-l40s", "gpu-nvidia-g6e-2x-large"]
+        )
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="gpu-nvidia-l40s"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_nodepool_not_found_raises(self):
+        """UserError when nodepool doesn't exist."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.errors import UserError
+
+        deployer = self._make_deployer(instance_type="a10g")
+        deployer._gpu_preset = {
+            "instance_type_id": "gpu-nvidia-a10g",
+            "inference_compute_info": {},
+        }
+        deployer._gpu_preset_key = (deployer.cloud_provider, deployer.region, deployer.num_gpus)
+
+        mock_cc = MagicMock()
+        mock_cc.nodepool.side_effect = Exception("not found")
+
+        with patch("clarifai.client.compute_cluster.ComputeCluster", return_value=mock_cc):
+            with pytest.raises(UserError, match="not found in compute cluster"):
+                deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+    def test_no_instance_type_skips_validation(self):
+        """When no instance type specified, validation is skipped."""
+        deployer = self._make_deployer(instance_type=None)
+        deployer._gpu_preset = None
+        # Should not raise — no validation needed
+        deployer._validate_nodepool_instance_type("cc-1", "np-1")
+
+
+class TestAcceleratorWildcard:
+    """Test accelerator wildcard detection for NVIDIA vs AMD instances."""
+
+    def test_nvidia_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-nvidia-a10g") == "NVIDIA-*"
+
+    def test_amd_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-amd-mi300x") == "AMD-*"
+
+    def test_amd_mi250_instance_type_id(self):
+        assert get_accelerator_wildcard(instance_type_id="gpu-amd-mi250") == "AMD-*"
+
+    def test_amd_accelerator_types(self):
+        assert get_accelerator_wildcard(accelerator_types=["AMD-MI300X"]) == "AMD-*"
+
+    def test_nvidia_accelerator_types(self):
+        assert get_accelerator_wildcard(accelerator_types=["NVIDIA-A10G"]) == "NVIDIA-*"
+
+    def test_no_info_defaults_to_nvidia(self):
+        assert get_accelerator_wildcard() == "NVIDIA-*"
+
+    def test_accelerator_types_takes_precedence(self):
+        """accelerator_types from API should take precedence over instance_type_id."""
+        assert (
+            get_accelerator_wildcard(
+                instance_type_id="gpu-nvidia-a10g", accelerator_types=["AMD-MI300X"]
+            )
+            == "AMD-*"
+        )

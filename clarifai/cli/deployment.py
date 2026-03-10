@@ -95,18 +95,37 @@ def list(ctx, nodepool_id, page_no, per_page):
                 [i for i in nodepool.list_deployments(page_no=page_no, per_page=per_page)]
             )
 
+    # Convert generators to list so we can check length
+    response = [item for item in response]
+
+    if not response:
+        click.echo("\nNo deployments found.")
+        click.echo("  Deploy a model: clarifai model deploy ./my-model --instance gpu-nvidia-a10g")
+        return
+
+    def _status_label(dep):
+        return "Enabled" if dep.status == 0 else "Disabled"
+
+    def _replicas(dep):
+        m = dep.deployment_metrics
+        if m:
+            return f"{m.live_replicas}/{m.desired_replicas}"
+        return "-"
+
     display_co_resources(
         response,
         custom_columns={
             'ID': lambda c: c.id,
-            'USER_ID': lambda c: c.user_id,
-            'COMPUTE_CLUSTER_ID': lambda c: c.nodepools[0].compute_cluster.id,
-            'NODEPOOL_ID': lambda c: c.nodepools[0].id,
-            'MODEL_USER_ID': lambda c: c.worker.model.user_id,
-            'MODEL_APP_ID': lambda c: c.worker.model.app_id,
+            'STATUS': _status_label,
+            'REPLICAS': _replicas,
             'MODEL_ID': lambda c: c.worker.model.id,
-            'MODEL_VERSION_ID': lambda c: c.worker.model.model_version.id,
-            'DESCRIPTION': lambda c: c.description,
+            'MODEL_VERSION': lambda c: c.worker.model.model_version.id[:12]
+            if c.worker.model.model_version.id
+            else "-",
+            'NODEPOOL_ID': lambda c: c.nodepools[0].id if c.nodepools else "-",
+            'COMPUTE_CLUSTER': lambda c: c.nodepools[0].compute_cluster.id
+            if c.nodepools and c.nodepools[0].compute_cluster
+            else "-",
         },
     )
 
@@ -116,6 +135,10 @@ def list(ctx, nodepool_id, page_no, per_page):
 @click.pass_context
 def get(ctx, deployment_id):
     """Show details for a single deployment.
+
+    \b
+    Shows status (enabled/disabled), live/desired replicas, rollout state,
+    instance type with GPU info, nodepool, compute cluster, and timing.
 
     \b
     Examples:

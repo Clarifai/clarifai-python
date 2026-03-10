@@ -659,8 +659,6 @@ def customize_huggingface_model(model_path, user_id, model_name):
 
         # Simplify the cloned config to use compute.instance shorthand
         simplify_cloned_config(config_path, model_name=model_name)
-
-        logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
 
