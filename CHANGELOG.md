@@ -1,3 +1,13 @@
+## [[12.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.2) - [PyPI](https://pypi.org/project/clarifai/12.3.2/) - 2026-03-11
+
+### Changed
+- CLI & Deploy Improvements [(#977)](https://github.com/Clarifai/clarifai-python/pull/977)
+
+### Fixed
+- Fixed user/app conflicts with context in CLI [(#979)](https://github.com/Clarifai/clarifai-python/pull/979)
+- Fixed completion token reporting to use `total_tokens - prompt_tokens` to include reasoning tokens [(#978)](https://github.com/Clarifai/clarifai-python/pull/978)
+- Fixed user_id conflicts [(#973)](https://github.com/Clarifai/clarifai-python/pull/973)
+
 ## [[12.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.1) - [PyPI](https://pypi.org/project/clarifai/12.3.1/) - 2026-03-05
 
 ### Added
