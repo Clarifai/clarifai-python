@@ -1576,13 +1576,20 @@ class ModelBuilder:
     def create_dockerfile(self, generate_dockerfile=False):
         """
         Create a Dockerfile for the model based on its configuration.
+
+        When generate_dockerfile=False (default), an existing Dockerfile is NEVER
+        overwritten — it is always preserved. A warning is printed if the existing
+        file differs from what would be auto-generated.
+
+        When generate_dockerfile=True, the Dockerfile is always (re)written.
         """
+        import click
+
         generated_content = self._generate_dockerfile_content()
 
         if generate_dockerfile:
             should_create_dockerfile = True
         else:
-            # Always handle Dockerfile creation with user interaction when content differs
             dockerfile_path = os.path.join(self.folder, 'Dockerfile')
             should_create_dockerfile = True
 
@@ -1598,15 +1605,14 @@ class ModelBuilder:
                     logger.info(
                         "Dockerfile already exists with identical content, skipping creation."
                     )
-                    should_create_dockerfile = False
                 else:
-                    logger.warning(
-                        "Dockerfile differs from what would be auto-generated from your current "
-                        "config.yaml. Keeping your existing Dockerfile. If your config has changed "
-                        "(e.g. streaming_video_consumer, build_info), delete the Dockerfile to "
-                        "regenerate it, or update it manually."
+                    click.echo(
+                        click.style("  Note: ", fg="yellow")
+                        + "Existing Dockerfile differs from auto-generated. "
+                        "Keeping yours. Delete it to regenerate."
                     )
-                    should_create_dockerfile = False
+                # Never overwrite an existing Dockerfile
+                should_create_dockerfile = False
 
         if should_create_dockerfile:
             # Write Dockerfile
