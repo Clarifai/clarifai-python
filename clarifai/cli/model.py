@@ -1992,26 +1992,35 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 created['model'] = model_id
                 click.echo("done")
 
-        # 5. Model version (always created fresh — always cleaned up)
-        out.status("Creating model version... ", nl=False)
-        version_model = model.create_version(
-            pretrained_model_config={"local_dev": True},
-            method_signatures=method_signatures,
-        )
-        version_model.load_info()
-        version_id = version_model.model_version.id
-        created['model_version'] = version_id
-        click.echo(f"done ({version_id[:8]})")
-
-        # 6. Stale deployment cleanup (from previous crash)
-        deployment_id = f"local-{model_id}"
+        # 5. Model version — reuse existing if model_version_id is in context
+        existing_version_id = None
         try:
-            nodepool.deployment(deployment_id)
-            nodepool.delete_deployments([deployment_id])
-        except Exception:
+            existing_version_id = ctx.obj.current.model_version_id
+        except AttributeError:
             pass
 
-        # 7. Runner (always created fresh — always cleaned up)
+        if existing_version_id:
+            version_id = existing_version_id
+            out.status(f"Model version ready ({version_id[:8]})")
+        else:
+            out.status("Creating model version... ", nl=False)
+            version_model = model.create_version(
+                pretrained_model_config={"local_dev": True},
+                method_signatures=method_signatures,
+            )
+            version_model.load_info()
+            version_id = version_model.model_version.id
+            created['model_version'] = version_id
+            click.echo(f"done ({version_id[:8]})")
+
+        # 6. Resolve deployment_id from context or default
+        existing_deployment_id = None
+        try:
+            existing_deployment_id = ctx.obj.current.deployment_id
+        except AttributeError:
+            pass
+        deployment_id = existing_deployment_id or f"local-{model_id}"
+
         worker = {
             "model": {
                 "id": model_id,
@@ -2020,43 +2029,80 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 "app_id": app_id,
             }
         }
-        out.status("Creating runner... ", nl=False)
-        runner = nodepool.create_runner(
-            runner_config={
-                "runner": {
-                    "description": f"local runner for {model_id}",
-                    "worker": worker,
-                    "num_replicas": 1,
-                }
-            }
-        )
-        runner_id = runner.id
-        created['runner'] = runner_id
-        click.echo("done")
 
-        # 8. Deployment (always created fresh — always cleaned up)
-        out.status("Creating deployment... ", nl=False)
-        nodepool.create_deployment(
-            deployment_id=deployment_id,
-            deployment_config={
-                "deployment": {
-                    "scheduling_choice": 3,
-                    "worker": worker,
-                    "nodepools": [
-                        {
-                            "id": np_id,
-                            "compute_cluster": {
-                                "id": cc_id,
-                                "user_id": user_id,
-                            },
+        # 7. Runner — reuse existing if deployment already exists in context
+        if existing_deployment_id:
+            # Existing deployment implies an existing runner; find it
+            try:
+                runners = nodepool.list_runners()
+                runner_id = None
+                for r in runners:
+                    runner_id = r.id
+                    break
+                if not runner_id:
+                    raise Exception("No runners found")
+                out.status(f"Runner ready ({runner_id[:8]})")
+            except Exception:
+                # Fallback: create a new runner
+                out.status("Creating runner... ", nl=False)
+                runner = nodepool.create_runner(
+                    runner_config={
+                        "runner": {
+                            "description": f"local runner for {model_id}",
+                            "worker": worker,
+                            "num_replicas": 1,
                         }
-                    ],
-                    "deploy_latest_version": True,
+                    }
+                )
+                runner_id = runner.id
+                created['runner'] = runner_id
+                click.echo("done")
+            out.status(f"Deployment ready ({deployment_id})")
+        else:
+            # Stale deployment cleanup (from previous crash)
+            try:
+                nodepool.deployment(deployment_id)
+                nodepool.delete_deployments([deployment_id])
+            except Exception:
+                pass
+
+            out.status("Creating runner... ", nl=False)
+            runner = nodepool.create_runner(
+                runner_config={
+                    "runner": {
+                        "description": f"local runner for {model_id}",
+                        "worker": worker,
+                        "num_replicas": 1,
+                    }
                 }
-            },
-        )
-        created['deployment'] = deployment_id
-        click.echo("done")
+            )
+            runner_id = runner.id
+            created['runner'] = runner_id
+            click.echo("done")
+
+            # 8. Deployment (always created fresh — always cleaned up)
+            out.status("Creating deployment... ", nl=False)
+            nodepool.create_deployment(
+                deployment_id=deployment_id,
+                deployment_config={
+                    "deployment": {
+                        "scheduling_choice": 3,
+                        "worker": worker,
+                        "nodepools": [
+                            {
+                                "id": np_id,
+                                "compute_cluster": {
+                                    "id": cc_id,
+                                    "user_id": user_id,
+                                },
+                            }
+                        ],
+                        "deploy_latest_version": True,
+                    }
+                },
+            )
+            created['deployment'] = deployment_id
+            click.echo("done")
 
     # Toolkit customization (before serving)
     if config.get('toolkit', {}).get('provider') == 'ollama':
