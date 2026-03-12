@@ -534,7 +534,7 @@ class DataConverter:
                 new_data.struct_value.CopyFrom(old_data.struct_value)
                 old_data.ClearField('struct_value')
             # Handle conversion from old string_value to new struct_value
-            elif old_data.HasField('string_value') and old_data.string_value:
+            elif old_data.string_value:
                 try:
                     json_dict = json.loads(old_data.string_value)
                     struct = struct_pb2.Struct()
