@@ -332,7 +332,6 @@ class Param(MessageData):
             if pb_value.HasField('string_value'):
                 default = pb_value.string_value
                 try:
-                    import json
 
                     default = json.loads(default)
                 except json.JSONDecodeError:
@@ -374,7 +373,6 @@ class Param(MessageData):
     @classmethod
     def set_default(cls, proto=None, default=None):
         try:
-            import json
 
             if proto is None:
                 proto = ParamProto()
@@ -399,7 +397,6 @@ class Param(MessageData):
     def get_default(cls, proto):
         default_str = proto.default
         default = None
-        import json
 
         try:
             # Attempt to parse as JSON first (for complex types)
@@ -534,7 +531,7 @@ class DataConverter:
                 new_data.struct_value.CopyFrom(old_data.struct_value)
                 old_data.ClearField('struct_value')
             # Handle conversion from old string_value to new struct_value
-            elif old_data.HasField('string_value') and old_data.string_value:
+            elif old_data.string_value:
                 try:
                     json_dict = json.loads(old_data.string_value)
                     struct = struct_pb2.Struct()
@@ -576,16 +573,21 @@ class DataConverter:
             'text',
             'audio',
             'ndarray',
-            'int_value',
-            'float_value',
-            'bytes_value',
-            'bool_value',
-            'string_value',
             'struct_value',
         ]
         for field in singular_fields:
             if data.HasField(field):
                 return True
+
+        # Scalar fields (proto3 default: 0 for numbers, empty for strings/bytes, False for bool)
+        if (
+            data.int_value != 0
+            or data.float_value != 0.0
+            or data.bytes_value != b""
+            or data.bool_value is True
+            or data.string_value != ""
+        ):
+            return True
 
         # Check if any repeated field has elements
         repeated_fields = [
