@@ -332,6 +332,7 @@ class Param(MessageData):
             if pb_value.HasField('string_value'):
                 default = pb_value.string_value
                 try:
+                    import json
 
                     default = json.loads(default)
                 except json.JSONDecodeError:
@@ -373,6 +374,7 @@ class Param(MessageData):
     @classmethod
     def set_default(cls, proto=None, default=None):
         try:
+            import json
 
             if proto is None:
                 proto = ParamProto()
@@ -397,6 +399,7 @@ class Param(MessageData):
     def get_default(cls, proto):
         default_str = proto.default
         default = None
+        import json
 
         try:
             # Attempt to parse as JSON first (for complex types)
