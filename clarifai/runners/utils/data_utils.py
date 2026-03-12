@@ -561,13 +561,28 @@ class DataConverter:
             return new_data
             # raise ValueError(f"Unsupported data type: {data_type}")
 
+    @staticmethod
+    def _has_scalar_set(data_msg) -> bool:
+        """Return True if any scalar primitive field on *data_msg* is non-default.
+
+        proto3 scalar defaults: 0 for numbers, b"" for bytes, False for bool,
+        "" for string.  HasField() cannot be used for these types.
+        """
+        return (
+            data_msg.int_value != 0
+            or data_msg.float_value != 0.0
+            or data_msg.bytes_value != b""
+            or data_msg.bool_value is True
+            or data_msg.string_value != ""
+        )
+
     @classmethod
     def is_old_format(cls, data: resources_pb2.Data) -> bool:
         """Check if the Data proto is in the old format (without parts)."""
         if len(data.parts) > 0:
             return False  # New format uses parts
 
-        # Check if any singular field is set
+        # Check if any singular message field is set
         singular_fields = [
             'image',
             'video',
@@ -582,14 +597,8 @@ class DataConverter:
             if data.HasField(field):
                 return True
 
-        # Scalar fields (proto3 default: 0 for numbers, empty for strings/bytes, False for bool)
-        if (
-            data.int_value != 0
-            or data.float_value != 0.0
-            or data.bytes_value != b""
-            or data.bool_value is True
-            or data.string_value != ""
-        ):
+        # Scalar primitive fields
+        if cls._has_scalar_set(data):
             return True
 
         # Check if any repeated field has elements
@@ -658,14 +667,8 @@ class DataConverter:
             if getattr(data_msg, field):  # checks if the list is not empty
                 return True
 
-        # Scalar fields (proto3 default: 0 for numbers, empty for strings/bytes, False for bool)
-        if (
-            data_msg.int_value != 0
-            or data_msg.float_value != 0.0
-            or data_msg.bytes_value != b""
-            or data_msg.bool_value is True
-            or data_msg.string_value != ""
-        ):
+        # Scalar primitive fields
+        if cls._has_scalar_set(data_msg):
             return True
 
         return False
