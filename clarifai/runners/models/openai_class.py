@@ -273,6 +273,11 @@ class OpenAIModelClass(ModelClass):
                 m.pop('file', None)
                 m.pop('panelId', None)
 
+        if 'logprobs' in request_data:
+            request_data.pop('logprobs')
+        if 'top_logprobs' in request_data:
+            request_data.pop('top_logprobs')
+                
         # Handle the "Currently only named tools are supported." error we see from trt-llm
         if 'tools' in request_data and request_data['tools'] is None:
             request_data.pop('tools', None)
@@ -292,6 +297,7 @@ class OpenAIModelClass(ModelClass):
             JSON string containing the response or error
         """
         try:
+            logger.info("openai non-streaming request started...")
             request_data = from_json(msg)
             request_data = self._update_old_fields(request_data)
             endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
@@ -319,6 +325,7 @@ class OpenAIModelClass(ModelClass):
             Iterator[str]: An iterator yielding text chunks from the streaming response.
         """
         try:
+            logger.info("openai streaming request started...")
             request_data = from_json(msg)
             request_data = self._update_old_fields(request_data)
             endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)

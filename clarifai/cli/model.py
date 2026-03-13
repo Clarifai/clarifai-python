@@ -2135,35 +2135,35 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
 
     def _cleanup():
         out.phase_header("Stopping")
-        with _quiet_sdk_logger(suppress):
-            if 'deployment' in created:
-                out.status("Deleting deployment... ", nl=False)
-                try:
-                    nodepool.delete_deployments([created['deployment']])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'runner' in created:
-                out.status("Deleting runner... ", nl=False)
-                try:
-                    nodepool.delete_runners([created['runner']])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'model_version' in created:
-                out.status("Deleting model version... ", nl=False)
-                try:
-                    model.delete_version(version_id=created['model_version'])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'model' in created:
-                out.status("Deleting model... ", nl=False)
-                try:
-                    app.delete_model(created['model'])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
+        # with _quiet_sdk_logger(suppress):
+        #     if 'deployment' in created:
+        #         out.status("Deleting deployment... ", nl=False)
+        #         try:
+        #             nodepool.delete_deployments([created['deployment']])
+        #             click.echo("done")
+        #         except Exception:
+        #             click.echo("failed")
+        #     if 'runner' in created:
+        #         out.status("Deleting runner... ", nl=False)
+        #         try:
+        #             nodepool.delete_runners([created['runner']])
+        #             click.echo("done")
+        #         except Exception:
+        #             click.echo("failed")
+        #     if 'model_version' in created:
+        #         out.status("Deleting model version... ", nl=False)
+        #         try:
+        #             model.delete_version(version_id=created['model_version'])
+        #             click.echo("done")
+        #         except Exception:
+        #             click.echo("failed")
+        #     if 'model' in created:
+        #         out.status("Deleting model... ", nl=False)
+        #         try:
+        #             app.delete_model(created['model'])
+        #             click.echo("done")
+        #         except Exception:
+        #             click.echo("failed")
         out.status("Stopped.")
 
     def _do_cleanup():
