@@ -47,9 +47,10 @@ from clarifai.utils.logging import logger
 from clarifai.versions import get_latest_version_from_pypi
 
 CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
+CLARIFAI_PROTOCOL_LATEST_VERSION = get_latest_version_from_pypi('clarifai-protocol')
 
 # Additional package installation if the model will be used w/ a streaming video runner:
-# Dockerfile: Install ffmpeg and av
+# Dockerfile: Install ffmpeg and clarifai-protocol[auto-annotation].
 #
 # Our base images are distroless, so we do not have apt-get or other package managers
 # available; however, we will also not be able to use those package repositories on-prem.
@@ -58,11 +59,11 @@ CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 #
 # TODO: before we make this public, we need to figure out how to distribute the src;
 # line to copy in src commented out because it's 500MB
-STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
+STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = f"""
 COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
 COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
 # COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
-RUN uv pip install --no-cache-dir av
+RUN uv pip install 'clarifai-protocol[auto-annotation]=={CLARIFAI_PROTOCOL_LATEST_VERSION}'
 """
 
 
