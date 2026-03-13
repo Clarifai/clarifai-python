@@ -1936,28 +1936,53 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     with _quiet_sdk_logger(suppress):
         user = User(user_id=user_id, pat=pat, base_url=base_url)
 
+        # Resolve compute_cluster_id: context → default
+        cc_id = None
+        try:
+            cc_id = ctx.obj.current.compute_cluster_id
+        except AttributeError:
+            pass
+        if not cc_id:
+            cc_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
+
         # 1. Compute cluster (shared, reusable — never cleaned up)
-        cc_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
         try:
             user.compute_cluster(cc_id)
             out.status("Compute cluster ready")
         except Exception:
             out.status("Creating compute cluster... ", nl=False)
+            import copy
+
+            cc_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG)
+            cc_config["compute_cluster"]["id"] = cc_id
             user.create_compute_cluster(
                 compute_cluster_id=cc_id,
-                compute_cluster_config=DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
+                compute_cluster_config=cc_config,
             )
             click.echo("done")
 
+        # Resolve nodepool_id: context → default
+        np_id = None
+        try:
+            np_id = ctx.obj.current.nodepool_id
+        except AttributeError:
+            pass
+        if not np_id:
+            np_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
+
         # 2. Nodepool (shared, reusable — never cleaned up)
-        np_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
         try:
             nodepool = user.compute_cluster(cc_id).nodepool(np_id)
             out.status("Nodepool ready")
         except Exception:
             out.status("Creating nodepool... ", nl=False)
+            import copy
+
+            np_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG)
+            np_config["nodepool"]["id"] = np_id
+            np_config["nodepool"]["compute_cluster"]["id"] = cc_id
             nodepool = user.compute_cluster(cc_id).create_nodepool(
-                nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
+                nodepool_config=np_config,
                 nodepool_id=np_id,
             )
             click.echo("done")
@@ -1992,7 +2017,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 created['model'] = model_id
                 click.echo("done")
 
-        # 5. Model version — reuse existing if model_version_id is in context
+        # 5. Model version — reuse existing if model_version_id is in context and exists
         existing_version_id = None
         try:
             existing_version_id = ctx.obj.current.model_version_id
@@ -2000,9 +2025,19 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             pass
 
         if existing_version_id:
-            version_id = existing_version_id
-            out.status(f"Model version ready ({version_id[:8]})")
-        else:
+            # Validate the version actually exists on the platform
+            try:
+                model.model_version = {"id": existing_version_id}
+                model.load_info()
+                version_id = existing_version_id
+                out.status(f"Model version ready ({version_id[:8]})")
+            except Exception:
+                out.warning(
+                    f"Model version {existing_version_id[:8]} from context not found. Creating new."
+                )
+                existing_version_id = None
+
+        if not existing_version_id:
             out.status("Creating model version... ", nl=False)
             version_model = model.create_version(
                 pretrained_model_config={"local_dev": True},
@@ -2030,35 +2065,49 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             }
         }
 
-        # 7. Runner — reuse existing if deployment already exists in context
-        if existing_deployment_id:
-            # Existing deployment implies an existing runner; find it
+        # 7. Runner — reuse from context if exists, else from deployment, else create
+        existing_runner_id = None
+        try:
+            existing_runner_id = ctx.obj.current.runner_id
+        except AttributeError:
+            pass
+
+        if existing_runner_id:
+            # Validate runner exists on the platform
             try:
                 runners = nodepool.list_runners()
+                runner_found = any(r.id == existing_runner_id for r in runners)
+                if not runner_found:
+                    raise Exception("Runner not found")
+                runner_id = existing_runner_id
+                out.status(f"Runner ready ({runner_id[:8]})")
+            except Exception:
+                out.warning(
+                    f"Runner {existing_runner_id[:8]} from context not found. Creating new."
+                )
+                existing_runner_id = None
+
+        if not existing_runner_id and existing_deployment_id:
+            # Existing deployment implies an existing runner; find one for this model version
+            try:
+                # Validate deployment exists
+                nodepool.deployment(deployment_id)
+                runners = nodepool.list_runners(model_version_ids=[version_id])
                 runner_id = None
                 for r in runners:
                     runner_id = r.id
                     break
                 if not runner_id:
-                    raise Exception("No runners found")
+                    raise Exception("No runners found for this model version")
                 out.status(f"Runner ready ({runner_id[:8]})")
             except Exception:
-                # Fallback: create a new runner
-                out.status("Creating runner... ", nl=False)
-                runner = nodepool.create_runner(
-                    runner_config={
-                        "runner": {
-                            "description": f"local runner for {model_id}",
-                            "worker": worker,
-                            "num_replicas": 1,
-                        }
-                    }
+                out.warning(
+                    f"Deployment {deployment_id} from context not found. Creating new resources."
                 )
-                runner_id = runner.id
-                created['runner'] = runner_id
-                click.echo("done")
-            out.status(f"Deployment ready ({deployment_id})")
-        else:
+                existing_deployment_id = None
+                existing_runner_id = None
+
+        if not existing_runner_id and not existing_deployment_id:
             # Stale deployment cleanup (from previous crash)
             try:
                 nodepool.deployment(deployment_id)
@@ -2103,6 +2152,26 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             )
             created['deployment'] = deployment_id
             click.echo("done")
+
+        if existing_deployment_id and not existing_runner_id:
+            # Deployment exists but we still need deployment_id set
+            out.status(f"Deployment ready ({deployment_id})")
+
+        # Save resource IDs to context for reuse across serve restarts.
+        # Always use CLARIFAI_-prefixed keys to match existing context convention.
+        # Remove any lowercase duplicates that may exist from previous runs.
+        env = ctx.obj.current['env']
+        for key, value in [
+            ('compute_cluster_id', cc_id),
+            ('nodepool_id', np_id),
+            ('model_version_id', version_id),
+            ('deployment_id', deployment_id),
+            ('runner_id', runner_id),
+        ]:
+            clarifai_key = 'CLARIFAI_' + key.upper()
+            env[clarifai_key] = value
+            env.pop(key, None)  # remove lowercase duplicate if present
+        ctx.obj.to_yaml()
 
     # Toolkit customization (before serving)
     if config.get('toolkit', {}).get('provider') == 'ollama':
