@@ -273,10 +273,10 @@ class OpenAIModelClass(ModelClass):
                 m.pop('file', None)
                 m.pop('panelId', None)
 
-        # if 'logprobs' in request_data:
-        #     request_data.pop('logprobs')
-        # if 'top_logprobs' in request_data:
-        #     request_data.pop('top_logprobs')
+        if 'logprobs' in request_data:
+            request_data.pop('logprobs')
+        if 'top_logprobs' in request_data:
+            request_data.pop('top_logprobs')
                 
         # Handle the "Currently only named tools are supported." error we see from trt-llm
         if 'tools' in request_data and request_data['tools'] is None:
