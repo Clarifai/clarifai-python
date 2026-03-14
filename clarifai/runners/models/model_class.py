@@ -18,6 +18,7 @@ from clarifai.runners.utils.method_signatures import (
     deserialize,
     get_stream_from_signature,
     serialize,
+    serializer_from_signature,
     signatures_to_json,
 )
 from clarifai.runners.utils.model_utils import is_proto_style_method
@@ -243,14 +244,35 @@ class ModelClass(ABC):
             )
             if len(inputs) == 1:
                 inputs = inputs[0]
+                # For streaming, pre-compute the serializer and signature info once
+                # instead of re-computing per chunk in serialize().
+                output_fields = signature.output_fields
+                _can_fast_serialize = (
+                    not is_convert
+                    and len(output_fields) == 1
+                    and output_fields[0].name == 'return'
+                )
+                if _can_fast_serialize:
+                    _fast_serializer = serializer_from_signature(output_fields[0])
+                    _fast_sig_name = output_fields[0].name
                 for output in method(**inputs):
                     resp = service_pb2.MultiOutputResponse()
-                    self._convert_output_to_proto(
-                        output,
-                        signature.output_fields,
-                        proto=resp.outputs.add(),
-                        convert_old_format=is_convert,
-                    )
+                    out_proto = resp.outputs.add()
+                    if _can_fast_serialize:
+                        # Fast path: skip generic serialize() overhead (set creation,
+                        # signature iteration, default checking) for the common
+                        # single-output streaming case.
+                        part = out_proto.data.parts.add()
+                        part.id = _fast_sig_name
+                        _fast_serializer.serialize(part.data, output)
+                        out_proto.status.code = status_code_pb2.SUCCESS
+                    else:
+                        self._convert_output_to_proto(
+                            output,
+                            output_fields,
+                            proto=out_proto,
+                            convert_old_format=is_convert,
+                        )
                     resp.status.code = status_code_pb2.SUCCESS
                     yield resp
             else:
