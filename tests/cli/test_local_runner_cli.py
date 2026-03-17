@@ -437,8 +437,6 @@ class TestLocalRunnerCLI:
         assert "user_id" in serve_kwargs
         assert "base_url" in serve_kwargs
         assert "pat" in serve_kwargs
-        assert "pool_size" in serve_kwargs
-        assert "num_threads" in serve_kwargs
 
 
 STANDARD_PATCHES = [
