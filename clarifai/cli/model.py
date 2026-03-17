@@ -1943,14 +1943,37 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     # Track what we create for cleanup (skipped in --keep mode)
     created = {}  # resource_name → cleanup_info
 
-    # In --keep mode, load previously saved resource IDs from context.
-    # Context stores values in ctx.obj.current['env'] dict with CLARIFAI_ prefix.
-    # NOTE: must use dict key access (cur['env']), NOT cur.get('env') — the Context
-    # class raises AttributeError("Don't access .env directly") on __getattr__('env').
-    _ctx_env = {}
+    # In --keep mode, save/load resource IDs scoped by model_id inside a
+    # CLARIFAI_SERVE_STATE dict in the user's active context. No extra contexts created.
+    # Structure: ctx.obj.current['env']['CLARIFAI_SERVE_STATE'][model_id] = {resource IDs}
+    _keep_data = {}
     if keep and ctx.obj is not None and hasattr(ctx.obj, 'current'):
         try:
-            _ctx_env = ctx.obj.current['env']
+            env = ctx.obj.current['env']
+            # New format: nested under CLARIFAI_SERVE_STATE[model_id]
+            all_keep = env.get('CLARIFAI_SERVE_STATE', {})
+            _keep_data = all_keep.get(model_id, {})
+
+            # Backward compat: fall back to flat CLARIFAI_* keys in context
+            if not _keep_data and env.get('CLARIFAI_MODEL_VERSION_ID'):
+                saved_model_id = env.get('CLARIFAI_MODEL_ID')
+                if saved_model_id and saved_model_id != model_id:
+                    raise UserError(
+                        f"Context has saved state for model '{saved_model_id}' "
+                        f"but config.yaml specifies '{model_id}'.\n"
+                        f"  Either switch to the correct model directory, or clear "
+                        f"the stale CLARIFAI_MODEL_ID from your context with:\n"
+                        f"    clarifai config set CLARIFAI_MODEL_ID="
+                    )
+                _keep_data = {
+                    'compute_cluster_id': env.get('CLARIFAI_COMPUTE_CLUSTER_ID'),
+                    'nodepool_id': env.get('CLARIFAI_NODEPOOL_ID'),
+                    'model_version_id': env.get('CLARIFAI_MODEL_VERSION_ID'),
+                    'deployment_id': env.get('CLARIFAI_DEPLOYMENT_ID'),
+                    'runner_id': env.get('CLARIFAI_RUNNER_ID'),
+                }
+                # Remove None values
+                _keep_data = {k: v for k, v in _keep_data.items() if v}
         except (KeyError, TypeError):
             pass
 
@@ -1958,7 +1981,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         """Return saved resource ID in --keep mode, or None."""
         if not keep:
             return None
-        return _ctx_env.get(f'CLARIFAI_{key.upper()}')
+        return _keep_data.get(key)
 
     with _quiet_sdk_logger(suppress):
         user = User(user_id=user_id, pat=pat, base_url=base_url)
@@ -2022,7 +2045,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 # Invalidate saved context — old version/runner/deployment are stale
                 if keep:
                     for stale_key in ('model_version_id', 'runner_id', 'deployment_id'):
-                        _ctx_env.pop(f'CLARIFAI_{stale_key.upper()}', None)
+                        _keep_data.pop(stale_key, None)
                 raise Exception("recreate")
             out.status("Model ready")
         except Exception:
@@ -2170,18 +2193,18 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 created['deployment'] = deployment_id
             click.echo("done")
 
-        # Save resource IDs to context for reuse in --keep mode
+        # Save resource IDs to model-scoped context for reuse in --keep mode
         if keep:
             try:
-                env = ctx.obj.current.setdefault('env', {})
-                for key, value in [
-                    ('compute_cluster_id', cc_id),
-                    ('nodepool_id', np_id),
-                    ('model_version_id', version_id),
-                    ('deployment_id', deployment_id),
-                    ('runner_id', runner_id),
-                ]:
-                    env[f'CLARIFAI_{key.upper()}'] = value
+                env = ctx.obj.current['env']
+                keep_all = env.setdefault('CLARIFAI_SERVE_STATE', {})
+                keep_all[model_id] = {
+                    'compute_cluster_id': cc_id,
+                    'nodepool_id': np_id,
+                    'model_version_id': version_id,
+                    'deployment_id': deployment_id,
+                    'runner_id': runner_id,
+                }
                 ctx.obj.to_yaml()
             except Exception as exc:
                 out.warning(f"Could not save resource IDs to context: {exc}")
