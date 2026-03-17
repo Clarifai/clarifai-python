@@ -2097,18 +2097,11 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             if not runner_id:
                 try:
                     nodepool.deployment(deployment_id)
-                    runners = nodepool.list_runners()
-                    for r in runners:
-                        # Match runner serving this model version
-                        if (
-                            hasattr(r, 'worker')
-                            and hasattr(r.worker, 'model')
-                            and r.worker.model.model_version.id == version_id
-                        ):
-                            runner_id = r.id
-                            out.status(f"Runner ready ({runner_id[:8]}) (from deployment)")
-                            break
-                    if not runner_id:
+                    runners = list(nodepool.list_runners(model_version_ids=[version_id]))
+                    if runners:
+                        runner_id = runners[0].id
+                        out.status(f"Runner ready ({runner_id[:8]}) (from deployment)")
+                    else:
                         out.warning(
                             f"No runner found for version {version_id[:8]} in deployment. "
                             "Creating new."
