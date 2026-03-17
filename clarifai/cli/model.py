@@ -1820,6 +1820,8 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         _run_local_grpc(model_path, mode, port, keep_image, verbose)
         return
 
+    from clarifai_grpc.grpc.api import resources_pb2
+
     from clarifai.client.user import User
     from clarifai.runners.models import deploy_output as out
     from clarifai.runners.models.model_builder import ModelBuilder
@@ -1963,12 +1965,16 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             click.echo("done")
 
         # 3. App (shared, reusable — never cleaned up)
+        # Public visibility so anyone with the URL can send predictions
+        public_visibility = resources_pb2.Visibility(
+            gettable=resources_pb2.Visibility.Gettable.PUBLIC
+        )
         try:
             app = user.app(app_id)
             out.status("App ready")
         except Exception:
             out.status("Creating app... ", nl=False)
-            app = user.create_app(app_id)
+            app = user.create_app(app_id, visibility=public_visibility)
             click.echo("done")
 
         # 4. Model (ephemeral if we create it)
@@ -1988,7 +1994,9 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         except Exception:
             if not model_existed:
                 out.status("Creating model... ", nl=False)
-                model = app.create_model(model_id, model_type_id=model_type_id)
+                model = app.create_model(
+                    model_id, model_type_id=model_type_id, visibility=public_visibility
+                )
                 created['model'] = model_id
                 click.echo("done")
 
@@ -1997,6 +2005,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         version_model = model.create_version(
             pretrained_model_config={"local_dev": True},
             method_signatures=method_signatures,
+            visibility=public_visibility,
         )
         version_model.load_info()
         version_id = version_model.model_version.id
@@ -2052,6 +2061,9 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                         }
                     ],
                     "deploy_latest_version": True,
+                    "visibility": {
+                        "gettable": resources_pb2.Visibility.Gettable.PUBLIC,
+                    },
                 }
             },
         )
