@@ -1790,13 +1790,13 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     help='Show detailed SDK and server logs.',
 )
 @click.option(
-    '--persistent',
+    '--keep',
     is_flag=True,
-    help='Reuse API resources (version, runner, deployment) across restarts. '
+    help='Keep API resources (version, runner, deployment) across restarts. '
     'Resources are preserved on exit instead of being cleaned up.',
 )
 @click.pass_context
-def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, persistent):
+def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep):
     """Run a model locally for development and testing.
 
     \b
@@ -1818,7 +1818,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
       clarifai model serve ./my-model                   # current env, API-connected
       clarifai model serve --mode env                   # auto-install deps in venv
       clarifai model serve --mode container             # run inside Docker
-      clarifai model serve --persistent                 # reuse resources across restarts
+      clarifai model serve --keep                        # keep resources across restarts
       clarifai model serve --grpc                       # offline gRPC server
       clarifai model serve --grpc --port 9000           # custom port
       clarifai model serve --mode container --keep-image
@@ -1940,23 +1940,23 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     # ── Phase 2: Setup ─────────────────────────────────────────────────
     out.phase_header("Setup")
 
-    # Track what we create for cleanup (skipped in persistent mode)
+    # Track what we create for cleanup (skipped in --keep mode)
     created = {}  # resource_name → cleanup_info
 
-    # In persistent mode, load previously saved resource IDs from context.
+    # In --keep mode, load previously saved resource IDs from context.
     # Context stores values in ctx.obj.current['env'] dict with CLARIFAI_ prefix.
     # NOTE: must use dict key access (cur['env']), NOT cur.get('env') — the Context
     # class raises AttributeError("Don't access .env directly") on __getattr__('env').
     _ctx_env = {}
-    if persistent and ctx.obj is not None and hasattr(ctx.obj, 'current'):
+    if keep and ctx.obj is not None and hasattr(ctx.obj, 'current'):
         try:
             _ctx_env = ctx.obj.current['env']
         except (KeyError, TypeError):
             pass
 
     def _get_saved(key):
-        """Return persisted resource ID in persistent mode, or None."""
-        if not persistent:
+        """Return saved resource ID in --keep mode, or None."""
+        if not keep:
             return None
         return _ctx_env.get(f'CLARIFAI_{key.upper()}')
 
@@ -2007,7 +2007,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             app = user.create_app(app_id, visibility=public_visibility)
             click.echo("done")
 
-        # 4. Model (ephemeral if we create it — unless persistent)
+        # 4. Model (ephemeral if we create it — unless --keep)
         model_existed = False
         try:
             model = app.model(model_id)
@@ -2020,7 +2020,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 app.delete_model(model_id)
                 model_existed = False
                 # Invalidate saved context — old version/runner/deployment are stale
-                if persistent:
+                if keep:
                     for stale_key in ('model_version_id', 'runner_id', 'deployment_id'):
                         _ctx_env.pop(f'CLARIFAI_{stale_key.upper()}', None)
                 raise Exception("recreate")
@@ -2031,13 +2031,13 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 model = app.create_model(
                     model_id, model_type_id=model_type_id, visibility=public_visibility
                 )
-                if not persistent:
+                if not keep:
                     created['model'] = model_id
                 click.echo("done")
 
         # 5. Model version
         version_id = None
-        if persistent:
+        if keep:
             # Try reusing a previously saved version from context
             saved_version_id = _get_saved('model_version_id')
             if saved_version_id:
@@ -2058,7 +2058,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             )
             version_model.load_info()
             version_id = version_model.model_version.id
-            if not persistent:
+            if not keep:
                 created['model_version'] = version_id
             click.echo(f"done ({version_id[:8]})")
 
@@ -2074,12 +2074,12 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             }
         }
 
-        # 7. Runner — three-tier lookup in persistent mode:
+        # 7. Runner — three-tier lookup in --keep mode:
         #    a) saved runner_id from context
         #    b) find runner via existing deployment
         #    c) create new runner + deployment
         runner_id = None
-        if persistent:
+        if keep:
             # Tier A: reuse saved runner from context
             saved_runner_id = _get_saved('runner_id')
             if saved_runner_id:
@@ -2128,13 +2128,13 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 }
             )
             runner_id = runner.id
-            if not persistent:
+            if not keep:
                 created['runner'] = runner_id
             click.echo("done")
 
         # 8. Deployment
         deployment_exists = False
-        if persistent:
+        if keep:
             try:
                 nodepool.deployment(deployment_id)
                 deployment_exists = True
@@ -2166,12 +2166,12 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                     }
                 },
             )
-            if not persistent:
+            if not keep:
                 created['deployment'] = deployment_id
             click.echo("done")
 
-        # Save resource IDs to context for reuse in persistent mode
-        if persistent:
+        # Save resource IDs to context for reuse in --keep mode
+        if keep:
             try:
                 env = ctx.obj.current.setdefault('env', {})
                 for key, value in [
@@ -2217,8 +2217,8 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
 
     def _cleanup():
         out.phase_header("Stopping")
-        if persistent:
-            out.status("Persistent mode — API resources preserved for next run.")
+        if keep:
+            out.status("--keep mode — API resources preserved for next run.")
         else:
             with _quiet_sdk_logger(suppress):
                 if 'deployment' in created:
