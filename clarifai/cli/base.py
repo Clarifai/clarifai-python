@@ -726,7 +726,7 @@ def run(ctx, script, context=None):
 
 
 # Import the CLI commands to register them
-# load_command_modules() - Now handled lazily by LazyLazyAliasedGroupp
+# load_command_modules() - Now handled lazily by LazyAliasedGroup
 
 # Define section ordering for `clarifai --help`
 cli.command_sections = [
