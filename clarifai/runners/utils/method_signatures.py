@@ -233,9 +233,7 @@ def serializer_from_signature(signature):
 
 def signatures_to_dict(signatures):
     if not isinstance(signatures, dict):
-        raise TypeError(
-            'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-        )
+        raise TypeError('Expected dict of signatures {name: signature}, got %s' % type(signatures))
     # TODO change to proto when ready
     return {name: MessageToDict(sig) for name, sig in signatures.items()}
 
