@@ -91,7 +91,8 @@ class OpenAIModelClass(ModelClass):
                     self._set_usage(chunk)
                     yield chunk.model_dump_json()
             finally:
-                stream.close()
+                if hasattr(stream, 'close'):
+                    stream.close()
             return
         try:
             for sse in stream._iter_events():
@@ -122,11 +123,12 @@ class OpenAIModelClass(ModelClass):
                                     prompt_tokens=prompt_tokens,
                                     completion_tokens=completion_tokens,
                                 )
-                    except _json.JSONDecodeError:
+                    except (ValueError, _json.JSONDecodeError):
                         pass
                 yield data
         finally:
-            stream.close()
+            if hasattr(stream, 'close'):
+                stream.close()
 
     @retry(
         stop=stop_after_attempt(3),
