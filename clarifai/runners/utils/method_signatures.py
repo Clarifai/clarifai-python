@@ -231,30 +231,33 @@ def serializer_from_signature(signature):
     raise ValueError(f'Unsupported type: {signature.type}')
 
 
-def signatures_to_json(signatures):
+def signatures_to_dict(signatures):
     assert isinstance(signatures, dict), (
         'Expected dict of signatures {name: signature}, got %s' % type(signatures)
     )
     # TODO change to proto when ready
-    signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
-    return json.dumps(signatures)
+    return {name: MessageToDict(sig) for name, sig in signatures.items()}
 
 
-def signatures_from_json(json_str):
-    signatures_dict = json.loads(json_str)
-    assert isinstance(signatures_dict, dict), "Expected JSON to decode into a dictionary"
-
+def signatures_from_dict(signatures_dict):
+    assert isinstance(signatures_dict, dict), "Expected a dictionary of signatures"
     return {
         name: ParseDict(sig_dict, resources_pb2.MethodSignature())
         for name, sig_dict in signatures_dict.items()
     }
-    # d = json.loads(json_str, object_pairs_hook=_SignatureDict)
-    # return d
+
+
+def signatures_to_json(signatures):
+    return json.dumps(signatures_to_dict(signatures))
+
+
+def signatures_from_json(json_str):
+    signatures_dict = json.loads(json_str)
+    return signatures_from_dict(signatures_dict)
 
 
 def signatures_to_yaml(signatures):
-    # XXX go in/out of json to get the correct format and python dict types
-    d = json.loads(signatures_to_json(signatures))
+    d = signatures_to_dict(signatures)
 
     def _filter_empty(d):
         if isinstance(d, (list, tuple)):
@@ -268,7 +271,7 @@ def signatures_to_yaml(signatures):
 
 def signatures_from_yaml(yaml_str):
     d = yaml.safe_load(yaml_str)
-    return signatures_from_json(json.dumps(d))
+    return signatures_from_dict(d)
 
 
 def serialize(kwargs, signatures, proto=None, is_output=False):
