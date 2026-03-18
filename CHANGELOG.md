@@ -1,3 +1,15 @@
+## [[12.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.3) - [PyPI](https://pypi.org/project/clarifai/12.3.3/) - 2026-03-18
+
+### Added
+- Added `--keep` flag to `clarifai model serve` to preserve build directory [(#990)](https://github.com/Clarifai/clarifai-python/pull/990)
+
+### Changed
+- Local Runner is now public by default [(#981)](https://github.com/Clarifai/clarifai-python/pull/981)
+
+### Fixed
+- Fixed reasoning model token tracking, event-loop safety, streaming and tool call passthrough in agentic class [(#989)](https://github.com/Clarifai/clarifai-python/pull/989)
+- Fixed `HasField` usage on scalar primitives in DataConverter [(#985)](https://github.com/Clarifai/clarifai-python/pull/985)
+
 ## [[12.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.2) - [PyPI](https://pypi.org/project/clarifai/12.3.2/) - 2026-03-11
 
 ### Changed
