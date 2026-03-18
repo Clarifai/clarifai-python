@@ -232,15 +232,17 @@ def serializer_from_signature(signature):
 
 
 def signatures_to_dict(signatures):
-    assert isinstance(signatures, dict), (
-        'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-    )
+    if not isinstance(signatures, dict):
+        raise TypeError(
+            'Expected dict of signatures {name: signature}, got %s' % type(signatures)
+        )
     # TODO change to proto when ready
     return {name: MessageToDict(sig) for name, sig in signatures.items()}
 
 
 def signatures_from_dict(signatures_dict):
-    assert isinstance(signatures_dict, dict), "Expected a dictionary of signatures"
+    if not isinstance(signatures_dict, dict):
+        raise TypeError("Expected a dictionary of signatures")
     return {
         name: ParseDict(sig_dict, resources_pb2.MethodSignature())
         for name, sig_dict in signatures_dict.items()
@@ -272,6 +274,51 @@ def signatures_to_yaml(signatures):
 def signatures_from_yaml(yaml_str):
     d = yaml.safe_load(yaml_str)
     return signatures_from_dict(d)
+
+
+def _roundtrip_signatures_self_test() -> None:
+    """
+    Internal self-test to verify JSON/YAML round-trips preserve MethodSignature protos.
+
+    This constructs a representative MethodSignature, round-trips it through
+    signatures_to_json/signatures_from_json and signatures_to_yaml/signatures_from_yaml,
+    and asserts that the resulting protos are equivalent to the original.
+
+    Intended for use by the test suite or manual sanity checks; it is not called
+    automatically on import.
+    """
+    # Construct a representative MethodSignature with an input and output field.
+    original_sig = resources_pb2.MethodSignature()
+    original_sig.name = "example_method"
+
+    input_param = original_sig.inputs.add()
+    input_param.name = "input_text"
+    input_param.type = resources_pb2.DATA_TYPE_STRING
+
+    output_param = original_sig.outputs.add()
+    output_param.name = "output_text"
+    output_param.type = resources_pb2.DATA_TYPE_STRING
+
+    signatures = {"example_method": original_sig}
+
+    # JSON round-trip.
+    json_str = signatures_to_json(signatures)
+    json_signatures = signatures_from_json(json_str)
+
+    # YAML round-trip.
+    yaml_str = signatures_to_yaml(signatures)
+    yaml_signatures = signatures_from_yaml(yaml_str)
+
+    json_sig = json_signatures["example_method"]
+    yaml_sig = yaml_signatures["example_method"]
+
+    # Compare serialized bytes to ensure full proto equivalence.
+    original_bytes = original_sig.SerializeToString()
+    json_bytes = json_sig.SerializeToString()
+    yaml_bytes = yaml_sig.SerializeToString()
+
+    assert original_bytes == json_bytes, "JSON round-trip altered MethodSignature proto"
+    assert original_bytes == yaml_bytes, "YAML round-trip altered MethodSignature proto"
 
 
 def serialize(kwargs, signatures, proto=None, is_output=False):
