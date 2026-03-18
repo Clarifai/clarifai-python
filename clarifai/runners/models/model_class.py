@@ -266,6 +266,16 @@ class ModelClass(ABC):
                         part.id = _fast_sig_name
                         _fast_serializer.serialize(part.data, output)
                         out_proto.status.code = status_code_pb2.SUCCESS
+                        # Replicate token context handling from _convert_output_to_proto
+                        token_contexts = getattr(self._thread_local, 'token_contexts', None)
+                        if token_contexts and len(token_contexts) > 0:
+                            pt, ct = token_contexts.pop(0)
+                            if len(token_contexts) == 0:
+                                del self._thread_local.token_contexts
+                            if pt is not None:
+                                out_proto.prompt_tokens = pt
+                            if ct is not None:
+                                out_proto.completion_tokens = ct
                     else:
                         self._convert_output_to_proto(
                             output,

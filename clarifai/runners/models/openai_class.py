@@ -74,11 +74,25 @@ class OpenAIModelClass(ModelClass):
         Pydantic parsing. Uses the SDK's HTTP transport and SSE decoder but intercepts
         before json.loads() and Pydantic model construction. Each yielded string is the
         raw JSON from the SSE 'data:' field.
+
+        NOTE: Uses OpenAI SDK private API ``_iter_events()`` (tested with openai>=1.82.0).
+        If this breaks on a future SDK version, fall back to the Pydantic path automatically.
         """
-        # Create the stream using the SDK (handles HTTP, retries, auth) but
-        # use _iter_events() to get raw ServerSentEvent objects instead of
-        # __stream__() which does json.loads + Pydantic construction per chunk.
-        stream = self.client.chat.completions.create(**completion_args)
+        # Use _retry_chat_completions_create so ConnectError retries are preserved.
+        stream = self._retry_chat_completions_create(**completion_args)
+        # Graceful fallback: if the private _iter_events API is unavailable
+        # (e.g. OpenAI SDK upgrade), fall back to the standard Pydantic path.
+        if not hasattr(stream, '_iter_events'):
+            logger.warning(
+                "OpenAI SDK stream missing _iter_events(); falling back to Pydantic path."
+            )
+            try:
+                for chunk in stream:
+                    self._set_usage(chunk)
+                    yield chunk.model_dump_json()
+            finally:
+                stream.close()
+            return
         try:
             for sse in stream._iter_events():
                 data = sse.data
@@ -86,7 +100,7 @@ class OpenAIModelClass(ModelClass):
                     break
                 # Extract usage from the raw JSON without full Pydantic parsing.
                 # Only chunks with usage info need json.loads — typically just the last chunk.
-                if '"usage"' in data and '"prompt_tokens"' in data:
+                if '"usage"' in data and ('"prompt_tokens"' in data or '"input_tokens"' in data):
                     try:
                         parsed = from_json(data)
                         usage = parsed.get("usage")
