@@ -259,7 +259,7 @@ class ModelClass(ABC):
                 for output in method(**inputs):
                     resp = service_pb2.MultiOutputResponse()
                     out_proto = resp.outputs.add()
-                    if _can_fast_serialize:
+                    if _can_fast_serialize and output is not None:
                         # Fast path: skip generic serialize() overhead (set creation,
                         # signature iteration, default checking) for the common
                         # single-output streaming case.

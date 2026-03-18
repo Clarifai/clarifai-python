@@ -330,7 +330,7 @@ class TestRawSseStream:
         model = DummyOpenAIModel()
         model.load_model()
 
-        # Create a mock stream that is a plain iterator (no _iter_events)
+        # Create a stream that is a plain iterator (no _iter_events)
         class _MockChunk:
             def __init__(self, data):
                 self._data = data
@@ -339,18 +339,28 @@ class TestRawSseStream:
             def model_dump_json(self):
                 return self._data
 
-        chunks = [_MockChunk(json.dumps({"id": "c1"})), _MockChunk(json.dumps({"id": "c2"}))]
-        mock_stream = MagicMock()
-        # Remove _iter_events so hasattr returns False
-        del mock_stream._iter_events
-        mock_stream.__iter__ = MagicMock(return_value=iter(chunks))
+        class _PlainStream:
+            """Plain iterable stream without _iter_events, but with close()."""
 
-        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            def __init__(self, chunks):
+                self._chunks = chunks
+                self.close_called = False
+
+            def __iter__(self):
+                return iter(self._chunks)
+
+            def close(self):
+                self.close_called = True
+
+        chunks = [_MockChunk(json.dumps({"id": "c1"})), _MockChunk(json.dumps({"id": "c2"}))]
+        plain_stream = _PlainStream(chunks)
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=plain_stream):
             results = list(model._raw_sse_stream({"model": "test", "stream": True}))
 
         assert len(results) == 2
         # close() should still be called if available
-        mock_stream.close.assert_called_once()
+        assert plain_stream.close_called is True
 
     def test_raw_sse_no_close_on_plain_iterator(self):
         """Verify no error when stream lacks close() (e.g. MockCompletionStream)."""
@@ -358,12 +368,18 @@ class TestRawSseStream:
         model.load_model()
 
         chunk = json.dumps({"id": "c1", "choices": [{"delta": {"content": "ok"}}]})
-        mock_stream = MagicMock()
-        mock_stream._iter_events.return_value = iter(
-            [MagicMock(data=chunk), MagicMock(data="[DONE]")]
-        )
-        # Remove close so hasattr(stream, 'close') is False
-        del mock_stream.close
+
+        class _MockCompletionStream:
+            """Stream with _iter_events but without close()."""
+
+            def __init__(self, events):
+                self._events = events
+
+            def _iter_events(self):
+                return iter(self._events)
+
+        events = [MagicMock(data=chunk), MagicMock(data="[DONE]")]
+        mock_stream = _MockCompletionStream(events)
 
         with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
             results = list(model._raw_sse_stream({"model": "test", "stream": True}))
