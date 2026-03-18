@@ -33,6 +33,9 @@ DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG = {
         "region": "na",
         "managed_by": "user",
         "cluster_type": "local-dev",
+        "visibility": {
+            "gettable": 50,  # PUBLIC
+        },
     }
 }
 
@@ -59,6 +62,9 @@ DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG = {
         },
         "min_instances": 1,
         "max_instances": 1,
+        "visibility": {
+            "gettable": 50,  # PUBLIC
+        },
     }
 }
 STATUS_OK = "200 OK"

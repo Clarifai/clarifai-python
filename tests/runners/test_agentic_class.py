@@ -51,11 +51,17 @@ class TestAgenticModelClass:
 
     # === Token Tracking Tests ===
 
-    def test_init_tokens(self, model):
-        """Test token initialization."""
-        model._init_tokens()
-        assert hasattr(model._thread_local, 'tokens')
+    def test_drain_tokens(self, model):
+        """Test draining and resetting token accumulator."""
+        model._thread_local.tokens = {'prompt': 10, 'completion': 20}
+        result = model._drain_tokens()
+        assert result == {'prompt': 10, 'completion': 20}
         assert model._thread_local.tokens == {'prompt': 0, 'completion': 0}
+
+    def test_drain_tokens_with_no_prior_state(self, model):
+        """Test draining when no tokens have been accumulated."""
+        result = model._drain_tokens()
+        assert result == {'prompt': 0, 'completion': 0}
 
     def test_add_tokens_from_usage(self, model):
         """Test adding tokens from response with usage attribute."""
@@ -63,6 +69,7 @@ class TestAgenticModelClass:
         mock_usage = MagicMock()
         mock_usage.prompt_tokens = 10
         mock_usage.completion_tokens = 20
+        mock_usage.total_tokens = None
         mock_response.usage = mock_usage
 
         model._add_tokens(mock_response)
@@ -94,12 +101,14 @@ class TestAgenticModelClass:
         mock_usage1 = MagicMock()
         mock_usage1.prompt_tokens = 10
         mock_usage1.completion_tokens = 20
+        mock_usage1.total_tokens = None
         mock_response1.usage = mock_usage1
 
         mock_response2 = MagicMock()
         mock_usage2 = MagicMock()
         mock_usage2.prompt_tokens = 5
         mock_usage2.completion_tokens = 10
+        mock_usage2.total_tokens = None
         mock_response2.usage = mock_usage2
 
         model._add_tokens(mock_response1)
@@ -110,20 +119,70 @@ class TestAgenticModelClass:
 
     def test_finalize_tokens(self, model):
         """Test finalizing tokens to output context."""
-        model._init_tokens()
-        model._thread_local.tokens['prompt'] = 10
-        model._thread_local.tokens['completion'] = 20
+        model._thread_local.tokens = {'prompt': 10, 'completion': 20}
 
         with patch.object(model, 'set_output_context') as mock_set:
             model._finalize_tokens()
             mock_set.assert_called_once_with(prompt_tokens=10, completion_tokens=20)
-            assert not hasattr(model._thread_local, 'tokens')
+            assert model._thread_local.tokens == {'prompt': 0, 'completion': 0}
 
     def test_finalize_tokens_no_tokens(self, model):
         """Test finalizing when no tokens were tracked."""
         with patch.object(model, 'set_output_context') as mock_set:
             model._finalize_tokens()
             mock_set.assert_not_called()
+
+    # === Helper Method Tests ===
+
+    def test_extract_tool_content_error(self, model):
+        """Test that errors are returned as error strings."""
+        result = model._extract_tool_content(None, "something went wrong")
+        assert result == "Error: something went wrong"
+
+    def test_extract_tool_content_from_content_attr(self, model):
+        """Test extraction from result.content[0].text."""
+        mock_result = MagicMock()
+        mock_result.content = [MagicMock(text="hello from content")]
+        result = model._extract_tool_content(mock_result, None)
+        assert result == "hello from content"
+
+    def test_extract_tool_content_from_list(self, model):
+        """Test extraction from list result[0].text."""
+
+        class TextItem:
+            text = "hello from list"
+
+        result = model._extract_tool_content([TextItem()], None)
+        assert result == "hello from list"
+
+    def test_extract_tool_content_returns_none_when_empty(self, model):
+        """Test that None is returned when no text can be extracted."""
+        mock_result = MagicMock()
+        mock_result.content = []
+        result = model._extract_tool_content(mock_result, None)
+        assert result is None
+
+    def test_normalize_input_items_string(self, model):
+        """Test normalizing a plain string to a message item list."""
+        result = model._normalize_input_items("hello")
+        assert result == [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ]
+
+    def test_normalize_input_items_list(self, model):
+        """Test that an existing list is returned unchanged."""
+        items = [{"type": "message", "role": "user", "content": "hi"}]
+        result = model._normalize_input_items(items)
+        assert result is items
+
+    def test_normalize_input_items_other(self, model):
+        """Test that non-string, non-list input returns empty list."""
+        assert model._normalize_input_items(None) == []
+        assert model._normalize_input_items(42) == []
 
     # === Tool Format Conversion Tests ===
 
@@ -1081,6 +1140,7 @@ class TestAgenticModelClass:
             {"test_tool": "http://server"},
         )
         mock_pool._loop = asyncio.new_event_loop()
+        mock_pool._run_async.return_value = {'prompt': 0, 'completion': 0}
 
         mock_chunk = MagicMock()
         mock_chunk.model_dump_json.return_value = '{"id": "chunk1"}'
