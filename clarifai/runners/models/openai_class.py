@@ -122,7 +122,7 @@ class OpenAIModelClass(ModelClass):
                                     prompt_tokens=prompt_tokens,
                                     completion_tokens=completion_tokens,
                                 )
-                    except _json.JSONDecodeError:
+                    except (ValueError, _json.JSONDecodeError):
                         pass
                 yield data
         finally:
