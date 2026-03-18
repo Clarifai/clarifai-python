@@ -12,7 +12,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.data_utils import DataConverter
+from clarifai.runners.utils.data_utils import DataConverter, Param
 from clarifai.runners.utils.method_signatures import (
     build_function_signature,
     deserialize,
@@ -255,6 +255,7 @@ class ModelClass(ABC):
                 if _can_fast_serialize:
                     _fast_serializer = serializer_from_signature(output_fields[0])
                     _fast_sig_name = output_fields[0].name
+                    _fast_default = Param.get_default(output_fields[0])
                 for output in method(**inputs):
                     resp = service_pb2.MultiOutputResponse()
                     out_proto = resp.outputs.add()
@@ -262,9 +263,12 @@ class ModelClass(ABC):
                         # Fast path: skip generic serialize() overhead (set creation,
                         # signature iteration, default checking) for the common
                         # single-output streaming case.
-                        part = out_proto.data.parts.add()
-                        part.id = _fast_sig_name
-                        _fast_serializer.serialize(part.data, output)
+                        # Mirror serialize()'s None/default handling: skip the part
+                        # when value is None and the signature default is also None.
+                        if not (output is None and _fast_default is None):
+                            part = out_proto.data.parts.add()
+                            part.id = _fast_sig_name
+                            _fast_serializer.serialize(part.data, output)
                         out_proto.status.code = status_code_pb2.SUCCESS
                         # Replicate token context handling from _convert_output_to_proto
                         token_contexts = getattr(self._thread_local, 'token_contexts', None)
