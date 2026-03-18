@@ -430,11 +430,15 @@ class ModelRunLocally:
                     cmd.extend(["-e", f"{key}={value}"])
             # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
             cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
+            # Override ENTRYPOINT to avoid conflicts between Dockerfile templates:
+            # - Standard template: ENTRYPOINT [tini] + CMD [python -m ...]
+            # - Custom image template: ENTRYPOINT [python -m ...] + CMD [--model_path ...]
+            # By setting --entrypoint explicitly, we control the full command.
+            cmd.extend(["--entrypoint", "python"])
             # Add the image name
             cmd.append(image_name)
-            # Override CMD to run the server (ENTRYPOINT is tini, so we need the full command)
+            # Args after image name replace CMD
             server_cmd = [
-                "python",
                 "-m",
                 "clarifai.runners.server",
                 "--model_path",

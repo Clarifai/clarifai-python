@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import platform
@@ -1788,8 +1789,14 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     is_flag=True,
     help='Show detailed SDK and server logs.',
 )
+@click.option(
+    '--keep',
+    is_flag=True,
+    help='Keep API resources (version, runner, deployment) across restarts. '
+    'Resources are preserved on exit instead of being cleaned up.',
+)
 @click.pass_context
-def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose):
+def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep):
     """Run a model locally for development and testing.
 
     \b
@@ -1811,6 +1818,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
       clarifai model serve ./my-model                   # current env, API-connected
       clarifai model serve --mode env                   # auto-install deps in venv
       clarifai model serve --mode container             # run inside Docker
+      clarifai model serve --keep                        # keep resources across restarts
       clarifai model serve --grpc                       # offline gRPC server
       clarifai model serve --grpc --port 9000           # custom port
       clarifai model serve --mode container --keep-image
@@ -1932,34 +1940,79 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
     # ── Phase 2: Setup ─────────────────────────────────────────────────
     out.phase_header("Setup")
 
-    # Track what we create for cleanup
+    # Track what we create for cleanup (skipped in --keep mode)
     created = {}  # resource_name → cleanup_info
+
+    # In --keep mode, save/load resource IDs scoped by model_id inside a
+    # CLARIFAI_SERVE_STATE dict in the user's active context. No extra contexts created.
+    # Structure: ctx.obj.current['env']['CLARIFAI_SERVE_STATE'][model_id] = {resource IDs}
+    _keep_data = {}
+    if keep and ctx.obj is not None and hasattr(ctx.obj, 'current'):
+        try:
+            env = ctx.obj.current['env']
+            # New format: nested under CLARIFAI_SERVE_STATE[model_id]
+            all_keep = env.get('CLARIFAI_SERVE_STATE', {})
+            _keep_data = all_keep.get(model_id, {})
+
+            # Backward compat: fall back to flat CLARIFAI_* keys in context
+            if not _keep_data and env.get('CLARIFAI_MODEL_VERSION_ID'):
+                saved_model_id = env.get('CLARIFAI_MODEL_ID')
+                if saved_model_id and saved_model_id != model_id:
+                    raise UserError(
+                        f"Context has saved state for model '{saved_model_id}' "
+                        f"but config.yaml specifies '{model_id}'.\n"
+                        f"  Either switch to the correct model directory, or clear "
+                        f"the stale CLARIFAI_MODEL_ID from your context with:\n"
+                        f"    clarifai config set CLARIFAI_MODEL_ID="
+                    )
+                _keep_data = {
+                    'compute_cluster_id': env.get('CLARIFAI_COMPUTE_CLUSTER_ID'),
+                    'nodepool_id': env.get('CLARIFAI_NODEPOOL_ID'),
+                    'model_version_id': env.get('CLARIFAI_MODEL_VERSION_ID'),
+                    'deployment_id': env.get('CLARIFAI_DEPLOYMENT_ID'),
+                    'runner_id': env.get('CLARIFAI_RUNNER_ID'),
+                }
+                # Remove None values
+                _keep_data = {k: v for k, v in _keep_data.items() if v}
+        except (KeyError, TypeError):
+            pass
+
+    def _get_saved(key):
+        """Return saved resource ID in --keep mode, or None."""
+        if not keep:
+            return None
+        return _keep_data.get(key)
 
     with _quiet_sdk_logger(suppress):
         user = User(user_id=user_id, pat=pat, base_url=base_url)
 
         # 1. Compute cluster (shared, reusable — never cleaned up)
-        cc_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
+        cc_id = _get_saved('compute_cluster_id') or DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
         try:
             user.compute_cluster(cc_id)
             out.status("Compute cluster ready")
         except Exception:
             out.status("Creating compute cluster... ", nl=False)
+            cc_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG)
+            cc_config["compute_cluster"]["id"] = cc_id
             user.create_compute_cluster(
                 compute_cluster_id=cc_id,
-                compute_cluster_config=DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
+                compute_cluster_config=cc_config,
             )
             click.echo("done")
 
         # 2. Nodepool (shared, reusable — never cleaned up)
-        np_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
+        np_id = _get_saved('nodepool_id') or DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
         try:
             nodepool = user.compute_cluster(cc_id).nodepool(np_id)
             out.status("Nodepool ready")
         except Exception:
             out.status("Creating nodepool... ", nl=False)
+            np_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG)
+            np_config["nodepool"]["id"] = np_id
+            np_config["nodepool"]["compute_cluster"]["id"] = cc_id
             nodepool = user.compute_cluster(cc_id).create_nodepool(
-                nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
+                nodepool_config=np_config,
                 nodepool_id=np_id,
             )
             click.echo("done")
@@ -1977,7 +2030,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             app = user.create_app(app_id, visibility=public_visibility)
             click.echo("done")
 
-        # 4. Model (ephemeral if we create it)
+        # 4. Model (ephemeral if we create it — unless --keep)
         model_existed = False
         try:
             model = app.model(model_id)
@@ -1989,6 +2042,10 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 )
                 app.delete_model(model_id)
                 model_existed = False
+                # Invalidate saved context — old version/runner/deployment are stale
+                if keep:
+                    for stale_key in ('model_version_id', 'runner_id', 'deployment_id'):
+                        _keep_data.pop(stale_key, None)
                 raise Exception("recreate")
             out.status("Model ready")
         except Exception:
@@ -1997,30 +2054,40 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 model = app.create_model(
                     model_id, model_type_id=model_type_id, visibility=public_visibility
                 )
-                created['model'] = model_id
+                if not keep:
+                    created['model'] = model_id
                 click.echo("done")
 
-        # 5. Model version (always created fresh — always cleaned up)
-        out.status("Creating model version... ", nl=False)
-        version_model = model.create_version(
-            pretrained_model_config={"local_dev": True},
-            method_signatures=method_signatures,
-            visibility=public_visibility,
-        )
-        version_model.load_info()
-        version_id = version_model.model_version.id
-        created['model_version'] = version_id
-        click.echo(f"done ({version_id[:8]})")
+        # 5. Model version
+        version_id = None
+        if keep:
+            # Try reusing a previously saved version from context
+            saved_version_id = _get_saved('model_version_id')
+            if saved_version_id:
+                try:
+                    model.model_info.model_version.id = saved_version_id
+                    model.load_info()
+                    version_id = saved_version_id
+                    out.status(f"Model version ready ({version_id[:8]})")
+                except Exception:
+                    out.warning(f"Saved version {saved_version_id[:8]} not found. Creating new.")
 
-        # 6. Stale deployment cleanup (from previous crash)
-        deployment_id = f"local-{model_id}"
-        try:
-            nodepool.deployment(deployment_id)
-            nodepool.delete_deployments([deployment_id])
-        except Exception:
-            pass
+        if not version_id:
+            out.status("Creating model version... ", nl=False)
+            version_model = model.create_version(
+                pretrained_model_config={"local_dev": True},
+                method_signatures=method_signatures,
+                visibility=public_visibility,
+            )
+            version_model.load_info()
+            version_id = version_model.model_version.id
+            if not keep:
+                created['model_version'] = version_id
+            click.echo(f"done ({version_id[:8]})")
 
-        # 7. Runner (always created fresh — always cleaned up)
+        # 6. Deployment ID
+        deployment_id = _get_saved('deployment_id') or f"local-{model_id}"
+
         worker = {
             "model": {
                 "id": model_id,
@@ -2029,46 +2096,118 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                 "app_id": app_id,
             }
         }
-        out.status("Creating runner... ", nl=False)
-        runner = nodepool.create_runner(
-            runner_config={
-                "runner": {
-                    "description": f"local runner for {model_id}",
-                    "worker": worker,
-                    "num_replicas": 1,
-                }
-            }
-        )
-        runner_id = runner.id
-        created['runner'] = runner_id
-        click.echo("done")
 
-        # 8. Deployment (always created fresh — always cleaned up)
-        out.status("Creating deployment... ", nl=False)
-        nodepool.create_deployment(
-            deployment_id=deployment_id,
-            deployment_config={
-                "deployment": {
-                    "scheduling_choice": 3,
-                    "worker": worker,
-                    "nodepools": [
-                        {
-                            "id": np_id,
-                            "compute_cluster": {
-                                "id": cc_id,
-                                "user_id": user_id,
-                            },
-                        }
-                    ],
-                    "deploy_latest_version": True,
-                    "visibility": {
-                        "gettable": resources_pb2.Visibility.Gettable.PUBLIC,
-                    },
+        # 7. Runner — three-tier lookup in --keep mode:
+        #    a) saved runner_id from context
+        #    b) find runner via existing deployment
+        #    c) create new runner + deployment
+        runner_id = None
+        if keep:
+            # Tier A: reuse saved runner from context
+            saved_runner_id = _get_saved('runner_id')
+            if saved_runner_id:
+                try:
+                    runners = nodepool.list_runners()
+                    if any(r.id == saved_runner_id for r in runners):
+                        runner_id = saved_runner_id
+                        out.status(f"Runner ready ({runner_id[:8]})")
+                    else:
+                        out.warning(f"Saved runner {saved_runner_id[:8]} not found.")
+                except Exception:
+                    out.warning(f"Saved runner {saved_runner_id[:8]} not found.")
+
+            # Tier B: find runner via existing deployment
+            if not runner_id:
+                try:
+                    nodepool.deployment(deployment_id)
+                    runners = list(nodepool.list_runners(model_version_ids=[version_id]))
+                    if runners:
+                        runner_id = runners[0].id
+                        out.status(f"Runner ready ({runner_id[:8]}) (from deployment)")
+                    else:
+                        out.warning(
+                            f"No runner found for version {version_id[:8]} in deployment. "
+                            "Creating new."
+                        )
+                except Exception:
+                    pass
+
+        if not runner_id:
+            # Clean up stale deployment (from previous crash or dead runner)
+            try:
+                nodepool.deployment(deployment_id)
+                nodepool.delete_deployments([deployment_id])
+            except Exception:
+                pass
+
+            out.status("Creating runner... ", nl=False)
+            runner = nodepool.create_runner(
+                runner_config={
+                    "runner": {
+                        "description": f"local runner for {model_id}",
+                        "worker": worker,
+                        "num_replicas": 1,
+                    }
                 }
-            },
-        )
-        created['deployment'] = deployment_id
-        click.echo("done")
+            )
+            runner_id = runner.id
+            if not keep:
+                created['runner'] = runner_id
+            click.echo("done")
+
+        # 8. Deployment
+        deployment_exists = False
+        if keep:
+            try:
+                nodepool.deployment(deployment_id)
+                deployment_exists = True
+                out.status(f"Deployment ready ({deployment_id})")
+            except Exception:
+                pass
+
+        if not deployment_exists:
+            out.status("Creating deployment... ", nl=False)
+            nodepool.create_deployment(
+                deployment_id=deployment_id,
+                deployment_config={
+                    "deployment": {
+                        "scheduling_choice": 3,
+                        "worker": worker,
+                        "nodepools": [
+                            {
+                                "id": np_id,
+                                "compute_cluster": {
+                                    "id": cc_id,
+                                    "user_id": user_id,
+                                },
+                            }
+                        ],
+                        "deploy_latest_version": True,
+                        "visibility": {
+                            "gettable": resources_pb2.Visibility.Gettable.PUBLIC,
+                        },
+                    }
+                },
+            )
+            if not keep:
+                created['deployment'] = deployment_id
+            click.echo("done")
+
+        # Save resource IDs to model-scoped context for reuse in --keep mode
+        if keep:
+            try:
+                env = ctx.obj.current['env']
+                keep_all = env.setdefault('CLARIFAI_SERVE_STATE', {})
+                keep_all[model_id] = {
+                    'compute_cluster_id': cc_id,
+                    'nodepool_id': np_id,
+                    'model_version_id': version_id,
+                    'deployment_id': deployment_id,
+                    'runner_id': runner_id,
+                }
+                ctx.obj.to_yaml()
+            except Exception as exc:
+                out.warning(f"Could not save resource IDs to context: {exc}")
 
     # Toolkit customization (before serving)
     if config.get('toolkit', {}).get('provider') == 'ollama':
@@ -2101,35 +2240,38 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
 
     def _cleanup():
         out.phase_header("Stopping")
-        with _quiet_sdk_logger(suppress):
-            if 'deployment' in created:
-                out.status("Deleting deployment... ", nl=False)
-                try:
-                    nodepool.delete_deployments([created['deployment']])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'runner' in created:
-                out.status("Deleting runner... ", nl=False)
-                try:
-                    nodepool.delete_runners([created['runner']])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'model_version' in created:
-                out.status("Deleting model version... ", nl=False)
-                try:
-                    model.delete_version(version_id=created['model_version'])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
-            if 'model' in created:
-                out.status("Deleting model... ", nl=False)
-                try:
-                    app.delete_model(created['model'])
-                    click.echo("done")
-                except Exception:
-                    click.echo("failed")
+        if keep:
+            out.status("--keep mode — API resources preserved for next run.")
+        else:
+            with _quiet_sdk_logger(suppress):
+                if 'deployment' in created:
+                    out.status("Deleting deployment... ", nl=False)
+                    try:
+                        nodepool.delete_deployments([created['deployment']])
+                        click.echo("done")
+                    except Exception:
+                        click.echo("failed")
+                if 'runner' in created:
+                    out.status("Deleting runner... ", nl=False)
+                    try:
+                        nodepool.delete_runners([created['runner']])
+                        click.echo("done")
+                    except Exception:
+                        click.echo("failed")
+                if 'model_version' in created:
+                    out.status("Deleting model version... ", nl=False)
+                    try:
+                        model.delete_version(version_id=created['model_version'])
+                        click.echo("done")
+                    except Exception:
+                        click.echo("failed")
+                if 'model' in created:
+                    out.status("Deleting model... ", nl=False)
+                    try:
+                        app.delete_model(created['model'])
+                        click.echo("done")
+                    except Exception:
+                        click.echo("failed")
         out.status("Stopped.")
 
     def _do_cleanup():
