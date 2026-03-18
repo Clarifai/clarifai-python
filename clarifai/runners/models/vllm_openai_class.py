@@ -126,13 +126,20 @@ class VLLMOpenAIModelClass(OpenAIModelClass):
             request_data = from_json(msg)
             request_data = self._update_old_fields(request_data)
             endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
-            if endpoint != self.ENDPOINT_CHAT_COMPLETIONS:
+            if endpoint not in [self.ENDPOINT_CHAT_COMPLETIONS, self.ENDPOINT_RESPONSES]:
                 raise ValueError(
-                    f"Only {self.ENDPOINT_CHAT_COMPLETIONS} is supported for vLLM streaming."
+                    f"Only {self.ENDPOINT_CHAT_COMPLETIONS} and {self.ENDPOINT_RESPONSES} endpoints are supported for streaming."
                 )
 
-            completion_args = self._create_completion_args(request_data)
-            response = self.client.chat.completions.create(**completion_args)
+            if endpoint == self.ENDPOINT_RESPONSES:
+                # /responses endpoint — direct call (no retry), same Stream[T] interface
+                response_args = {**request_data}
+                response_args.update({"model": self.model})
+                response = self.client.responses.create(**response_args)
+            else:
+                # /chat/completions endpoint
+                completion_args = self._create_completion_args(request_data)
+                response = self.client.chat.completions.create(**completion_args)
 
             if item_id and self.cancellation_handler:
                 cancel_event = self.cancellation_handler.register_request(
