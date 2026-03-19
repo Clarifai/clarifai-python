@@ -46,6 +46,7 @@ class ModelRunner(BaseRunner):
             pat,
             token,
             num_parallel_polls,
+            health_check_port=health_check_port,
             **kwargs,
         )
         self.model = model
