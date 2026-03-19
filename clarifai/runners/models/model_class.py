@@ -24,6 +24,7 @@ from clarifai.runners.utils.model_utils import is_proto_style_method
 from clarifai.utils.logging import logger
 
 _METHOD_INFO_ATTR = '_cf_method_info'
+_MODEL_METHODS_REGISTRY_ATTR = '_cf_model_methods_registry'
 
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
 
@@ -119,11 +120,12 @@ class ModelClass(ABC):
             # first we look for a PostModelOutputs method that is implemented as protos and use that
             # if it exists.
             # if not we default to 'predict'.
+            method_infos = self._get_method_infos()
             method_name = None
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
-            if method_name is None and FALLBACK_METHOD_PROTO in self._get_method_infos():
-                _info = self._get_method_infos(FALLBACK_METHOD_PROTO)
+            if method_name is None and FALLBACK_METHOD_PROTO in method_infos:
+                _info = method_infos[FALLBACK_METHOD_PROTO]
                 if _info.proto_method:
                     method_name = FALLBACK_METHOD_PROTO
             if method_name is None:
@@ -132,10 +134,10 @@ class ModelClass(ABC):
                 method_name == '_GET_SIGNATURES'
             ):  # special case to fetch signatures, TODO add endpoint for this
                 return self._handle_get_signatures_request()
-            if method_name not in self._get_method_infos():
+            if method_name not in method_infos:
                 raise ValueError(f"Method {method_name} not found in model class")
             method = getattr(self, method_name)
-            method_info = self._get_method_infos(method_name)
+            method_info = method_infos[method_name]
             signature = method_info.signature
             proto_method = method_info.proto_method
 
@@ -170,7 +172,7 @@ class ModelClass(ABC):
                 )
                 return out_proto
 
-            python_param_types = method_info.python_param_types
+            cast_types = method_info.cast_types
             for input in request.inputs:
                 # check if input is in old format
                 is_convert = DataConverter.is_old_format(input.data)
@@ -183,7 +185,7 @@ class ModelClass(ABC):
 
             # convert inputs to python types
             inputs = self._convert_input_protos_to_python(
-                request.inputs, signature.input_fields, python_param_types
+                request.inputs, signature.input_fields, cast_types
             )
             if len(inputs) == 1:
                 inputs = inputs[0]
@@ -222,13 +224,14 @@ class ModelClass(ABC):
     ) -> Iterator[service_pb2.MultiOutputResponse]:
         try:
             assert len(request.inputs) == 1, "Generate requires exactly one input"
+            method_infos = self._get_method_infos()
             method_name = 'generate'
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
             method = getattr(self, method_name)
-            method_info = self._get_method_infos(method_name)
+            method_info = method_infos[method_name]
             signature = method_info.signature
-            python_param_types = method_info.python_param_types
+            cast_types = method_info.cast_types
             for input in request.inputs:
                 # check if input is in old format
                 is_convert = DataConverter.is_old_format(input.data)
@@ -239,7 +242,7 @@ class ModelClass(ABC):
                     )
                     input.data.CopyFrom(new_data)
             inputs = self._convert_input_protos_to_python(
-                request.inputs, signature.input_fields, python_param_types
+                request.inputs, signature.input_fields, cast_types
             )
             if len(inputs) == 1:
                 inputs = inputs[0]
@@ -284,13 +287,14 @@ class ModelClass(ABC):
             request = next(request_iterator)  # get first request to determine method
             assert len(request.inputs) == 1, "Streaming requires exactly one input"
 
+            method_infos = self._get_method_infos()
             method_name = 'stream'
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
             method = getattr(self, method_name)
-            method_info = self._get_method_infos(method_name)
+            method_info = method_infos[method_name]
             signature = method_info.signature
-            python_param_types = method_info.python_param_types
+            cast_types = method_info.cast_types
 
             # find the streaming vars in the signature
             stream_sig = get_stream_from_signature(signature.input_fields)
@@ -309,7 +313,7 @@ class ModelClass(ABC):
                     input.data.CopyFrom(new_data)
             # convert all inputs for the first request, including the first stream value
             inputs = self._convert_input_protos_to_python(
-                request.inputs, signature.input_fields, python_param_types
+                request.inputs, signature.input_fields, cast_types
             )
             kwargs = inputs[0]
 
@@ -322,7 +326,7 @@ class ModelClass(ABC):
                 # subsequent streaming items contain only the streaming input
                 for request in request_iterator:
                     item = self._convert_input_protos_to_python(
-                        request.inputs, [stream_sig], python_param_types
+                        request.inputs, [stream_sig], cast_types
                     )
                     item = item[0][stream_argname]
                     yield item
@@ -356,26 +360,15 @@ class ModelClass(ABC):
         self,
         inputs: List[resources_pb2.Input],
         variables_signature: List[resources_pb2.ModelTypeField],
-        python_param_types,
+        cast_types: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         result = []
         for input in inputs:
             kwargs = deserialize(input.data, variables_signature)
             # dynamic cast to annotated types
             for k, v in kwargs.items():
-                if k not in python_param_types:
-                    continue
-
-                if hasattr(python_param_types[k], "__args__") and (
-                    getattr(python_param_types[k], "__origin__", None)
-                    in [abc.Iterator, abc.Generator, abc.Iterable]
-                ):
-                    # get the type of the items in the stream
-                    stream_type = python_param_types[k].__args__[0]
-
-                    kwargs[k] = data_types.cast(v, stream_type)
-                else:
-                    kwargs[k] = data_types.cast(v, python_param_types[k])
+                if k in cast_types:
+                    kwargs[k] = data_types.cast(v, cast_types[k])
             result.append(kwargs)
         return result
 
@@ -440,11 +433,9 @@ class ModelClass(ABC):
 
     @classmethod
     def _get_method_infos(cls, func_name=None):
-        # FIXME: this is a re-use of the _METHOD_INFO_ATTR attribute to store the method info
-        # for all methods on the class. Should use a different attribute name to avoid confusion.
-        if not hasattr(cls, _METHOD_INFO_ATTR):
-            setattr(cls, _METHOD_INFO_ATTR, cls._register_model_methods())
-        method_infos = getattr(cls, _METHOD_INFO_ATTR)
+        if not hasattr(cls, _MODEL_METHODS_REGISTRY_ATTR):
+            setattr(cls, _MODEL_METHODS_REGISTRY_ATTR, cls._register_model_methods())
+        method_infos = getattr(cls, _MODEL_METHODS_REGISTRY_ATTR)
         if func_name:
             return method_infos[func_name]
         return method_infos
@@ -470,3 +461,12 @@ class _MethodInfo:
             if p.annotation != inspect.Parameter.empty
         }
         self.python_param_types.pop('self', None)
+
+        self.cast_types = {}
+        for k, v in self.python_param_types.items():
+            if hasattr(v, "__args__") and (
+                getattr(v, "__origin__", None) in [abc.Iterator, abc.Generator, abc.Iterable]
+            ):
+                self.cast_types[k] = v.__args__[0]
+            else:
+                self.cast_types[k] = v
