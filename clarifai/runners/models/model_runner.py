@@ -1,6 +1,6 @@
 import itertools
 import time
-from typing import Iterator, Optional, Union
+from typing import Iterable, Iterator, Optional, Union
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -278,7 +278,7 @@ class ModelRunner(BaseRunner):
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
     def runner_item_stream(
-        self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
+        self, runner_item_iterator: Iterable[service_pb2.RunnerItem]
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
         start_time = time.time()
@@ -335,7 +335,7 @@ class ModelRunner(BaseRunner):
                     resp.status.description = "Mixed Status"
                     status_str = STATUS_MIXED
                 else:
-                    resp.status.code = status_code_pb2.FAILURE
+                    resp.status.code = status_code_pb2.RUNNER_PROCESSING_FAILED
                     resp.status.description = "Failed"
                     status_str = STATUS_FAIL
 
