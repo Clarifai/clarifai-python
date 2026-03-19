@@ -195,6 +195,7 @@ class ModelRunner(BaseRunner):
             if output.status.code == status_code_pb2.SUCCESS:
                 num_success += 1
 
+        resp.status.Clear()
         if num_success == num_total:
             resp.status.code = status_code_pb2.SUCCESS
             resp.status.description = "Success"
@@ -256,6 +257,7 @@ class ModelRunner(BaseRunner):
                     if output.status.code == status_code_pb2.SUCCESS:
                         num_success += 1
 
+                resp.status.Clear()
                 if num_success == num_total:
                     resp.status.code = status_code_pb2.SUCCESS
                     resp.status.description = "Success"
@@ -286,10 +288,11 @@ class ModelRunner(BaseRunner):
         # Get the first request to establish secrets context
         first_request = None
         try:
+            runner_item_iterator = iter(runner_item_iterator)
             first_runner_item = next(runner_item_iterator)
             first_request = first_runner_item.post_model_outputs_request
             # Reconstruct the iterator using itertools.chain to avoid consuming the whole stream into memory
-            runner_items = itertools.chain([first_runner_item], runner_item_iterator)
+            runner_items = itertools.chain((first_runner_item,), runner_item_iterator)
         except StopIteration:
             runner_items = iter([])
 
@@ -321,7 +324,8 @@ class ModelRunner(BaseRunner):
                     if output.status.code == status_code_pb2.SUCCESS:
                         num_success += 1
 
-                if num_total > 0 and num_success == num_total:
+                resp.status.Clear()
+                if num_success == num_total:
                     resp.status.code = status_code_pb2.SUCCESS
                     resp.status.description = "Success"
                     status_str = STATUS_OK
@@ -330,8 +334,8 @@ class ModelRunner(BaseRunner):
                     resp.status.description = "Mixed Status"
                     status_str = STATUS_MIXED
                 else:
-                    resp.status.code = status_code_pb2.RUNNER_PROCESSING_FAILED
-                    resp.status.description = "Runner Processing Failed"
+                    resp.status.code = status_code_pb2.FAILURE
+                    resp.status.description = "Failed"
                     status_str = STATUS_FAIL
 
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
