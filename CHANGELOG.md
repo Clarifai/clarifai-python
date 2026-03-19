@@ -1,3 +1,17 @@
+## [[12.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.0) - [PyPI](https://pypi.org/project/clarifai/12.4.0/) - 2026-03-19
+
+### Added
+- Added `--keep` flag to `clarifai model serve` to persist API resources (model version, runner, deployment) across restarts [(#990)](https://github.com/Clarifai/clarifai-python/pull/990)
+
+### Changed
+- Local runner resources are now PUBLIC by default to make locally-served models more easily shareable/accessible [(#981)](https://github.com/Clarifai/clarifai-python/pull/981)
+- Refactored JSON conversion in `method_signatures.py` to use `signatures_to_dict`/`signatures_from_dict` helpers, eliminating inefficient JSON serialization round-trips [(#991)](https://github.com/Clarifai/clarifai-python/pull/991)
+
+### Fixed
+- Fixed `HasField` calls on scalar proto primitives in `DataConverter` to avoid `ValueError` [(#985)](https://github.com/Clarifai/clarifai-python/pull/985)
+- Fixed agentic model token tracking for reasoning models, event-loop safety in streaming, and streaming token double-counting [(#989)](https://github.com/Clarifai/clarifai-python/pull/989)
+- Fixed duplicate 'Other' section in `clarifai --help` output [(#974)](https://github.com/Clarifai/clarifai-python/pull/974)
+
 ## [[12.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.2) - [PyPI](https://pypi.org/project/clarifai/12.3.2/) - 2026-03-11
 
 ### Changed
