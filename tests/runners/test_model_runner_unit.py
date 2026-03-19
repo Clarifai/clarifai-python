@@ -190,4 +190,7 @@ class TestRunnerItemStreamStatus:
         runner = _make_runner(mock_model)
 
         results = list(runner.runner_item_stream([_make_runner_item()]))
-        assert results[0].multi_output_response.status.code == status_code_pb2.RUNNER_PROCESSING_FAILED
+        assert (
+            results[0].multi_output_response.status.code
+            == status_code_pb2.RUNNER_PROCESSING_FAILED
+        )
