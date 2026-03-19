@@ -1,4 +1,4 @@
-## [[12.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.0) - [PyPI](https://pypi.org/project/clarifai/12.4.0/) - 2026-03-19
+## [[12.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.3) - [PyPI](https://pypi.org/project/clarifai/12.3.3/) - 2026-03-19
 
 ### Added
 - Added `--keep` flag to `clarifai model serve` to persist API resources (model version, runner, deployment) across restarts [(#990)](https://github.com/Clarifai/clarifai-python/pull/990)
