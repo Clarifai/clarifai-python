@@ -291,11 +291,16 @@ class ModelRunner(BaseRunner):
         try:
             runner_item_iterator = iter(runner_item_iterator)
             first_runner_item = next(runner_item_iterator)
+            if not first_runner_item.HasField('post_model_outputs_request'):
+                raise Exception("Unexpected work item type: {}".format(first_runner_item))
             first_request = first_runner_item.post_model_outputs_request
             # Reconstruct the iterator using itertools.chain to avoid consuming the whole stream into memory
             runner_items = itertools.chain((first_runner_item,), runner_item_iterator)
         except StopIteration:
-            runner_items = iter([])
+            # No items in the stream: short-circuit and yield nothing.
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
+            return
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
@@ -336,7 +341,7 @@ class ModelRunner(BaseRunner):
                     status_str = STATUS_MIXED
                 else:
                     resp.status.code = status_code_pb2.RUNNER_PROCESSING_FAILED
-                    resp.status.description = "Failed"
+                    resp.status.description = "Runner Processing Failed"
                     status_str = STATUS_FAIL
 
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
