@@ -726,16 +726,16 @@ def run(ctx, script, context=None):
 
 
 # Import the CLI commands to register them
-# load_command_modules() - Now handled lazily by LazyLazyAliasedGroupp
+# load_command_modules() - Now handled lazily by LazyAliasedGroup
 
 # Define section ordering for `clarifai --help`
 cli.command_sections = [
-    ('Auth', ['login', 'whoami']),
+    ('Auth', ['login', 'whoami', 'logout']),
     ('Config', ['config']),
     ('Models', ['model']),
-    ('Pipelines', ['pipeline', 'pipeline-step', 'pipelinerun', 'pipelinetemplate']),
+    ('Pipelines', ['pipeline', 'pipelinestep', 'pipelinerun', 'pipelinetemplate']),
     ('Compute', ['list-instances', 'computecluster', 'nodepool', 'deployment']),
-    ('Other', ['artifact', 'run', 'shell-completion']),
+    ('Other', ['app', 'artifact', 'run', 'shell-completion']),
 ]
 
 

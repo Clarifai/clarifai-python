@@ -319,8 +319,10 @@ class AliasedGroup(click.Group):
                 continue
             name = sub_command
             if cmd in self.command_to_aliases:
-                aliases = ', '.join(self.command_to_aliases[cmd])
-                name = f'{sub_command} ({aliases})'
+                # Filter out aliases that match the display name to avoid redundancy
+                aliases = [a for a in self.command_to_aliases[cmd] if a != sub_command]
+                if aliases:
+                    name = f'{sub_command} ({", ".join(aliases)})'
             help_text = cmd.get_short_help_str(limit=limit)
             cmd_info[sub_command] = (name, help_text)
 
@@ -375,6 +377,20 @@ class LazyAliasedGroup(AliasedGroup):
             'list-instances': 'list_instances',
             'li': 'list_instances',
         }
+        # Primary command names shown in --help (one per module, excludes short aliases)
+        self._lazy_primary_names = {
+            'app',
+            'artifact',
+            'computecluster',
+            'deployment',
+            'model',
+            'nodepool',
+            'pipeline',
+            'pipelinerun',
+            'pipelinestep',
+            'pipelinetemplate',
+            'list-instances',
+        }
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> Optional[click.Command]:
         cmd = super().get_command(ctx, cmd_name)
@@ -390,8 +406,7 @@ class LazyAliasedGroup(AliasedGroup):
 
     def list_commands(self, ctx: click.Context) -> t.List[str]:
         base_commands = super().list_commands(ctx)
-        lazy_commands = [k for k in self.lazy_mapping.keys()]
-        return sorted(set(base_commands) | set(lazy_commands))
+        return sorted(set(base_commands) | self._lazy_primary_names)
 
 
 def validate_context(ctx):
