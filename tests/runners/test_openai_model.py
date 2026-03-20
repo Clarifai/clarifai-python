@@ -1,6 +1,7 @@
 """Test for OpenAIModelClass functionality."""
 
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -214,3 +215,192 @@ class TestOpenAIModelClass:
         assert len(response["output"]) > 0
         if response["output_text"]:
             assert "Echo: Hello, world!" in response["output_text"]
+
+
+class TestRawSseStream:
+    """Tests for the _raw_sse_stream fast-path that bypasses Pydantic parsing."""
+
+    @staticmethod
+    def _make_mock_stream(sse_data_lines):
+        """Create a mock stream with _iter_events() and close()."""
+
+        class _SSE:
+            def __init__(self, data):
+                self.data = data
+
+        stream = MagicMock()
+        stream._iter_events.return_value = iter([_SSE(d) for d in sse_data_lines])
+        stream.close = MagicMock()
+        return stream
+
+    def test_raw_sse_yields_json_strings(self):
+        """Verify _raw_sse_stream yields raw JSON strings and respects [DONE]."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        chunk1 = json.dumps({"id": "c1", "choices": [{"delta": {"content": "Hello"}}]})
+        chunk2 = json.dumps({"id": "c2", "choices": [{"delta": {"content": " world"}}]})
+        mock_stream = self._make_mock_stream([chunk1, chunk2, "[DONE]"])
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            results = list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        assert results == [chunk1, chunk2]
+        mock_stream.close.assert_called_once()
+
+    def test_raw_sse_captures_usage_with_prompt_tokens(self):
+        """Verify usage is captured when the last chunk contains prompt_tokens."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        content_chunk = json.dumps({"id": "c1", "choices": [{"delta": {"content": "Hi"}}]})
+        usage_chunk = json.dumps(
+            {
+                "id": "c2",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30,
+                },
+            }
+        )
+        mock_stream = self._make_mock_stream([content_chunk, usage_chunk, "[DONE]"])
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            results = list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        assert len(results) == 2
+        # Verify token context was set
+        token_contexts = getattr(model._thread_local, 'token_contexts', [])
+        assert len(token_contexts) == 1
+        assert token_contexts[0] == (10, 20)
+
+    def test_raw_sse_captures_usage_with_input_tokens(self):
+        """Verify usage is captured for providers using input_tokens (e.g. Anthropic-style)."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        usage_chunk = json.dumps(
+            {
+                "id": "c1",
+                "choices": [],
+                "usage": {
+                    "input_tokens": 15,
+                    "output_tokens": 25,
+                    "total_tokens": 40,
+                },
+            }
+        )
+        mock_stream = self._make_mock_stream([usage_chunk, "[DONE]"])
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            results = list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        assert len(results) == 1
+        token_contexts = getattr(model._thread_local, 'token_contexts', [])
+        assert len(token_contexts) == 1
+        assert token_contexts[0] == (15, 25)
+
+    def test_raw_sse_uses_total_minus_prompt_for_completion(self):
+        """Verify completion_tokens = total_tokens - prompt_tokens when total is present."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        usage_chunk = json.dumps(
+            {
+                "id": "c1",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "total_tokens": 50,
+                },
+            }
+        )
+        mock_stream = self._make_mock_stream([usage_chunk, "[DONE]"])
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        token_contexts = getattr(model._thread_local, 'token_contexts', [])
+        assert token_contexts[0] == (10, 40)  # completion = 50 - 10
+
+    def test_raw_sse_fallback_when_no_iter_events(self):
+        """Verify graceful fallback to Pydantic path when _iter_events is missing."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        # Create a stream that is a plain iterator (no _iter_events)
+        class _MockChunk:
+            def __init__(self, data):
+                self._data = data
+                self.usage = None
+
+            def model_dump_json(self):
+                return self._data
+
+        class _PlainStream:
+            """Plain iterable stream without _iter_events, but with close()."""
+
+            def __init__(self, chunks):
+                self._chunks = chunks
+                self.close_called = False
+
+            def __iter__(self):
+                return iter(self._chunks)
+
+            def close(self):
+                self.close_called = True
+
+        chunks = [_MockChunk(json.dumps({"id": "c1"})), _MockChunk(json.dumps({"id": "c2"}))]
+        plain_stream = _PlainStream(chunks)
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=plain_stream):
+            results = list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        assert len(results) == 2
+        # close() should still be called if available
+        assert plain_stream.close_called is True
+
+    def test_raw_sse_no_close_on_plain_iterator(self):
+        """Verify no error when stream lacks close() (e.g. MockCompletionStream)."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        chunk = json.dumps({"id": "c1", "choices": [{"delta": {"content": "ok"}}]})
+
+        class _MockCompletionStream:
+            """Stream with _iter_events but without close()."""
+
+            def __init__(self, events):
+                self._events = events
+
+            def _iter_events(self):
+                return iter(self._events)
+
+        events = [MagicMock(data=chunk), MagicMock(data="[DONE]")]
+        mock_stream = _MockCompletionStream(events)
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            results = list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        assert results == [chunk]
+
+    def test_raw_sse_close_called_on_exception(self):
+        """Verify stream is closed even when an exception occurs during iteration."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        def _exploding_iter():
+            yield MagicMock(data=json.dumps({"id": "c1"}))
+            raise RuntimeError("network error")
+
+        mock_stream = MagicMock()
+        mock_stream._iter_events.return_value = _exploding_iter()
+        mock_stream.close = MagicMock()
+
+        with patch.object(model, '_retry_chat_completions_create', return_value=mock_stream):
+            with pytest.raises(RuntimeError, match="network error"):
+                list(model._raw_sse_stream({"model": "test", "stream": True}))
+
+        mock_stream.close.assert_called_once()

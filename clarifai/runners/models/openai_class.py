@@ -1,5 +1,6 @@
 """Base class for creating OpenAI-compatible API server."""
 
+import json as _json
 from typing import Any, Dict, Iterator
 
 import httpx
@@ -67,6 +68,67 @@ class OpenAIModelClass(ModelClass):
     def _retry_chat_completions_create(self, **kwargs):
         """Create chat completions with retry logic."""
         return self.client.chat.completions.create(**kwargs)
+
+    def _raw_sse_stream(self, completion_args: Dict[str, Any]) -> Iterator[str]:
+        """Stream chat completions as raw SSE JSON strings, bypassing the OpenAI SDK's
+        Pydantic parsing. Uses the SDK's HTTP transport and SSE decoder but intercepts
+        before json.loads() and Pydantic model construction. Each yielded string is the
+        raw JSON from the SSE 'data:' field.
+
+        NOTE: Uses OpenAI SDK private API ``_iter_events()`` (tested with openai>=1.82.0).
+        If this breaks on a future SDK version, fall back to the Pydantic path automatically.
+        """
+        # Use _retry_chat_completions_create so ConnectError retries are preserved.
+        stream = self._retry_chat_completions_create(**completion_args)
+        # Graceful fallback: if the private _iter_events API is unavailable
+        # (e.g. OpenAI SDK upgrade), fall back to the standard Pydantic path.
+        if not hasattr(stream, '_iter_events'):
+            logger.warning(
+                "OpenAI SDK stream missing _iter_events(); falling back to Pydantic path."
+            )
+            try:
+                for chunk in stream:
+                    self._set_usage(chunk)
+                    yield chunk.model_dump_json()
+            finally:
+                if hasattr(stream, 'close'):
+                    stream.close()
+            return
+        try:
+            for sse in stream._iter_events():
+                data = sse.data
+                if data.startswith("[DONE]"):
+                    break
+                # Extract usage from the raw JSON without full Pydantic parsing.
+                # Only chunks with usage info need json.loads — typically just the last chunk.
+                if '"usage"' in data and ('"prompt_tokens"' in data or '"input_tokens"' in data):
+                    try:
+                        parsed = from_json(data)
+                        usage = parsed.get("usage")
+                        if usage:
+                            prompt_tokens = (
+                                usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0) or 0
+                            )
+                            total_tokens = usage.get("total_tokens")
+                            if total_tokens:
+                                completion_tokens = total_tokens - (prompt_tokens or 0)
+                            else:
+                                completion_tokens = (
+                                    usage.get("completion_tokens", 0)
+                                    or usage.get("output_tokens", 0)
+                                    or 0
+                                )
+                            if prompt_tokens or completion_tokens:
+                                self.set_output_context(
+                                    prompt_tokens=prompt_tokens,
+                                    completion_tokens=completion_tokens,
+                                )
+                    except (ValueError, _json.JSONDecodeError):
+                        pass
+                yield data
+        finally:
+            if hasattr(stream, 'close'):
+                stream.close()
 
     @retry(
         stop=stop_after_attempt(3),
@@ -327,17 +389,16 @@ class OpenAIModelClass(ModelClass):
                 raise ValueError("Streaming is only supported for chat completions and responses.")
 
             if endpoint == self.ENDPOINT_RESPONSES:
-                # Handle responses endpoint
+                # Handle responses endpoint — still uses SDK for responses API
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
                     self._set_usage(chunk)
                     yield chunk.model_dump_json()
             else:
+                # Use raw SSE streaming to bypass Pydantic parsing overhead.
+                # Saves ~6ms/request by skipping json.loads + Pydantic + model_dump_json.
                 completion_args = self._create_completion_args(request_data)
-                stream_completion = self._retry_chat_completions_create(**completion_args)
-                for chunk in stream_completion:
-                    self._set_usage(chunk)
-                    yield chunk.model_dump_json()
+                yield from self._raw_sse_stream(completion_args)
 
         except Exception as e:
             logger.exception(e)

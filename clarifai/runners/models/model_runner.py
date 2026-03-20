@@ -232,6 +232,12 @@ class ModelRunner(BaseRunner):
         status_str = STATUS_UNKNOWN
         endpoint = "model_generate"
 
+        # Pre-allocate status protos to avoid creating new ones per streaming chunk.
+        _success_status = status_pb2.Status(
+            code=status_code_pb2.SUCCESS,
+            description="Success",
+        )
+
         # Use req_secrets_context to temporarily set request-type secrets as environment variables
         with req_secrets_context(request):
             for resp in self.model.generate_wrapper(request):
@@ -247,32 +253,53 @@ class ModelRunner(BaseRunner):
                     )
                     yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                     continue
+
+                # Fast path for common case: single output with SUCCESS status.
+                # Avoids list allocation and iteration for every streaming chunk.
+                outputs = resp.outputs
+                num_outputs = len(outputs)
+                if num_outputs == 1:
+                    output = outputs[0]
+                    if not output.HasField('status') or not output.status.code:
+                        raise Exception(
+                            "Output must have a status code, please check the model implementation."
+                        )
+                    if output.status.code == status_code_pb2.SUCCESS:
+                        resp.status.CopyFrom(_success_status)
+                        status_str = STATUS_OK
+                        yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                        continue
+                    # Single output with non-SUCCESS status
+                    resp.status.CopyFrom(
+                        status_pb2.Status(code=status_code_pb2.FAILURE, description="Failed")
+                    )
+                    status_str = STATUS_FAIL
+                    yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                    continue
+
+                # Multi-output path (batch generate)
                 successes = []
-                for output in resp.outputs:
+                for output in outputs:
                     if not output.HasField('status') or not output.status.code:
                         raise Exception(
                             "Output must have a status code, please check the model implementation."
                         )
                     successes.append(output.status.code == status_code_pb2.SUCCESS)
                 if all(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.SUCCESS,
-                        description="Success",
-                    )
+                    resp.status.CopyFrom(_success_status)
                     status_str = STATUS_OK
                 elif any(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.MIXED_STATUS,
-                        description="Mixed Status",
+                    resp.status.CopyFrom(
+                        status_pb2.Status(
+                            code=status_code_pb2.MIXED_STATUS, description="Mixed Status"
+                        )
                     )
                     status_str = STATUS_MIXED
                 else:
-                    status = status_pb2.Status(
-                        code=status_code_pb2.FAILURE,
-                        description="Failed",
+                    resp.status.CopyFrom(
+                        status_pb2.Status(code=status_code_pb2.FAILURE, description="Failed")
                     )
                     status_str = STATUS_FAIL
-                resp.status.CopyFrom(status)
 
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 

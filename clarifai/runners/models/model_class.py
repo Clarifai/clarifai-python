@@ -12,12 +12,13 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.data_utils import DataConverter
+from clarifai.runners.utils.data_utils import DataConverter, Param
 from clarifai.runners.utils.method_signatures import (
     build_function_signature,
     deserialize,
     get_stream_from_signature,
     serialize,
+    serializer_from_signature,
     signatures_to_json,
 )
 from clarifai.runners.utils.model_utils import is_proto_style_method
@@ -243,14 +244,49 @@ class ModelClass(ABC):
             )
             if len(inputs) == 1:
                 inputs = inputs[0]
+                # For streaming, pre-compute the serializer and signature info once
+                # instead of re-computing per chunk in serialize().
+                output_fields = signature.output_fields
+                _can_fast_serialize = (
+                    not is_convert
+                    and len(output_fields) == 1
+                    and output_fields[0].name == 'return'
+                )
+                if _can_fast_serialize:
+                    _fast_serializer = serializer_from_signature(output_fields[0])
+                    _fast_sig_name = output_fields[0].name
+                    _fast_default = Param.get_default(output_fields[0])
                 for output in method(**inputs):
                     resp = service_pb2.MultiOutputResponse()
-                    self._convert_output_to_proto(
-                        output,
-                        signature.output_fields,
-                        proto=resp.outputs.add(),
-                        convert_old_format=is_convert,
-                    )
+                    out_proto = resp.outputs.add()
+                    if _can_fast_serialize and output is not None:
+                        # Fast path: skip generic serialize() overhead (set creation,
+                        # signature iteration, default checking) for the common
+                        # single-output streaming case.
+                        # Mirror serialize()'s None/default handling: skip the part
+                        # when value is None and the signature default is also None.
+                        if not (output is None and _fast_default is None):
+                            part = out_proto.data.parts.add()
+                            part.id = _fast_sig_name
+                            _fast_serializer.serialize(part.data, output)
+                        out_proto.status.code = status_code_pb2.SUCCESS
+                        # Replicate token context handling from _convert_output_to_proto
+                        token_contexts = getattr(self._thread_local, 'token_contexts', None)
+                        if token_contexts and len(token_contexts) > 0:
+                            pt, ct = token_contexts.pop(0)
+                            if len(token_contexts) == 0:
+                                del self._thread_local.token_contexts
+                            if pt is not None:
+                                out_proto.prompt_tokens = pt
+                            if ct is not None:
+                                out_proto.completion_tokens = ct
+                    else:
+                        self._convert_output_to_proto(
+                            output,
+                            output_fields,
+                            proto=out_proto,
+                            convert_old_format=is_convert,
+                        )
                     resp.status.code = status_code_pb2.SUCCESS
                     yield resp
             else:
