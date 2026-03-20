@@ -1,5 +1,6 @@
+import itertools
 import time
-from typing import Iterator, Optional, Union
+from typing import Iterable, Iterator, Optional, Union
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -45,6 +46,7 @@ class ModelRunner(BaseRunner):
             pat,
             token,
             num_parallel_polls,
+            health_check_port=health_check_port,
             **kwargs,
         )
         self.model = model
@@ -183,33 +185,31 @@ class ModelRunner(BaseRunner):
             duration_ms = (time.time() - start_time) * 1000
             logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
-        successes = []
+
+        num_success = 0
+        num_total = len(resp.outputs)
         for output in resp.outputs:
             if not output.HasField('status') or not output.status.code:
                 raise Exception(
                     "Output must have a status code, please check the model implementation."
                 )
-            successes.append(output.status.code == status_code_pb2.SUCCESS)
-        if all(successes):
-            status = status_pb2.Status(
-                code=status_code_pb2.SUCCESS,
-                description="Success",
-            )
+            if output.status.code == status_code_pb2.SUCCESS:
+                num_success += 1
+
+        resp.status.Clear()
+        if num_success == num_total:
+            resp.status.code = status_code_pb2.SUCCESS
+            resp.status.description = "Success"
             status_str = STATUS_OK
-        elif any(successes):
-            status = status_pb2.Status(
-                code=status_code_pb2.MIXED_STATUS,
-                description="Mixed Status",
-            )
+        elif num_success > 0:
+            resp.status.code = status_code_pb2.MIXED_STATUS
+            resp.status.description = "Mixed Status"
             status_str = STATUS_MIXED
         else:
-            status = status_pb2.Status(
-                code=status_code_pb2.FAILURE,
-                description="Failed",
-            )
+            resp.status.code = status_code_pb2.FAILURE
+            resp.status.description = "Failed"
             status_str = STATUS_FAIL
 
-        resp.status.CopyFrom(status)
         if logging:
             duration_ms = (time.time() - start_time) * 1000
             logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
@@ -247,32 +247,30 @@ class ModelRunner(BaseRunner):
                     )
                     yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                     continue
-                successes = []
+
+                num_success = 0
+                num_total = len(resp.outputs)
                 for output in resp.outputs:
                     if not output.HasField('status') or not output.status.code:
                         raise Exception(
                             "Output must have a status code, please check the model implementation."
                         )
-                    successes.append(output.status.code == status_code_pb2.SUCCESS)
-                if all(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.SUCCESS,
-                        description="Success",
-                    )
+                    if output.status.code == status_code_pb2.SUCCESS:
+                        num_success += 1
+
+                resp.status.Clear()
+                if num_success == num_total:
+                    resp.status.code = status_code_pb2.SUCCESS
+                    resp.status.description = "Success"
                     status_str = STATUS_OK
-                elif any(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.MIXED_STATUS,
-                        description="Mixed Status",
-                    )
+                elif num_success > 0:
+                    resp.status.code = status_code_pb2.MIXED_STATUS
+                    resp.status.description = "Mixed Status"
                     status_str = STATUS_MIXED
                 else:
-                    status = status_pb2.Status(
-                        code=status_code_pb2.FAILURE,
-                        description="Failed",
-                    )
+                    resp.status.code = status_code_pb2.FAILURE
+                    resp.status.description = "Failed"
                     status_str = STATUS_FAIL
-                resp.status.CopyFrom(status)
 
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
@@ -280,7 +278,7 @@ class ModelRunner(BaseRunner):
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
     def runner_item_stream(
-        self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
+        self, runner_item_iterator: Iterable[service_pb2.RunnerItem]
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
         start_time = time.time()
@@ -290,14 +288,24 @@ class ModelRunner(BaseRunner):
 
         # Get the first request to establish secrets context
         first_request = None
-        runner_items = list(runner_item_iterator)  # Convert to list to avoid consuming iterator
-        if runner_items:
-            first_request = runner_items[0].post_model_outputs_request
+        try:
+            runner_item_iterator = iter(runner_item_iterator)
+            first_runner_item = next(runner_item_iterator)
+            if not first_runner_item.HasField('post_model_outputs_request'):
+                raise Exception("Unexpected work item type: {}".format(first_runner_item))
+            first_request = first_runner_item.post_model_outputs_request
+            # Reconstruct the iterator using itertools.chain to avoid consuming the whole stream into memory
+            runner_items = itertools.chain((first_runner_item,), runner_item_iterator)
+        except StopIteration:
+            # No items in the stream: short-circuit and yield nothing.
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
+            return
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
             for resp in self.model.stream_wrapper(
-                pmo_iterator(iter(runner_items), auth_helper=self._auth_helper)
+                pmo_iterator(runner_items, auth_helper=self._auth_helper)
             ):
                 # if we have any non-successful code already it's an error we can return.
                 if (
@@ -311,32 +319,30 @@ class ModelRunner(BaseRunner):
                     )
                     yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                     continue
-                successes = []
+
+                num_success = 0
+                num_total = len(resp.outputs)
                 for output in resp.outputs:
                     if not output.HasField('status') or not output.status.code:
                         raise Exception(
                             "Output must have a status code, please check the model implementation."
                         )
-                    successes.append(output.status.code == status_code_pb2.SUCCESS)
-                if all(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.SUCCESS,
-                        description="Success",
-                    )
+                    if output.status.code == status_code_pb2.SUCCESS:
+                        num_success += 1
+
+                resp.status.Clear()
+                if num_success == num_total:
+                    resp.status.code = status_code_pb2.SUCCESS
+                    resp.status.description = "Success"
                     status_str = STATUS_OK
-                elif any(successes):
-                    status = status_pb2.Status(
-                        code=status_code_pb2.MIXED_STATUS,
-                        description="Mixed Status",
-                    )
+                elif num_success > 0:
+                    resp.status.code = status_code_pb2.MIXED_STATUS
+                    resp.status.description = "Mixed Status"
                     status_str = STATUS_MIXED
                 else:
-                    status = status_pb2.Status(
-                        code=status_code_pb2.RUNNER_PROCESSING_FAILED,
-                        description="Runner Processing Failed",
-                    )
+                    resp.status.code = status_code_pb2.RUNNER_PROCESSING_FAILED
+                    resp.status.description = "Runner Processing Failed"
                     status_str = STATUS_FAIL
-                resp.status.CopyFrom(status)
 
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
