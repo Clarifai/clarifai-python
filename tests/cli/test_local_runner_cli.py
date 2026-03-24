@@ -299,6 +299,11 @@ class TestLocalRunnerCLI:
         # Existing resources not re-created
         mock_user.create_compute_cluster.assert_not_called()
         mock_user.create_app.assert_not_called()
+        # Existing app patched to PUBLIC visibility
+        mock_user.patch_app.assert_called_once()
+        patch_kwargs = mock_user.patch_app.call_args
+        assert patch_kwargs[0][0] == "local-runner-app"  # app_id positional arg
+        assert patch_kwargs[1]["visibility"] == 50  # PUBLIC gettable enum value
         # But version IS always created fresh
         mock_user.app().model().create_version.assert_called_once()
 
