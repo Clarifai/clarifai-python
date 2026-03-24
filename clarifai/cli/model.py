@@ -1828,7 +1828,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         _run_local_grpc(model_path, mode, port, keep_image, verbose)
         return
 
-    from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+    from clarifai_grpc.grpc.api import resources_pb2
 
     from clarifai.client.user import User
     from clarifai.runners.models import deploy_output as out
@@ -2030,12 +2030,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
 
         if app_exists:
             # Ensure the app has PUBLIC visibility (required for public models)
-            patch_req = service_pb2.PatchAppsRequest(
-                user_app_id=user.user_app_id,
-                apps=[resources_pb2.App(id=app_id, visibility=public_visibility)],
-                action='overwrite',
-            )
-            user._grpc_request(user.STUB.PatchApps, patch_req)
+            user.patch_app(app_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
             out.status("App ready")
         else:
             out.status("Creating app... ", nl=False)
