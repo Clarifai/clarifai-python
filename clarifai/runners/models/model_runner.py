@@ -232,6 +232,12 @@ class ModelRunner(BaseRunner):
         status_str = STATUS_UNKNOWN
         endpoint = "model_generate"
 
+        # Pre-allocate status protos to avoid creating new ones per streaming chunk.
+        _success_status = status_pb2.Status(
+            code=status_code_pb2.SUCCESS,
+            description="Success",
+        )
+
         # Use req_secrets_context to temporarily set request-type secrets as environment variables
         with req_secrets_context(request):
             for resp in self.model.generate_wrapper(request):
@@ -248,9 +254,32 @@ class ModelRunner(BaseRunner):
                     yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                     continue
 
+                # Fast path for common case: single output with SUCCESS status.
+                # Avoids list allocation and iteration for every streaming chunk.
+                outputs = resp.outputs
+                num_outputs = len(outputs)
+                if num_outputs == 1:
+                    output = outputs[0]
+                    if not output.HasField('status') or not output.status.code:
+                        raise Exception(
+                            "Output must have a status code, please check the model implementation."
+                        )
+                    if output.status.code == status_code_pb2.SUCCESS:
+                        resp.status.CopyFrom(_success_status)
+                        status_str = STATUS_OK
+                        yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                        continue
+                    # Single output with non-SUCCESS status
+                    resp.status.Clear()
+                    resp.status.code = status_code_pb2.FAILURE
+                    resp.status.description = "Failed"
+                    status_str = STATUS_FAIL
+                    yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                    continue
+
+                # Multi-output path (batch generate) - use counters to avoid list allocation
                 num_success = 0
-                num_total = len(resp.outputs)
-                for output in resp.outputs:
+                for output in outputs:
                     if not output.HasField('status') or not output.status.code:
                         raise Exception(
                             "Output must have a status code, please check the model implementation."
@@ -258,16 +287,16 @@ class ModelRunner(BaseRunner):
                     if output.status.code == status_code_pb2.SUCCESS:
                         num_success += 1
 
-                resp.status.Clear()
-                if num_success == num_total:
-                    resp.status.code = status_code_pb2.SUCCESS
-                    resp.status.description = "Success"
+                if num_success == num_outputs:
+                    resp.status.CopyFrom(_success_status)
                     status_str = STATUS_OK
                 elif num_success > 0:
+                    resp.status.Clear()
                     resp.status.code = status_code_pb2.MIXED_STATUS
                     resp.status.description = "Mixed Status"
                     status_str = STATUS_MIXED
                 else:
+                    resp.status.Clear()
                     resp.status.code = status_code_pb2.FAILURE
                     resp.status.description = "Failed"
                     status_str = STATUS_FAIL
