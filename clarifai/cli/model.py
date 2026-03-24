@@ -2022,10 +2022,17 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         public_visibility = resources_pb2.Visibility(
             gettable=resources_pb2.Visibility.Gettable.PUBLIC
         )
+        app_exists = True
         try:
             app = user.app(app_id)
-            out.status("App ready")
         except Exception:
+            app_exists = False
+
+        if app_exists:
+            # Ensure the app has PUBLIC visibility (required for public models)
+            user.patch_app(app_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
+            out.status("App ready")
+        else:
             out.status("Creating app... ", nl=False)
             app = user.create_app(app_id, visibility=public_visibility)
             click.echo("done")
