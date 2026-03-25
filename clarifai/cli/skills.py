@@ -5,6 +5,42 @@ import click
 from clarifai.cli.base import cli
 from clarifai.utils.cli import AliasedGroup
 
+# Shared agent options — applied to every subcommand
+_agent_options = [
+    click.option('--claude', is_flag=True, help='Target Claude Code.'),
+    click.option('--codex', is_flag=True, help='Target OpenAI Codex.'),
+    click.option('--cursor', is_flag=True, help='Target Cursor.'),
+    click.option('--copilot', is_flag=True, help='Target GitHub Copilot.'),
+    click.option('--gemini', is_flag=True, help='Target Gemini.'),
+    click.option('--all-agents', is_flag=True, help='Target all supported agents.'),
+    click.option(
+        '--global/--local',
+        'global_',
+        default=True,
+        show_default=True,
+        help='Install globally (~/), or project-level (./).',
+    ),
+]
+
+
+def _add_agent_options(func):
+    for option in reversed(_agent_options):
+        func = option(func)
+    return func
+
+
+def _resolve(claude, codex, cursor, copilot, gemini, all_agents):
+    from clarifai.utils.skills import resolve_agents
+
+    return resolve_agents(
+        claude=claude,
+        codex=codex,
+        cursor=cursor,
+        copilot=copilot,
+        gemini=gemini,
+        all_agents=all_agents,
+    )
+
 
 @cli.group(['skills', 'sk'], cls=AliasedGroup, short_help='Manage Clarifai agent skills.')
 def skills():
@@ -21,24 +57,16 @@ def skills():
 
 @skills.command()
 @click.argument('skill_names', nargs=-1)
-@click.option('--claude', is_flag=True, help='Install for Claude Code.')
-@click.option('--codex', is_flag=True, help='Install for OpenAI Codex.')
-@click.option('--cursor', is_flag=True, help='Install for Cursor.')
-@click.option('--all-agents', is_flag=True, help='Install for all supported agents.')
-@click.option(
-    '--global/--local',
-    'global_',
-    default=True,
-    show_default=True,
-    help='Install globally (~/), or project-level (./).',
-)
+@_add_agent_options
 @click.option('--force', is_flag=True, help='Overwrite existing skills.')
 @click.option(
     '--source',
     type=click.Path(exists=True),
     help='Install from local skills repo clone instead of GitHub.',
 )
-def install(skill_names, claude, codex, cursor, all_agents, global_, force, source):
+def install(
+    skill_names, claude, codex, cursor, copilot, gemini, all_agents, global_, force, source
+):
     """Install Clarifai skills for AI assistants.
 
     \b
@@ -53,16 +81,11 @@ def install(skill_names, claude, codex, cursor, all_agents, global_, force, sour
       clarifai skills install --claude --cursor            # all skills, multi-agent
       clarifai skills install --local                      # project-level install
     """
-    from clarifai.utils.skills import (
-        install_skills,
-        list_remote_skills,
-        resolve_agents,
-    )
+    from clarifai.utils.skills import install_skills, list_remote_skills
 
-    agents = resolve_agents(claude, codex, cursor, all_agents)
+    agents = _resolve(claude, codex, cursor, copilot, gemini, all_agents)
     skill_ids = list(skill_names) if skill_names else None
 
-    # Try to validate against registry, but proceed even if registry is unavailable
     try:
         click.echo("Fetching Clarifai skills registry...")
         remote = list_remote_skills()
@@ -98,15 +121,10 @@ def install(skill_names, claude, codex, cursor, all_agents, global_, force, sour
 @skills.command(['ls'], name='list')
 @click.option('--remote', 'show_remote', is_flag=True, help='Show available skills from registry.')
 @click.option('--installed', 'show_installed', is_flag=True, help='Show installed skills.')
-@click.option('--claude', is_flag=True, help='Filter by Claude.')
-@click.option('--codex', is_flag=True, help='Filter by Codex.')
-@click.option('--cursor', is_flag=True, help='Filter by Cursor.')
-@click.option(
-    '--global/--local',
-    'global_',
-    default=True,
-)
-def list_skills(show_remote, show_installed, claude, codex, cursor, global_):
+@_add_agent_options
+def list_skills(
+    show_remote, show_installed, claude, codex, cursor, copilot, gemini, all_agents, global_
+):
     """List available or installed Clarifai skills.
 
     \b
@@ -114,14 +132,10 @@ def list_skills(show_remote, show_installed, claude, codex, cursor, global_):
       clarifai skills list --remote        # available skills
       clarifai skills list --installed     # installed skills
     """
-    from clarifai.utils.skills import (
-        list_installed_skills,
-        list_remote_skills,
-        resolve_agents,
-    )
+    from clarifai.utils.skills import list_installed_skills, list_remote_skills
 
     if not show_remote and not show_installed:
-        show_remote = True  # default to showing remote
+        show_remote = True
 
     if show_remote:
         click.echo("Fetching Clarifai skills registry...\n")
@@ -140,7 +154,7 @@ def list_skills(show_remote, show_installed, claude, codex, cursor, global_):
             click.echo("\nInstall: clarifai skills install")
 
     if show_installed:
-        agents = resolve_agents(claude, codex, cursor, False)
+        agents = _resolve(claude, codex, cursor, copilot, gemini, all_agents)
         installed = list_installed_skills(agents, global_)
         scope = "global" if global_ else "project"
         click.echo(f"\nInstalled Clarifai Skills ({scope}):\n")
@@ -154,19 +168,11 @@ def list_skills(show_remote, show_installed, claude, codex, cursor, global_):
 
 
 @skills.command()
-@click.option('--claude', is_flag=True, help='Update for Claude.')
-@click.option('--codex', is_flag=True, help='Update for Codex.')
-@click.option('--cursor', is_flag=True, help='Update for Cursor.')
-@click.option('--all-agents', is_flag=True, help='Update for all agents.')
-@click.option(
-    '--global/--local',
-    'global_',
-    default=True,
-)
+@_add_agent_options
 @click.option(
     '--source', type=click.Path(exists=True), help='Update from local skills repo clone.'
 )
-def update(claude, codex, cursor, all_agents, global_, source):
+def update(claude, codex, cursor, copilot, gemini, all_agents, global_, source):
     """Update installed skills to the latest version.
 
     \b
@@ -174,9 +180,9 @@ def update(claude, codex, cursor, all_agents, global_, source):
       clarifai skills update               # update all (auto-detect agents)
       clarifai skills update --claude      # update for Claude only
     """
-    from clarifai.utils.skills import install_skills, resolve_agents
+    from clarifai.utils.skills import install_skills
 
-    agents = resolve_agents(claude, codex, cursor, all_agents)
+    agents = _resolve(claude, codex, cursor, copilot, gemini, all_agents)
 
     click.echo("Updating skills...")
     try:
@@ -193,17 +199,9 @@ def update(claude, codex, cursor, all_agents, global_, source):
 
 @skills.command()
 @click.argument('skill_names', nargs=-1)
-@click.option('--claude', is_flag=True, help='Remove from Claude.')
-@click.option('--codex', is_flag=True, help='Remove from Codex.')
-@click.option('--cursor', is_flag=True, help='Remove from Cursor.')
-@click.option('--all-agents', is_flag=True, help='Remove from all agents.')
+@_add_agent_options
 @click.option('--all', 'remove_all', is_flag=True, help='Remove all Clarifai skills.')
-@click.option(
-    '--global/--local',
-    'global_',
-    default=True,
-)
-def remove(skill_names, claude, codex, cursor, all_agents, remove_all, global_):
+def remove(skill_names, claude, codex, cursor, copilot, gemini, all_agents, global_, remove_all):
     """Remove installed Clarifai skills.
 
     \b
@@ -211,9 +209,9 @@ def remove(skill_names, claude, codex, cursor, all_agents, remove_all, global_):
       clarifai skills remove --all                       # remove everything
       clarifai skills remove clarifai-cli --claude       # remove one skill
     """
-    from clarifai.utils.skills import remove_skills, resolve_agents
+    from clarifai.utils.skills import remove_skills
 
-    agents = resolve_agents(claude, codex, cursor, all_agents)
+    agents = _resolve(claude, codex, cursor, copilot, gemini, all_agents)
     skill_ids = list(skill_names) if skill_names else None
 
     if not skill_ids and not remove_all:

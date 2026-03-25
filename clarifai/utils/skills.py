@@ -44,6 +44,11 @@ AGENT_DIRS = {
     "claude": {"global": Path.home() / ".claude" / "skills", "local": Path(".claude") / "skills"},
     "codex": {"global": Path.home() / ".codex" / "skills", "local": Path(".codex") / "skills"},
     "cursor": {"global": Path.home() / ".cursor" / "skills", "local": Path(".cursor") / "skills"},
+    "copilot": {
+        "global": Path.home() / ".github-copilot" / "skills",
+        "local": Path(".github-copilot") / "skills",
+    },
+    "gemini": {"global": Path.home() / ".gemini" / "skills", "local": Path(".gemini") / "skills"},
 }
 
 CENTRAL_DIR = {
@@ -85,17 +90,25 @@ def detect_agents() -> list[str]:
     return detected or ["claude"]
 
 
-def resolve_agents(claude: bool, codex: bool, cursor: bool, all_agents: bool) -> list[str]:
+def resolve_agents(
+    claude: bool = False,
+    codex: bool = False,
+    cursor: bool = False,
+    copilot: bool = False,
+    gemini: bool = False,
+    all_agents: bool = False,
+) -> list[str]:
     """Resolve which agents to target based on CLI flags."""
     if all_agents:
         return list(AGENT_DIRS.keys())
-    agents = []
-    if claude:
-        agents.append("claude")
-    if codex:
-        agents.append("codex")
-    if cursor:
-        agents.append("cursor")
+    flag_map = {
+        "claude": claude,
+        "codex": codex,
+        "cursor": cursor,
+        "copilot": copilot,
+        "gemini": gemini,
+    }
+    agents = [name for name, enabled in flag_map.items() if enabled]
     if not agents:
         agents = detect_agents()
     return agents

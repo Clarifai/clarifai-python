@@ -200,8 +200,8 @@ class TestResolveAgents:
         ]
 
     def test_all_agents(self):
-        result = resolve_agents(claude=False, codex=False, cursor=False, all_agents=True)
-        assert set(result) == {"claude", "codex", "cursor"}
+        result = resolve_agents(all_agents=True)
+        assert set(result) == {"claude", "codex", "cursor", "copilot", "gemini"}
 
     def test_multiple(self):
         result = resolve_agents(claude=True, codex=True, cursor=False, all_agents=False)
