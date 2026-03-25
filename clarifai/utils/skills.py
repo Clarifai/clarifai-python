@@ -1,0 +1,396 @@
+"""Core logic for installing and managing Clarifai agent skills."""
+
+import io
+import json
+import os
+import shutil
+import tarfile
+from pathlib import Path
+
+import requests
+
+SKILLS_REPO = "Clarifai/skills"
+SKILLS_BRANCH = "main"
+MARKETPLACE_URL = (
+    f"https://raw.githubusercontent.com/{SKILLS_REPO}/{SKILLS_BRANCH}/marketplace.json"
+)
+TARBALL_URL = f"https://api.github.com/repos/{SKILLS_REPO}/tarball/{SKILLS_BRANCH}"
+COMMIT_API_URL = f"https://api.github.com/repos/{SKILLS_REPO}/commits/{SKILLS_BRANCH}"
+
+
+def _gh_headers() -> dict:
+    """Get GitHub auth headers if token available."""
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        # Try gh CLI config
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["gh", "auth", "token"], capture_output=True, text=True, timeout=5, check=False
+            )
+            if result.returncode == 0:
+                token = result.stdout.strip()
+        except Exception:
+            pass
+    headers = {"Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+VERSION_FILE = ".clarifai-skills-version"
+
+AGENT_DIRS = {
+    "claude": {"global": Path.home() / ".claude" / "skills", "local": Path(".claude") / "skills"},
+    "codex": {"global": Path.home() / ".codex" / "skills", "local": Path(".codex") / "skills"},
+    "cursor": {"global": Path.home() / ".cursor" / "skills", "local": Path(".cursor") / "skills"},
+}
+
+CENTRAL_DIR = {
+    "global": Path.home() / ".agents" / "skills",
+    "local": Path(".agents") / "skills",
+}
+
+
+def fetch_marketplace() -> dict:
+    """Fetch the skills marketplace index from GitHub."""
+    headers = _gh_headers()
+    # Try raw.githubusercontent first (works for public repos)
+    resp = requests.get(MARKETPLACE_URL, timeout=15, headers=headers)
+    if resp.status_code == 404:
+        # Fallback to API for private repos
+        api_url = f"https://api.github.com/repos/{SKILLS_REPO}/contents/marketplace.json?ref={SKILLS_BRANCH}"
+        resp = requests.get(api_url, timeout=15, headers=headers)
+        resp.raise_for_status()
+        import base64
+
+        content = base64.b64decode(resp.json()["content"])
+        return json.loads(content)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def list_remote_skills() -> list[dict]:
+    """List all available skills from the remote registry."""
+    marketplace = fetch_marketplace()
+    return marketplace.get("skills", [])
+
+
+def detect_agents() -> list[str]:
+    """Auto-detect which agent directories exist on the system."""
+    detected = []
+    for agent, dirs in AGENT_DIRS.items():
+        # Check if the agent's parent config dir exists (e.g. ~/.claude/)
+        global_parent = dirs["global"].parent
+        if global_parent.exists():
+            detected.append(agent)
+    return detected or ["claude"]  # fallback to claude
+
+
+def resolve_agents(claude: bool, codex: bool, cursor: bool, all_agents: bool) -> list[str]:
+    """Resolve which agents to target based on CLI flags."""
+    if all_agents:
+        return list(AGENT_DIRS.keys())
+    agents = []
+    if claude:
+        agents.append("claude")
+    if codex:
+        agents.append("codex")
+    if cursor:
+        agents.append("cursor")
+    if not agents:
+        agents = detect_agents()
+    return agents
+
+
+def _find_local_skills_repo() -> Path | None:
+    """Try to find a local clone of the skills repo."""
+    candidates = [
+        Path.home() / "work" / "skills",
+        Path.home() / "skills",
+        Path.home() / "clarifai" / "skills",
+        Path.cwd() / "skills",
+        Path.cwd().parent / "skills",
+    ]
+    for p in candidates:
+        if (p / ".github" / "skills").is_dir():
+            return p
+    return None
+
+
+def download_skills(
+    dest: Path, skill_ids: list[str] | None = None, source: str | None = None
+) -> list[str]:
+    """Download skills to dest directory.
+
+    Priority: explicit --source > GitHub download > auto-detected local clone.
+    Returns list of skill IDs that were downloaded.
+    """
+    if source and Path(source).exists():
+        return _copy_skills_from_local(Path(source), dest, skill_ids)
+
+    # Try GitHub first
+    try:
+        return _download_skills_from_github(dest, skill_ids)
+    except Exception as gh_err:
+        # Fall back to local clone
+        local = _find_local_skills_repo()
+        if local:
+            return _copy_skills_from_local(local, dest, skill_ids)
+        raise RuntimeError(
+            f"GitHub download failed ({gh_err}) and no local skills repo found.\n"
+            f"Options:\n"
+            f"  1. Set GITHUB_TOKEN or run 'gh auth login' for private repo access\n"
+            f"  2. Use --source /path/to/skills (local clone)\n"
+            f"  3. Wait for the repo to be made public"
+        ) from gh_err
+
+
+def _copy_skills_from_local(source: Path, dest: Path, skill_ids: list[str] | None) -> list[str]:
+    """Copy skills from a local skills repo clone."""
+    skills_dir = source / ".github" / "skills"
+    if not skills_dir.exists():
+        raise FileNotFoundError(f"No .github/skills/ found in {source}")
+
+    downloaded = []
+    for skill_dir in sorted(skills_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        if skill_ids and skill_dir.name not in skill_ids:
+            continue
+        target = dest / skill_dir.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(skill_dir, target)
+        downloaded.append(skill_dir.name)
+
+    # Copy AGENTS.md
+    agents_md = source / "AGENTS.md"
+    if agents_md.exists():
+        shutil.copy2(agents_md, dest / "AGENTS.md")
+
+    return downloaded
+
+
+def _download_skills_from_github(dest: Path, skill_ids: list[str] | None) -> list[str]:
+    """Download skills from GitHub tarball."""
+    headers = _gh_headers()
+    resp = requests.get(TARBALL_URL, timeout=60, headers=headers, allow_redirects=True)
+    resp.raise_for_status()
+
+    downloaded = []
+    with tarfile.open(fileobj=io.BytesIO(resp.content), mode="r:gz") as tar:
+        prefix = None
+        for member in tar.getmembers():
+            if prefix is None:
+                prefix = member.name.split("/")[0]
+
+            skills_prefix = f"{prefix}/.github/skills/"
+            if not member.name.startswith(skills_prefix):
+                if member.name == f"{prefix}/AGENTS.md":
+                    member.name = "AGENTS.md"
+                    tar.extract(member, dest)
+                continue
+
+            relative = member.name[len(skills_prefix) :]
+            if not relative:
+                continue
+
+            skill_id = relative.split("/")[0]
+            if skill_ids and skill_id not in skill_ids:
+                continue
+
+            member.name = relative
+            tar.extract(member, dest)
+
+            if skill_id not in downloaded:
+                downloaded.append(skill_id)
+
+    return downloaded
+
+
+def _write_version(dest: Path):
+    """Write current commit SHA to version file for update tracking."""
+    try:
+        headers = _gh_headers()
+        resp = requests.get(COMMIT_API_URL, headers=headers, timeout=10)
+        resp.raise_for_status()
+        sha = resp.json()["sha"]
+    except Exception:
+        sha = "unknown"
+    (dest / VERSION_FILE).write_text(sha)
+
+
+def _read_version(dest: Path) -> str:
+    """Read the locally stored version."""
+    version_file = dest / VERSION_FILE
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return ""
+
+
+def _create_symlink(source: Path, target: Path):
+    """Create a symlink from target -> source, creating parent dirs as needed."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() or target.is_symlink():
+        if target.is_symlink():
+            target.unlink()
+        elif target.is_dir():
+            shutil.rmtree(target)
+    target.symlink_to(source)
+
+
+def install_skills(
+    skill_ids: list[str] | None,
+    agents: list[str],
+    global_: bool = True,
+    force: bool = False,
+    source: str | None = None,
+) -> tuple[list[str], list[str]]:
+    """Install skills: download to central dir, symlink to agent dirs.
+
+    Returns (downloaded_skills, linked_agents).
+    """
+    scope = "global" if global_ else "local"
+    central = CENTRAL_DIR[scope]
+    central.mkdir(parents=True, exist_ok=True)
+
+    # Download
+    downloaded = download_skills(central, skill_ids, source=source)
+
+    # Write version
+    _write_version(central)
+
+    # Symlink to agent directories
+    linked_agents = []
+    for agent in agents:
+        agent_dir = AGENT_DIRS[agent][scope]
+        agent_dir.mkdir(parents=True, exist_ok=True)
+
+        for skill_id in downloaded:
+            source = central / skill_id
+            target = agent_dir / skill_id
+            _create_symlink(source.resolve(), target)
+
+        # Also link AGENTS.md
+        agents_md = central / "AGENTS.md"
+        if agents_md.exists():
+            agents_md_target = agent_dir / "AGENTS.md"
+            _create_symlink(agents_md.resolve(), agents_md_target)
+
+        linked_agents.append(agent)
+
+    return downloaded, linked_agents
+
+
+def list_installed_skills(agents: list[str], global_: bool = True) -> dict[str, list[str]]:
+    """List installed Clarifai skills per agent.
+
+    Returns {agent_name: [skill_ids]}.
+    """
+    scope = "global" if global_ else "local"
+    result = {}
+    for agent in agents:
+        agent_dir = AGENT_DIRS[agent][scope]
+        if not agent_dir.exists():
+            result[agent] = []
+            continue
+        skills = sorted(
+            d.name
+            for d in agent_dir.iterdir()
+            if (d.is_dir() or d.is_symlink()) and d.name.startswith("clarifai-")
+        )
+        result[agent] = skills
+    return result
+
+
+def check_for_updates(global_: bool = True) -> bool:
+    """Check if remote version differs from local."""
+    scope = "global" if global_ else "local"
+    central = CENTRAL_DIR[scope]
+    local_version = _read_version(central)
+    if not local_version or local_version == "unknown":
+        return True
+    try:
+        headers = _gh_headers()
+        resp = requests.get(COMMIT_API_URL, headers=headers, timeout=10)
+        resp.raise_for_status()
+        remote_sha = resp.json()["sha"]
+        return remote_sha != local_version
+    except Exception:
+        return True  # assume update needed if can't check
+
+
+def update_skills(agents: list[str], global_: bool = True) -> tuple[bool, list[str]]:
+    """Update installed skills if newer version available.
+
+    Returns (was_updated, skill_ids).
+    """
+    if not check_for_updates(global_):
+        return False, []
+
+    downloaded, _ = install_skills(skill_ids=None, agents=agents, global_=global_, force=True)
+    return True, downloaded
+
+
+def remove_skills(
+    skill_ids: list[str] | None,
+    agents: list[str],
+    global_: bool = True,
+    remove_all: bool = False,
+) -> list[str]:
+    """Remove skills from agent dirs and central dir.
+
+    Returns list of removed skill IDs.
+    """
+    scope = "global" if global_ else "local"
+    central = CENTRAL_DIR[scope]
+
+    if remove_all:
+        # Find all installed skills
+        if central.exists():
+            skill_ids = [
+                d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
+            ]
+        else:
+            skill_ids = []
+
+    if not skill_ids:
+        return []
+
+    removed = []
+    for skill_id in skill_ids:
+        # Remove symlinks from agent dirs
+        for agent in agents:
+            agent_dir = AGENT_DIRS[agent][scope]
+            target = agent_dir / skill_id
+            if target.is_symlink():
+                target.unlink()
+            elif target.is_dir():
+                shutil.rmtree(target)
+
+        # Remove from central
+        source = central / skill_id
+        if source.exists():
+            shutil.rmtree(source)
+
+        removed.append(skill_id)
+
+    # If all skills removed, clean up AGENTS.md and version file
+    remaining = (
+        [d for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")]
+        if central.exists()
+        else []
+    )
+    if not remaining:
+        for f in [central / "AGENTS.md", central / VERSION_FILE]:
+            if f.exists():
+                f.unlink()
+        for agent in agents:
+            agent_dir = AGENT_DIRS[agent][scope]
+            agents_md = agent_dir / "AGENTS.md"
+            if agents_md.is_symlink():
+                agents_md.unlink()
+
+    return removed
