@@ -190,7 +190,12 @@ def _copy_skills_from_local(source: Path, dest: Path, skill_ids: list[str] | Non
 def _download_skills_from_github(dest: Path, skill_ids: list[str] | None) -> list[str]:
     """Download skills from GitHub tarball with safe extraction."""
     headers = _gh_headers()
-    resp = requests.get(TARBALL_URL, timeout=60, headers=headers, allow_redirects=True)
+    # Handle redirects manually to preserve Authorization header across hosts
+    # (GitHub redirects api.github.com → codeload.github.com, and requests drops auth)
+    resp = requests.get(TARBALL_URL, timeout=60, headers=headers, allow_redirects=False)
+    if resp.status_code in (301, 302, 307, 308):
+        redirect_url = resp.headers["Location"]
+        resp = requests.get(redirect_url, timeout=60, headers=headers)
     resp.raise_for_status()
 
     downloaded = []
@@ -293,6 +298,16 @@ def install_skills(
             return downloaded, linked_agents
 
     central.mkdir(parents=True, exist_ok=True)
+
+    # When force-updating all skills, clean existing clarifai-* dirs to remove stale files
+    if force and skill_ids is None and central.exists():
+        for d in central.iterdir():
+            if d.is_dir() and d.name.startswith("clarifai-"):
+                shutil.rmtree(d)
+        for f in [central / "AGENTS.md", central / VERSION_FILE]:
+            if f.exists():
+                f.unlink()
+
     downloaded = download_skills(central, skill_ids, source=source)
     _write_version(central)
     linked_agents = _link_skills_to_agents(central, downloaded, agents, scope)
@@ -373,12 +388,22 @@ def remove_skills(
     central = CENTRAL_DIR[scope]
 
     if remove_all:
+        # Collect skill IDs from central dir and all targeted agent dirs
+        # so --all works even if central is missing/out-of-sync
+        collected: set[str] = set()
         if central.exists():
-            skill_ids = [
+            collected.update(
                 d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
-            ]
-        else:
-            skill_ids = []
+            )
+        for agent in agents:
+            agent_dir = AGENT_DIRS[agent][scope]
+            if agent_dir.exists():
+                collected.update(
+                    d.name
+                    for d in agent_dir.iterdir()
+                    if (d.is_dir() or d.is_symlink()) and d.name.startswith("clarifai-")
+                )
+        skill_ids = sorted(collected)
 
     if not skill_ids:
         return []
