@@ -95,7 +95,7 @@ def install(skill_names, claude, codex, cursor, all_agents, global_, force, sour
     click.echo("\nDone! Skills are now available.")
 
 
-@skills.command('list')
+@skills.command(['ls'], name='list')
 @click.option('--remote', 'show_remote', is_flag=True, help='Show available skills from registry.')
 @click.option('--installed', 'show_installed', is_flag=True, help='Show installed skills.')
 @click.option('--claude', is_flag=True, help='Filter by Claude.')
