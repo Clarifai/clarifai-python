@@ -79,7 +79,8 @@ def detect_agents() -> list[str]:
     detected = []
     for agent, dirs in AGENT_DIRS.items():
         global_parent = dirs["global"].parent
-        if global_parent.exists():
+        local_parent = dirs["local"].parent
+        if global_parent.exists() or local_parent.exists():
             detected.append(agent)
     return detected or ["claude"]
 
@@ -116,15 +117,15 @@ def _find_local_skills_repo() -> Path | None:
 
 
 def _is_safe_tar_member(member: tarfile.TarInfo, dest: str) -> bool:
-    """Reject tar members with path traversal, absolute paths, or links."""
+    """Reject tar members with path traversal, absolute paths, links, or special files."""
+    # Only allow regular files and directories
+    if not (member.isfile() or member.isdir()):
+        return False
     # Reject absolute paths
     if member.name.startswith("/") or member.name.startswith("\\"):
         return False
     # Reject parent traversal
     if ".." in member.name.split("/"):
-        return False
-    # Reject symlinks and hardlinks
-    if member.issym() or member.islnk():
         return False
     # Verify resolved path stays within dest
     resolved = os.path.realpath(os.path.join(dest, member.name))
@@ -280,15 +281,14 @@ def install_skills(
     scope = "global" if global_ else "local"
     central = CENTRAL_DIR[scope]
 
-    # If not forced, check if already installed and skip
+    # If not forced, check if already installed and skip download
     if not force and central.exists() and skill_ids is None:
         existing = [
             d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
         ]
         if existing:
-            # Already installed — just re-link to requested agents
+            # Already installed — just re-link to requested agents without touching version metadata
             downloaded = existing
-            _write_version(central)
             linked_agents = _link_skills_to_agents(central, downloaded, agents, scope)
             return downloaded, linked_agents
 
@@ -357,18 +357,6 @@ def check_for_updates(global_: bool = True) -> bool:
         return remote_sha != local_version
     except Exception:
         return True
-
-
-def update_skills(agents: list[str], global_: bool = True) -> tuple[bool, list[str]]:
-    """Update installed skills if newer version available.
-
-    Returns (was_updated, skill_ids).
-    """
-    if not check_for_updates(global_):
-        return False, []
-
-    downloaded, _ = install_skills(skill_ids=None, agents=agents, global_=global_, force=True)
-    return True, downloaded
 
 
 def remove_skills(

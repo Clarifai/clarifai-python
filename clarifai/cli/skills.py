@@ -3,9 +3,10 @@
 import click
 
 from clarifai.cli.base import cli
+from clarifai.utils.cli import AliasedGroup
 
 
-@cli.group(short_help='Manage Clarifai agent skills.')
+@cli.group(['skills', 'sk'], cls=AliasedGroup, short_help='Manage Clarifai agent skills.')
 def skills():
     """Install and manage Clarifai skills for AI coding assistants.
 
