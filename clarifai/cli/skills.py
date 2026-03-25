@@ -130,10 +130,13 @@ def list_skills(show_remote, show_installed, claude, codex, cursor, global_):
             raise click.ClickException(f"Failed to fetch registry: {e}")
 
         click.echo(f"Available Clarifai Skills ({len(remote)}):\n")
-        max_name = max(len(s["id"]) for s in remote)
-        for s in remote:
-            click.echo(f"  {s['id']:<{max_name}}  {s['description'][:80]}")
-        click.echo("\nInstall: clarifai skills install")
+        if not remote:
+            click.echo("  (no skills found in registry)")
+        else:
+            max_name = max(len(s["id"]) for s in remote)
+            for s in remote:
+                click.echo(f"  {s['id']:<{max_name}}  {s['description'][:80]}")
+            click.echo("\nInstall: clarifai skills install")
 
     if show_installed:
         agents = resolve_agents(claude, codex, cursor, False)

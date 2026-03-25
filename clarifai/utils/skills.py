@@ -22,7 +22,6 @@ def _gh_headers() -> dict:
     """Get GitHub auth headers if token available."""
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
-        # Try gh CLI config
         try:
             import subprocess
 
@@ -56,10 +55,8 @@ CENTRAL_DIR = {
 def fetch_marketplace() -> dict:
     """Fetch the skills marketplace index from GitHub."""
     headers = _gh_headers()
-    # Try raw.githubusercontent first (works for public repos)
     resp = requests.get(MARKETPLACE_URL, timeout=15, headers=headers)
     if resp.status_code == 404:
-        # Fallback to API for private repos
         api_url = f"https://api.github.com/repos/{SKILLS_REPO}/contents/marketplace.json?ref={SKILLS_BRANCH}"
         resp = requests.get(api_url, timeout=15, headers=headers)
         resp.raise_for_status()
@@ -81,11 +78,10 @@ def detect_agents() -> list[str]:
     """Auto-detect which agent directories exist on the system."""
     detected = []
     for agent, dirs in AGENT_DIRS.items():
-        # Check if the agent's parent config dir exists (e.g. ~/.claude/)
         global_parent = dirs["global"].parent
         if global_parent.exists():
             detected.append(agent)
-    return detected or ["claude"]  # fallback to claude
+    return detected or ["claude"]
 
 
 def resolve_agents(claude: bool, codex: bool, cursor: bool, all_agents: bool) -> list[str]:
@@ -119,6 +115,26 @@ def _find_local_skills_repo() -> Path | None:
     return None
 
 
+def _is_safe_tar_member(member: tarfile.TarInfo, dest: str) -> bool:
+    """Reject tar members with path traversal, absolute paths, or links."""
+    # Reject absolute paths
+    if member.name.startswith("/") or member.name.startswith("\\"):
+        return False
+    # Reject parent traversal
+    if ".." in member.name.split("/"):
+        return False
+    # Reject symlinks and hardlinks
+    if member.issym() or member.islnk():
+        return False
+    # Verify resolved path stays within dest
+    resolved = os.path.realpath(os.path.join(dest, member.name))
+    if not resolved.startswith(os.path.realpath(dest) + os.sep) and resolved != os.path.realpath(
+        dest
+    ):
+        return False
+    return True
+
+
 def download_skills(
     dest: Path, skill_ids: list[str] | None = None, source: str | None = None
 ) -> list[str]:
@@ -130,11 +146,9 @@ def download_skills(
     if source and Path(source).exists():
         return _copy_skills_from_local(Path(source), dest, skill_ids)
 
-    # Try GitHub first
     try:
         return _download_skills_from_github(dest, skill_ids)
     except Exception as gh_err:
-        # Fall back to local clone
         local = _find_local_skills_repo()
         if local:
             return _copy_skills_from_local(local, dest, skill_ids)
@@ -165,7 +179,6 @@ def _copy_skills_from_local(source: Path, dest: Path, skill_ids: list[str] | Non
         shutil.copytree(skill_dir, target)
         downloaded.append(skill_dir.name)
 
-    # Copy AGENTS.md
     agents_md = source / "AGENTS.md"
     if agents_md.exists():
         shutil.copy2(agents_md, dest / "AGENTS.md")
@@ -174,12 +187,13 @@ def _copy_skills_from_local(source: Path, dest: Path, skill_ids: list[str] | Non
 
 
 def _download_skills_from_github(dest: Path, skill_ids: list[str] | None) -> list[str]:
-    """Download skills from GitHub tarball."""
+    """Download skills from GitHub tarball with safe extraction."""
     headers = _gh_headers()
     resp = requests.get(TARBALL_URL, timeout=60, headers=headers, allow_redirects=True)
     resp.raise_for_status()
 
     downloaded = []
+    dest_str = str(dest)
     with tarfile.open(fileobj=io.BytesIO(resp.content), mode="r:gz") as tar:
         prefix = None
         for member in tar.getmembers():
@@ -188,9 +202,10 @@ def _download_skills_from_github(dest: Path, skill_ids: list[str] | None) -> lis
 
             skills_prefix = f"{prefix}/.github/skills/"
             if not member.name.startswith(skills_prefix):
-                if member.name == f"{prefix}/AGENTS.md":
+                if member.name == f"{prefix}/AGENTS.md" and member.isfile():
                     member.name = "AGENTS.md"
-                    tar.extract(member, dest)
+                    if _is_safe_tar_member(member, dest_str):
+                        tar.extract(member, dest)
                 continue
 
             relative = member.name[len(skills_prefix) :]
@@ -202,6 +217,8 @@ def _download_skills_from_github(dest: Path, skill_ids: list[str] | None) -> lis
                 continue
 
             member.name = relative
+            if not _is_safe_tar_member(member, dest_str):
+                continue
             tar.extract(member, dest)
 
             if skill_id not in downloaded:
@@ -230,15 +247,23 @@ def _read_version(dest: Path) -> str:
     return ""
 
 
-def _create_symlink(source: Path, target: Path):
-    """Create a symlink from target -> source, creating parent dirs as needed."""
+def _link_or_copy(source: Path, target: Path):
+    """Create a symlink from target -> source, falling back to copy on failure (e.g. Windows)."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists() or target.is_symlink():
-        if target.is_symlink():
-            target.unlink()
-        elif target.is_dir():
+    # Remove any existing target (file, symlink, or directory)
+    if target.is_symlink() or target.exists():
+        if target.is_dir() and not target.is_symlink():
             shutil.rmtree(target)
-    target.symlink_to(source)
+        else:
+            target.unlink()
+    try:
+        target.symlink_to(source)
+    except (OSError, NotImplementedError):
+        # Fallback: copy instead of symlink (Windows without Developer Mode, etc.)
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
 
 
 def install_skills(
@@ -254,34 +279,46 @@ def install_skills(
     """
     scope = "global" if global_ else "local"
     central = CENTRAL_DIR[scope]
+
+    # If not forced, check if already installed and skip
+    if not force and central.exists() and skill_ids is None:
+        existing = [
+            d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
+        ]
+        if existing:
+            # Already installed — just re-link to requested agents
+            downloaded = existing
+            _write_version(central)
+            linked_agents = _link_skills_to_agents(central, downloaded, agents, scope)
+            return downloaded, linked_agents
+
     central.mkdir(parents=True, exist_ok=True)
-
-    # Download
     downloaded = download_skills(central, skill_ids, source=source)
-
-    # Write version
     _write_version(central)
+    linked_agents = _link_skills_to_agents(central, downloaded, agents, scope)
+    return downloaded, linked_agents
 
-    # Symlink to agent directories
+
+def _link_skills_to_agents(
+    central: Path, skill_ids: list[str], agents: list[str], scope: str
+) -> list[str]:
+    """Create symlinks (or copies) from agent dirs to central skills."""
     linked_agents = []
     for agent in agents:
         agent_dir = AGENT_DIRS[agent][scope]
         agent_dir.mkdir(parents=True, exist_ok=True)
 
-        for skill_id in downloaded:
-            source = central / skill_id
+        for skill_id in skill_ids:
+            source_dir = central / skill_id
             target = agent_dir / skill_id
-            _create_symlink(source.resolve(), target)
+            _link_or_copy(source_dir.resolve(), target)
 
-        # Also link AGENTS.md
         agents_md = central / "AGENTS.md"
         if agents_md.exists():
-            agents_md_target = agent_dir / "AGENTS.md"
-            _create_symlink(agents_md.resolve(), agents_md_target)
+            _link_or_copy(agents_md.resolve(), agent_dir / "AGENTS.md")
 
         linked_agents.append(agent)
-
-    return downloaded, linked_agents
+    return linked_agents
 
 
 def list_installed_skills(agents: list[str], global_: bool = True) -> dict[str, list[str]]:
@@ -319,7 +356,7 @@ def check_for_updates(global_: bool = True) -> bool:
         remote_sha = resp.json()["sha"]
         return remote_sha != local_version
     except Exception:
-        return True  # assume update needed if can't check
+        return True
 
 
 def update_skills(agents: list[str], global_: bool = True) -> tuple[bool, list[str]]:
@@ -348,7 +385,6 @@ def remove_skills(
     central = CENTRAL_DIR[scope]
 
     if remove_all:
-        # Find all installed skills
         if central.exists():
             skill_ids = [
                 d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
@@ -361,16 +397,15 @@ def remove_skills(
 
     removed = []
     for skill_id in skill_ids:
-        # Remove symlinks from agent dirs
         for agent in agents:
             agent_dir = AGENT_DIRS[agent][scope]
             target = agent_dir / skill_id
-            if target.is_symlink():
-                target.unlink()
-            elif target.is_dir():
-                shutil.rmtree(target)
+            if target.is_symlink() or target.exists():
+                if target.is_dir() and not target.is_symlink():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
 
-        # Remove from central
         source = central / skill_id
         if source.exists():
             shutil.rmtree(source)
@@ -389,8 +424,11 @@ def remove_skills(
                 f.unlink()
         for agent in agents:
             agent_dir = AGENT_DIRS[agent][scope]
-            agents_md = agent_dir / "AGENTS.md"
-            if agents_md.is_symlink():
-                agents_md.unlink()
+            target = agent_dir / "AGENTS.md"
+            if target.is_symlink() or target.exists():
+                if target.is_dir() and not target.is_symlink():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
 
     return removed
