@@ -101,7 +101,10 @@ def install(
     except click.ClickException:
         raise
     except Exception:
-        click.echo("Registry unavailable, downloading all skills from GitHub...")
+        if skill_ids:
+            click.echo("Registry unavailable, downloading requested skills from GitHub...")
+        else:
+            click.echo("Registry unavailable, downloading all skills from GitHub...")
         skill_ids = skill_ids or None
 
     try:
