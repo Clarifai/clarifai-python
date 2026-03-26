@@ -115,11 +115,8 @@ def resolve_agents(
 
 
 def _find_local_skills_repo() -> Path | None:
-    """Try to find a local clone of the skills repo."""
+    """Try to find a local clone of the skills repo near the working directory."""
     candidates = [
-        Path.home() / "work" / "skills",
-        Path.home() / "skills",
-        Path.home() / "clarifai" / "skills",
         Path.cwd() / "skills",
         Path.cwd().parent / "skills",
     ]
