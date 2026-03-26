@@ -1795,8 +1795,13 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     help='Keep API resources (version, runner, deployment) across restarts. '
     'Resources are preserved on exit instead of being cleaned up.',
 )
+@click.option(
+    '--private',
+    is_flag=True,
+    help='Create resources with PRIVATE visibility instead of PUBLIC.',
+)
 @click.pass_context
-def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep):
+def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep, private):
     """Run a model locally for development and testing.
 
     \b
@@ -2018,10 +2023,12 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             click.echo("done")
 
         # 3. App (shared, reusable — never cleaned up)
-        # Public visibility so anyone with the URL can send predictions
-        public_visibility = resources_pb2.Visibility(
-            gettable=resources_pb2.Visibility.Gettable.PUBLIC
+        gettable = (
+            resources_pb2.Visibility.Gettable.PRIVATE
+            if private
+            else resources_pb2.Visibility.Gettable.PUBLIC
         )
+        serve_visibility = resources_pb2.Visibility(gettable=gettable)
         app_exists = True
         try:
             app = user.app(app_id)
@@ -2029,12 +2036,11 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             app_exists = False
 
         if app_exists:
-            # Ensure the app has PUBLIC visibility (required for public models)
-            user.patch_app(app_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
+            user.patch_app(app_id, visibility=gettable)
             out.status("App ready")
         else:
             out.status("Creating app... ", nl=False)
-            app = user.create_app(app_id, visibility=public_visibility)
+            app = user.create_app(app_id, visibility=serve_visibility)
             click.echo("done")
 
         # 4. Model (ephemeral if we create it — unless --keep)
@@ -2059,7 +2065,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             if not model_existed:
                 out.status("Creating model... ", nl=False)
                 model = app.create_model(
-                    model_id, model_type_id=model_type_id, visibility=public_visibility
+                    model_id, model_type_id=model_type_id, visibility=serve_visibility
                 )
                 if not keep:
                     created['model'] = model_id
@@ -2084,7 +2090,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             version_model = model.create_version(
                 pretrained_model_config={"local_dev": True},
                 method_signatures=method_signatures,
-                visibility=public_visibility,
+                visibility=serve_visibility,
             )
             version_model.load_info()
             version_id = version_model.model_version.id
@@ -2191,7 +2197,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                         ],
                         "deploy_latest_version": True,
                         "visibility": {
-                            "gettable": resources_pb2.Visibility.Gettable.PUBLIC,
+                            "gettable": gettable,
                         },
                     }
                 },
