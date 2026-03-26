@@ -376,6 +376,8 @@ class LazyAliasedGroup(AliasedGroup):
             'pt': 'pipeline_template',
             'list-instances': 'list_instances',
             'li': 'list_instances',
+            'skills': 'skills',
+            'sk': 'skills',
         }
         # Primary command names shown in --help (one per module, excludes short aliases)
         self._lazy_primary_names = {
@@ -390,6 +392,7 @@ class LazyAliasedGroup(AliasedGroup):
             'pipelinestep',
             'pipelinetemplate',
             'list-instances',
+            'skills',
         }
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> Optional[click.Command]:

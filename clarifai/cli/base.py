@@ -733,6 +733,7 @@ cli.command_sections = [
     ('Auth', ['login', 'whoami', 'logout']),
     ('Config', ['config']),
     ('Models', ['model']),
+    ('Skills', ['skills']),
     ('Pipelines', ['pipeline', 'pipelinestep', 'pipelinerun', 'pipelinetemplate']),
     ('Compute', ['list-instances', 'computecluster', 'nodepool', 'deployment']),
     ('Other', ['app', 'artifact', 'run', 'shell-completion']),
