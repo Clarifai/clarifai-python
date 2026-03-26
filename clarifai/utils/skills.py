@@ -414,16 +414,6 @@ def remove_skills(
     central = CENTRAL_DIR[scope]
 
     if remove_all:
-        # Collect skill IDs from central dir and all targeted agent dirs
-        # so --all works even if central is missing/out-of-sync
-        collected: set[str] = set()
-        if central.exists():
-            collected.update(
-                d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
-            )
-        for agent in agents:
-            agent_dir = AGENT_DIRS[agent][scope]
-            if agent_dir.exists():
         # Collect skill IDs from central dir (if present) and all targeted agent dirs.
         # This ensures `--all` still removes skills even if the central directory is missing
         # or out of sync with agent directories.
@@ -431,9 +421,7 @@ def remove_skills(
 
         if central.exists():
             collected_ids.update(
-                d.name
-                for d in central.iterdir()
-                if d.is_dir() and d.name.startswith("clarifai-")
+                d.name for d in central.iterdir() if d.is_dir() and d.name.startswith("clarifai-")
             )
 
         for agent in agents:
