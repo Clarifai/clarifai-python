@@ -1,3 +1,15 @@
+## [[12.3.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.4) - [PyPI](https://pypi.org/project/clarifai/12.3.4/) - 2026-03-26
+
+### Added
+- Added `VLLMOpenAIModelClass` parent class with cancellation support and health probes [(#998)](https://github.com/Clarifai/clarifai-python/pull/998)
+- Added clarifai Skills installation [(#1003)](https://github.com/Clarifai/clarifai-python/pull/1003)
+
+### Changed
+- Streamlined overhead in SSE stream [(#988)](https://github.com/Clarifai/clarifai-python/pull/988)
+
+### Fixed
+- Fixed minor local-runner issue [(#999)](https://github.com/Clarifai/clarifai-python/pull/999)
+
 ## [[12.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.3) - [PyPI](https://pypi.org/project/clarifai/12.3.3/) - 2026-03-18
 
 ### Added
