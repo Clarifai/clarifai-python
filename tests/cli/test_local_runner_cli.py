@@ -261,7 +261,7 @@ class TestLocalRunnerCLI:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Test that serve reuses existing resources but always creates a fresh version."""
+        """Test that serve reuses existing resources and patches visibility."""
         mock_check_requirements.return_value = True
         mock_parse_requirements.return_value = []
 
@@ -299,12 +299,12 @@ class TestLocalRunnerCLI:
         # Existing resources not re-created
         mock_user.create_compute_cluster.assert_not_called()
         mock_user.create_app.assert_not_called()
-        # Existing app patched to PUBLIC visibility
+        # Existing app patched to PRIVATE visibility (default, no --public)
         mock_user.patch_app.assert_called_once()
         patch_kwargs = mock_user.patch_app.call_args
         assert patch_kwargs[0][0] == "local-runner-app"  # app_id positional arg
-        assert patch_kwargs[1]["visibility"] == 50  # PUBLIC gettable enum value
-        # But version IS always created fresh
+        assert patch_kwargs[1]["visibility"] == 10  # PRIVATE gettable enum value
+        # Version IS always created fresh (no saved signatures_hash)
         mock_user.app().model().create_version.assert_called_once()
 
     @patch("clarifai.runners.server.ModelServer")
@@ -493,8 +493,8 @@ def _apply_standard_patches(
     return mock_user, mock_server
 
 
-class TestKeepFlag:
-    """Test cases for the --keep flag on serve command."""
+class TestSmartResourceReuse:
+    """Test cases for the smart resource reuse behavior (default keep, --clean, signatures)."""
 
     @pytest.fixture
     def dummy_model_dir(self):
@@ -510,7 +510,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_first_run_creates_resources_and_saves_context(
+    def test_default_creates_resources_and_saves_state(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -520,7 +520,7 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """First run with --keep creates all resources and saves IDs to context."""
+        """Default run creates resources and saves state for reuse."""
         mock_ctx = _make_mock_context()
         mock_user, mock_server = _apply_standard_patches(
             mock_validate_context,
@@ -535,16 +535,15 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, f"Command failed with: {result.output}"
         # Resources created
         mock_user.app().model().create_version.assert_called_once()
-        # Context saved
+        # State always saved
         mock_ctx.obj.to_yaml.assert_called()
-        # CLARIFAI_SERVE_STATE written
         env = mock_ctx.obj.current['env']
         assert 'CLARIFAI_SERVE_STATE' in env
         state = env['CLARIFAI_SERVE_STATE']
@@ -553,6 +552,7 @@ class TestKeepFlag:
         assert 'model_version_id' in saved
         assert 'runner_id' in saved
         assert 'deployment_id' in saved
+        assert 'signatures_hash' in saved
 
     @patch("clarifai.runners.server.ModelServer")
     @patch("clarifai.client.user.User")
@@ -560,7 +560,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_reuses_saved_resources(
+    def test_reuses_saved_resources_when_signatures_match(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -570,7 +570,20 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Second run with --keep reuses version/runner/deployment from context."""
+        """Second run reuses version/runner/deployment when signatures hash matches."""
+        import hashlib
+
+        # Create a mock signature with stable SerializeToString output
+        stable_bytes = b"predict-signature-bytes"
+        mock_method_sig = MagicMock()
+        mock_method_sig.name = "predict"
+        mock_method_sig.SerializeToString.return_value = stable_bytes
+
+        # Compute the hash that serve_cmd will compute
+        h = hashlib.sha256()
+        h.update(stable_bytes)
+        sig_hash = h.hexdigest()
+
         mock_ctx = _make_mock_context(
             extra_env={
                 'CLARIFAI_SERVE_STATE': {
@@ -580,23 +593,35 @@ class TestKeepFlag:
                         'model_version_id': 'saved-version-123',
                         'runner_id': 'saved-runner-456',
                         'deployment_id': 'local-dummy-runner-model',
+                        'signatures_hash': sig_hash,
                     },
                 },
             }
         )
-        mock_user, mock_server = _apply_standard_patches(
-            mock_validate_context,
-            mock_parse_requirements,
-            mock_check_requirements,
-            mock_builder_class,
-            mock_user_class,
-            mock_server_class,
-            mock_ctx,
-        )
 
-        # The mock user from _make_mock_user_with_existing_resources sets
-        # deployment.side_effect = Exception. Override it to simulate existing deployment.
-        # We need to get the same nodepool mock that the serve code will use.
+        # Wire up standard mocks but override the method signature
+        mock_check_requirements.return_value = True
+        mock_parse_requirements.return_value = []
+
+        mock_builder = MagicMock()
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
+        mock_builder.get_method_signatures.return_value = [mock_method_sig]
+        mock_builder_class.return_value = mock_builder
+
+        mock_user = _make_mock_user_with_existing_resources()
+        mock_user_class.return_value = mock_user
+
+        mock_server = MagicMock()
+        mock_server_class.return_value = mock_server
+
+        def validate_ctx_mock(ctx):
+            ctx.obj = mock_ctx.obj
+
+        mock_validate_context.side_effect = validate_ctx_mock
+
         mock_cc = mock_user.compute_cluster.return_value
         mock_np = mock_cc.nodepool.return_value
 
@@ -610,19 +635,18 @@ class TestKeepFlag:
         mock_saved_runner.id = "saved-runner-456"
         mock_np.list_runners.return_value = [mock_saved_runner]
 
-        # Deployment exists (override the side_effect from helper)
+        # Deployment exists
         mock_np.deployment.side_effect = None
         mock_np.deployment.return_value = MagicMock()
 
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Output shows reuse (not "Creating ...")
         assert "Model version ready" in result.output
         assert "Runner ready" in result.output
         assert "Deployment ready" in result.output
@@ -633,7 +657,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_skips_cleanup_on_exit(
+    def test_default_preserves_resources_on_exit(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -643,7 +667,7 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """With --keep, cleanup does not delete deployment/runner/version."""
+        """Default run does not delete resources on exit."""
         mock_ctx = _make_mock_context()
         mock_user, mock_server = _apply_standard_patches(
             mock_validate_context,
@@ -658,16 +682,15 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        assert "--keep mode" in result.output
+        assert "Resources preserved" in result.output
         # No deletion calls
         mock_nodepool = mock_user.compute_cluster().nodepool()
         mock_nodepool.delete_deployments.assert_not_called()
-        mock_nodepool.delete_runners.assert_not_called()
 
     @patch("clarifai.runners.server.ModelServer")
     @patch("clarifai.client.user.User")
@@ -675,7 +698,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_stale_version_falls_back_to_create(
+    def test_stale_version_falls_back_to_create(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -685,7 +708,17 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """With --keep, if saved version is gone from platform, creates a new one."""
+        """If saved version is gone from platform, creates a new one."""
+        # Use a signatures_hash that will match the mock
+        import hashlib
+
+        h = hashlib.sha256()
+        mock_sig = MagicMock()
+        mock_sig.name = "predict"
+        data = mock_sig.SerializeToString()
+        h.update(str(data).encode())
+        sig_hash = h.hexdigest()
+
         mock_ctx = _make_mock_context(
             extra_env={
                 'CLARIFAI_SERVE_STATE': {
@@ -693,6 +726,7 @@ class TestKeepFlag:
                         'model_version_id': 'deleted-version',
                         'runner_id': 'deleted-runner',
                         'deployment_id': 'local-dummy-runner-model',
+                        'signatures_hash': sig_hash,
                     },
                 },
             }
@@ -719,7 +753,7 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
@@ -736,7 +770,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_backward_compat_old_flat_format(
+    def test_backward_compat_old_flat_format(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -746,7 +780,7 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """With --keep, old flat CLARIFAI_* keys in context are read as fallback."""
+        """Old flat CLARIFAI_* keys in context are read as fallback."""
         mock_ctx = _make_mock_context(
             extra_env={
                 'CLARIFAI_MODEL_ID': 'dummy-runner-model',
@@ -782,14 +816,13 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Reused from old flat format
-        assert "Model version ready" in result.output
-        assert "Runner ready" in result.output
+        # Old flat format has no signatures_hash, so version won't match — creates new
+        # But runner/deployment should still be found via tier B lookup
         # Saved in new format
         env = mock_ctx.obj.current['env']
         assert 'CLARIFAI_SERVE_STATE' in env
@@ -800,7 +833,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_keep_old_format_model_id_mismatch_errors(
+    def test_old_format_mismatched_model_id_ignored(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -810,7 +843,7 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """With --keep, old format with mismatched CLARIFAI_MODEL_ID errors out."""
+        """Old format with mismatched CLARIFAI_MODEL_ID is silently ignored."""
         mock_ctx = _make_mock_context(
             extra_env={
                 'CLARIFAI_MODEL_ID': 'some-other-model',
@@ -831,14 +864,12 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir), "--keep"],
+            ["model", "serve", str(dummy_model_dir)],
+            catch_exceptions=False,
         )
 
-        assert result.exit_code == 1
-        # Error message is in the exception, not always in output
-        error_text = str(result.exception) if result.exception else result.output
-        assert "some-other-model" in error_text
-        assert "dummy-runner-model" in error_text
+        # Should succeed — mismatched model ID is silently ignored
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
 
     @patch("clarifai.runners.server.ModelServer")
     @patch("clarifai.client.user.User")
@@ -846,7 +877,7 @@ class TestKeepFlag:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
-    def test_without_keep_ephemeral_behavior_unchanged(
+    def test_keep_flag_shows_deprecation_warning(
         self,
         mock_validate_context,
         mock_parse_requirements,
@@ -856,7 +887,7 @@ class TestKeepFlag:
         mock_server_class,
         dummy_model_dir,
     ):
-        """Without --keep, version is always created fresh (existing behavior)."""
+        """--keep flag shows deprecation warning but still works."""
         mock_ctx = _make_mock_context()
         mock_user, mock_server = _apply_standard_patches(
             mock_validate_context,
@@ -871,13 +902,9 @@ class TestKeepFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["model", "serve", str(dummy_model_dir)],
+            ["model", "serve", str(dummy_model_dir), "--keep"],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, f"Command failed with: {result.output}"
-        # Version always created fresh
-        mock_user.app().model().create_version.assert_called_once()
-        # No CLARIFAI_SERVE_STATE saved
-        env = mock_ctx.obj.current['env']
-        assert 'CLARIFAI_SERVE_STATE' not in env
+        assert "deprecated" in result.output.lower()

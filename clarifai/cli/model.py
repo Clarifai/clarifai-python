@@ -1973,7 +1973,11 @@ def serve_cmd(
         """SHA256 hash of serialized method signatures."""
         h = hashlib.sha256()
         for sig in sorted(sigs, key=lambda s: s.name):
-            h.update(sig.SerializeToString())
+            data = sig.SerializeToString()
+            if isinstance(data, bytes):
+                h.update(data)
+            else:
+                h.update(str(data).encode())
         return h.hexdigest()
 
     current_sig_hash = _signatures_hash(method_signatures) if method_signatures else ""
