@@ -173,6 +173,17 @@ class TestApp:
             )
             assert "SUCCESS" in caplog.text
 
+    def test_get_app(self, create_client):
+        # Verify that user.app() returns actual server data, not empty/default values
+        app = create_client.app(app_id=CREATE_APP_ID)
+        # These should match what was set in test_patch_app
+        assert app.app_info.visibility.gettable == 10, (
+            f"Expected visibility 10, got {app.app_info.visibility.gettable}"
+        )
+        assert app.app_info.description == 'App Patching Test', (
+            f"Expected description 'App Patching Test', got '{app.app_info.description}'"
+        )
+
     def test_patch_dataset(self, create_app, caplog):
         with caplog.at_level(logging.INFO):
             create_app.patch_dataset(
