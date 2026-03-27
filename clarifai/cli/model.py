@@ -1795,8 +1795,14 @@ def _run_local_grpc(model_path, mode, port, keep_image, verbose):
     help='Keep API resources (version, runner, deployment) across restarts. '
     'Resources are preserved on exit instead of being cleaned up.',
 )
+@click.option(
+    '--public',
+    is_flag=True,
+    help='Make all created resources (app, model, deployment) publicly visible. '
+    'By default, resources are private. Requires your user profile to be public.',
+)
 @click.pass_context
-def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep):
+def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbose, keep, public):
     """Run a model locally for development and testing.
 
     \b
@@ -1828,7 +1834,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         _run_local_grpc(model_path, mode, port, keep_image, verbose)
         return
 
-    from clarifai_grpc.grpc.api import resources_pb2
+    from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
     from clarifai.client.user import User
     from clarifai.runners.models import deploy_output as out
@@ -2018,10 +2024,15 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             click.echo("done")
 
         # 3. App (shared, reusable — never cleaned up)
-        # Public visibility so anyone with the URL can send predictions
-        public_visibility = resources_pb2.Visibility(
-            gettable=resources_pb2.Visibility.Gettable.PUBLIC
-        )
+        # Private by default; use --public to make resources publicly visible.
+        if public:
+            app_visibility = resources_pb2.Visibility(
+                gettable=resources_pb2.Visibility.Gettable.PUBLIC
+            )
+        else:
+            app_visibility = resources_pb2.Visibility(
+                gettable=resources_pb2.Visibility.Gettable.PRIVATE
+            )
         app_exists = True
         try:
             app = user.app(app_id)
@@ -2029,12 +2040,29 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             app_exists = False
 
         if app_exists:
-            # Ensure the app has PUBLIC visibility (required for public models)
-            user.patch_app(app_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
+            if public:
+                try:
+                    user.patch_app(app_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
+                except Exception as e:
+                    if "user profile has to be set public" in str(e).lower():
+                        out.warning(
+                            "Your user profile must be public to use --public. "
+                            "Set it at https://clarifai.com/me/settings and try again."
+                        )
+                        raise SystemExit(1)
             out.status("App ready")
         else:
             out.status("Creating app... ", nl=False)
-            app = user.create_app(app_id, visibility=public_visibility)
+            try:
+                app = user.create_app(app_id, visibility=app_visibility)
+            except Exception as e:
+                if "user profile has to be set public" in str(e).lower():
+                    out.warning(
+                        "Your user profile must be public to use --public. "
+                        "Set it at https://clarifai.com/me/settings and try again."
+                    )
+                    raise SystemExit(1)
+                raise
             click.echo("done")
 
         # 4. Model (ephemeral if we create it — unless --keep)
@@ -2054,12 +2082,17 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                     for stale_key in ('model_version_id', 'runner_id', 'deployment_id'):
                         _keep_data.pop(stale_key, None)
                 raise Exception("recreate")
+            if public:
+                try:
+                    app.patch_model(model_id, visibility=resources_pb2.Visibility.Gettable.PUBLIC)
+                except Exception:
+                    pass
             out.status("Model ready")
         except Exception:
             if not model_existed:
                 out.status("Creating model... ", nl=False)
                 model = app.create_model(
-                    model_id, model_type_id=model_type_id, visibility=public_visibility
+                    model_id, model_type_id=model_type_id, visibility=app_visibility
                 )
                 if not keep:
                     created['model'] = model_id
@@ -2084,7 +2117,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
             version_model = model.create_version(
                 pretrained_model_config={"local_dev": True},
                 method_signatures=method_signatures,
-                visibility=public_visibility,
+                visibility=app_visibility,
             )
             version_model.load_info()
             version_id = version_model.model_version.id
@@ -2167,6 +2200,22 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
         if keep:
             try:
                 nodepool.deployment(deployment_id)
+                if public:
+                    # Patch deployment visibility to PUBLIC
+                    try:
+                        patch_req = service_pb2.PatchDeploymentsRequest(
+                            user_app_id=nodepool.user_app_id,
+                            deployments=[
+                                resources_pb2.Deployment(
+                                    id=deployment_id,
+                                    visibility=app_visibility,
+                                )
+                            ],
+                            action='merge',
+                        )
+                        nodepool._grpc_request(nodepool.STUB.PatchDeployments, patch_req)
+                    except Exception:
+                        pass
                 deployment_exists = True
                 out.status(f"Deployment ready ({deployment_id})")
             except Exception:
@@ -2191,7 +2240,7 @@ def serve_cmd(ctx, model_path, grpc, mode, port, concurrency, keep_image, verbos
                         ],
                         "deploy_latest_version": True,
                         "visibility": {
-                            "gettable": resources_pb2.Visibility.Gettable.PUBLIC,
+                            "gettable": app_visibility.gettable,
                         },
                     }
                 },
