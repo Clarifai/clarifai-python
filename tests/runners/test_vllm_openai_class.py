@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from clarifai.runners.models.dummy_openai_model import MockOpenAIClient
-from clarifai.runners.models.vllm_openai_class import VLLMCancellationHandler, VLLMOpenAIModelClass
+from clarifai.runners.models.vllm_openai_class import (
+    VLLMCancellationHandler,
+    VLLMMetricsPoller,
+    VLLMOpenAIModelClass,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -228,3 +232,55 @@ class TestVLLMStreamTransportCancellation:
         with patch("clarifai.runners.models.vllm_openai_class.get_item_id", side_effect=Exception):
             with pytest.raises(ValueError, match="Only"):
                 list(model.openai_stream_transport(request))
+
+
+# ---------------------------------------------------------------------------
+# VLLMOpenAIModelClass — admission control
+# ---------------------------------------------------------------------------
+class TestAdmissionControl:
+    def test_check_admission_no_poller_admits(self):
+        """No metrics poller set → fail-open, always admit."""
+        model = DummyVLLMModel()
+        assert model._metrics_poller is None
+        assert model.check_admission() is True
+
+    def test_check_admission_stale_poller_admits(self):
+        """Stale poller → fail-open."""
+        model = DummyVLLMModel()
+        mock_poller = MagicMock(spec=VLLMMetricsPoller)
+        mock_poller.is_stale = True
+        model._metrics_poller = mock_poller
+        assert model.check_admission() is True
+
+    def test_check_admission_kv_cache_over_threshold_rejects(self):
+        model = DummyVLLMModel()
+        mock_poller = MagicMock(spec=VLLMMetricsPoller)
+        mock_poller.is_stale = False
+        mock_poller.KV_CACHE_REJECT_THRESHOLD = 0.95
+        mock_poller.MAX_WAITING_REQUESTS = 10
+        mock_poller.snapshot.return_value = (0.96, 0)  # kv_cache above threshold
+        model._metrics_poller = mock_poller
+        assert model.check_admission() is False
+
+    def test_check_admission_waiting_over_limit_rejects(self):
+        model = DummyVLLMModel()
+        mock_poller = MagicMock(spec=VLLMMetricsPoller)
+        mock_poller.is_stale = False
+        mock_poller.KV_CACHE_REJECT_THRESHOLD = 0.95
+        mock_poller.MAX_WAITING_REQUESTS = 10
+        mock_poller.snapshot.return_value = (0.50, 11)  # waiting above limit
+        model._metrics_poller = mock_poller
+        assert model.check_admission() is False
+
+    def test_check_admission_healthy_admits(self):
+        model = DummyVLLMModel()
+        mock_poller = MagicMock(spec=VLLMMetricsPoller)
+        mock_poller.is_stale = False
+        mock_poller.KV_CACHE_REJECT_THRESHOLD = 0.95
+        mock_poller.MAX_WAITING_REQUESTS = 10
+        mock_poller.snapshot.return_value = (0.50, 3)
+        model._metrics_poller = mock_poller
+        assert model.check_admission() is True
+
+    def test_admission_control_backoff_default(self):
+        assert DummyVLLMModel().admission_control_backoff == 1.0
