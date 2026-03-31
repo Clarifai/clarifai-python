@@ -39,17 +39,64 @@ class OpenAIModelClass(ModelClass):
     client = None
     model = None
 
+    # Max sequence length for clamping max_tokens. Auto-detected from the backend's
+    # /v1/models response (max_model_len field) when available. Can also be set explicitly
+    # as a class attribute to override auto-detection.
+    max_seq_len = None
+
     def __init__(self) -> None:
         super().__init__()
         if self.client is None:
             raise NotImplementedError("Subclasses must set the 'client' class attribute")
+        models_response = None
         if self.model is None:
             try:
-                self.model = self._retry_models_list().data[0].id
+                models_response = self._retry_models_list()
+                self.model = models_response.data[0].id
             except Exception as e:
                 raise NotImplementedError(
                     "Subclasses must set the 'model' class attribute or ensure the client can list models"
                 ) from e
+
+        # Auto-detect max_seq_len from backend if not explicitly set.
+        if self.max_seq_len is None:
+            try:
+                if models_response is None:
+                    models_response = self._retry_models_list()
+
+                selected_max_len = None
+
+                # First, prefer the model card that matches self.model (if any).
+                for model_card in models_response.data:
+                    if getattr(model_card, "id", None) == self.model:
+                        max_model_len = getattr(model_card, "max_model_len", None)
+                        if max_model_len is not None:
+                            try:
+                                selected_max_len = int(max_model_len)
+                            except (TypeError, ValueError):
+                                selected_max_len = None
+                        break
+
+                # Fallback: use the first model with a usable max_model_len.
+                if selected_max_len is None:
+                    for model_card in models_response.data:
+                        max_model_len = getattr(model_card, "max_model_len", None)
+                        if max_model_len is not None:
+                            try:
+                                selected_max_len = int(max_model_len)
+                                break
+                            except (TypeError, ValueError):
+                                continue
+
+                if isinstance(selected_max_len, int):
+                    self.max_seq_len = selected_max_len
+                    logger.info(
+                        "Auto-detected max_seq_len=%d from backend for model %s",
+                        self.max_seq_len,
+                        self.model,
+                    )
+            except Exception:
+                pass  # Not critical — clamping is best-effort
 
     @retry(
         stop=stop_after_attempt(3),
@@ -315,6 +362,19 @@ class OpenAIModelClass(ModelClass):
         elif max_tokens is not None:
             # Only max_tokens exists - copy to max_completion_tokens for newer backends
             request_data['max_completion_tokens'] = max_tokens
+
+        # Clamp to max_seq_len if configured, to avoid degraded throughput or backend errors.
+        if self.max_seq_len is not None:
+            for field in ('max_tokens', 'max_completion_tokens'):
+                if field in request_data and request_data[field] is not None:
+                    if request_data[field] > self.max_seq_len:
+                        logger.warning(
+                            "Clamping %s from %d to max_seq_len %d",
+                            field,
+                            request_data[field],
+                            self.max_seq_len,
+                        )
+                        request_data[field] = self.max_seq_len
         if 'top_p' in request_data:
             request_data['top_p'] = float(request_data['top_p'])
         if 'top_k' in request_data:
