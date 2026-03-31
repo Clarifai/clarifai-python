@@ -63,12 +63,38 @@ class OpenAIModelClass(ModelClass):
             try:
                 if models_response is None:
                     models_response = self._retry_models_list()
+
+                selected_max_len = None
+
+                # First, prefer the model card that matches self.model (if any).
                 for model_card in models_response.data:
-                    max_model_len = getattr(model_card, 'max_model_len', None)
-                    if max_model_len is not None:
-                        self.max_seq_len = max_model_len
-                        logger.info("Auto-detected max_seq_len=%d from backend", max_model_len)
+                    if getattr(model_card, "id", None) == self.model:
+                        max_model_len = getattr(model_card, "max_model_len", None)
+                        if max_model_len is not None:
+                            try:
+                                selected_max_len = int(max_model_len)
+                            except (TypeError, ValueError):
+                                selected_max_len = None
                         break
+
+                # Fallback: use the first model with a usable max_model_len.
+                if selected_max_len is None:
+                    for model_card in models_response.data:
+                        max_model_len = getattr(model_card, "max_model_len", None)
+                        if max_model_len is not None:
+                            try:
+                                selected_max_len = int(max_model_len)
+                                break
+                            except (TypeError, ValueError):
+                                continue
+
+                if isinstance(selected_max_len, int):
+                    self.max_seq_len = selected_max_len
+                    logger.info(
+                        "Auto-detected max_seq_len=%d from backend for model %s",
+                        self.max_seq_len,
+                        self.model,
+                    )
             except Exception:
                 pass  # Not critical — clamping is best-effort
 
