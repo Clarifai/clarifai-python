@@ -1,3 +1,10 @@
+## [[12.3.5]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.5) - [PyPI](https://pypi.org/project/clarifai/12.3.5/) - 2026-03-31
+
+### Changed
+- Smart resource reuse and private-by-default for `clarifai model serve` [(#1004)](https://github.com/Clarifai/clarifai-python/pull/1004)
+- Optimize model runner memory and latency [(#994)](https://github.com/Clarifai/clarifai-python/pull/994)
+- Auto-detect and clamp max_tokens to backend's max_seq_len [(#1005)](https://github.com/Clarifai/clarifai-python/pull/1005)
+
 ## [[12.3.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.4) - [PyPI](https://pypi.org/project/clarifai/12.3.4/) - 2026-03-26
 
 ### Added
