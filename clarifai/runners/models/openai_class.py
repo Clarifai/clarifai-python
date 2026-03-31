@@ -344,7 +344,9 @@ class OpenAIModelClass(ModelClass):
                     if request_data[field] > self.max_seq_len:
                         logger.warning(
                             "Clamping %s from %d to max_seq_len %d",
-                            field, request_data[field], self.max_seq_len,
+                            field,
+                            request_data[field],
+                            self.max_seq_len,
                         )
                         request_data[field] = self.max_seq_len
         if 'top_p' in request_data:
