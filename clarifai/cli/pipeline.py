@@ -294,6 +294,7 @@ def init(pipeline_path, template):
     parameters and structure. Without --template, uses the interactive flow
     to create a custom pipeline structure.
 
+    \b
     Creates the following structure in the specified directory:
     ├── config.yaml          # Pipeline configuration
     ├── stepA/               # First pipeline step
@@ -308,7 +309,8 @@ def init(pipeline_path, template):
     │       └── pipeline_step.py  # Step B implementation
     └── README.md           # Documentation
 
-    PIPELINE_PATH: Path where to create the pipeline project structure. If not specified, the current directory is used by default.
+    PIPELINE_PATH: Path where to create the pipeline project structure.
+    If not specified, the current directory is used by default.
     """
     # Common setup logic
     pipeline_path = _prepare_pipeline_path(pipeline_path, template)
