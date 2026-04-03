@@ -1552,6 +1552,52 @@ class TestPipelineInitCommand:
             assert substitutions['PARAM_D'] == '0.002'
 
     @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_prints_parameter_defaults_after_success(
+        self, mock_template_manager_class, capsys
+    ):
+        """Test template init prints parameter defaults after successful creation."""
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        mock_info = {
+            'name': 'test-template',
+            'type': 'train',
+            'step_directories': ['StepA'],
+            'parameters': [
+                {
+                    'name': 'EXAMPLE_PATH',
+                    'default_value': '/default/path',
+                },
+                {
+                    'name': 'EXAMPLE_BATCH_SIZE',
+                    'default_value': 16,
+                },
+            ],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = True
+
+        from clarifai.cli.pipeline import _init_from_template
+
+        with patch('click.prompt') as mock_prompt:
+            mock_prompt.side_effect = [
+                'test-user',
+                'test-app',
+                'test-pipeline',
+                '/custom/path',
+                '32',
+            ]
+
+            result = _init_from_template('/test/path', 'test-template')
+
+        assert result is True
+        output = capsys.readouterr().out
+        assert 'Template Parameters (default values):' in output
+        assert '  EXAMPLE_PATH       : /default/path' in output
+        assert '  EXAMPLE_BATCH_SIZE : 16' in output
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
         """Test template initialization with custom pipeline ID substitution."""
         # Mock template manager

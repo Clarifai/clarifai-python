@@ -395,12 +395,14 @@ def _show_completion_message(pipeline_path):
     Args:
         pipeline_path: Path where pipeline was created
     """
+    click.echo()
     click.echo(f"Pipeline initialization complete in {pipeline_path}")
+    click.echo()
     click.echo("Next steps:")
     click.echo("1. Review and customize the generated pipeline steps")
     click.echo("2. Add any additional dependencies to requirements.txt files")
     click.echo("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
-    click.echo("4. Use 'clarifai pipeline run' to execute your pipeline")
+    click.echo("4. Use 'clarifai pipeline run [--set key=value]' to execute your pipeline")
 
 
 def _is_interactive_terminal():
@@ -588,7 +590,7 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
         parameter_substitutions['app_id'] = app_id
         parameter_substitutions['id'] = pipeline_id
 
-        click.echo(f"\nCreating pipeline '{pipeline_id}' from template '{template_name}'...")
+        click.echo(f"Creating pipeline '{pipeline_id}' from template '{template_name}'...")
 
         # Copy template with substitutions
         success = template_manager.copy_template(
@@ -597,6 +599,11 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
 
         if not success:
             click.echo("Error: Failed to create pipeline from template", err=True)
+        elif parameters:
+            click.echo("\nTemplate Parameters (default values):")
+            max_name_len = max(len(str(param['name'])) for param in parameters)
+            for param in parameters:
+                click.echo(f"  {param['name']:<{max_name_len}} : {param['default_value']}")
 
         return success
 
