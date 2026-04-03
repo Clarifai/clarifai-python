@@ -401,8 +401,12 @@ def _show_completion_message(pipeline_path):
     click.echo("Next steps:")
     click.echo("1. Review and customize the generated pipeline steps")
     click.echo("2. Add any additional dependencies to requirements.txt files")
-    click.echo("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
-    click.echo("4. Use 'clarifai pipeline run [--set key=value]' to execute your pipeline")
+    click.echo(
+        f"3. Run 'clarifai pipeline upload {pipeline_path}/config.yaml' to upload your pipeline"
+    )
+    click.echo(
+        f"4. Use 'clarifai pipeline run --config {pipeline_path}/config.yaml [--set key=value]' to execute your pipeline"
+    )
 
 
 def _is_interactive_terminal():
