@@ -133,6 +133,27 @@ class PipelineBuilder:
         except Exception as e:
             raise ValueError(f"Error saving config file {self.config_path}: {e}")
 
+    def ensure_app_exists(self) -> bool:
+        """Ensure target app exists before uploading pipeline resources."""
+        from clarifai.client.user import User
+
+        try:
+            user = User(user_id=self.user_id, pat=self.client.pat, base_url=self.client.base)
+
+            try:
+                user.app(self.app_id)
+                logger.info(f"Using existing app '{self.app_id}'")
+                return True
+            except Exception:
+                logger.info(f"App '{self.app_id}' not found. Creating it with Empty workflow.")
+                user.create_app(app_id=self.app_id, base_workflow='Empty')
+                logger.info(f"Created app '{self.app_id}'")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to ensure app '{self.app_id}' exists: {e}")
+            return False
+
     def upload_pipeline_steps(self) -> bool:
         """Upload all pipeline steps listed in step_directories.
 
@@ -593,24 +614,29 @@ def upload_pipeline(path: str, no_lockfile: bool = False):
 
         logger.info(f"Starting pipeline upload from config: {config_path}")
 
-        # Step 1: Upload pipeline steps
+        # Step 1: Ensure app exists
+        if not builder.ensure_app_exists():
+            logger.error("Failed to verify or create app for pipeline upload")
+            sys.exit(1)
+
+        # Step 2: Upload pipeline steps
         if not builder.upload_pipeline_steps():
             logger.error("Failed to upload pipeline steps")
             sys.exit(1)
 
-        # Step 2: Generate lockfile (unless --no-lockfile is specified)
+        # Step 3: Generate lockfile (unless --no-lockfile is specified)
         # This will be used to update the versions of pipeline-steps that just got uploaded in Step 1
         lockfile_data = None
         if not no_lockfile:
             lockfile_data = builder.prepare_lockfile_with_step_versions()
 
-        # Step 3: Create the pipeline
+        # Step 4: Create the pipeline
         success, pipeline_version_id = builder.create_pipeline()
         if not success:
             logger.error("Failed to create pipeline")
             sys.exit(1)
 
-        # Step 4: Update lockfile (unless --no-lockfile is specified)
+        # Step 5: Update lockfile (unless --no-lockfile is specified)
         if not no_lockfile and lockfile_data:
             lockfile_data = builder.update_lockfile_with_pipeline_info(
                 lockfile_data, pipeline_version_id

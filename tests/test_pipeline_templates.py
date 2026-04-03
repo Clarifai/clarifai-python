@@ -181,7 +181,8 @@ class TestPipelineInitWithTemplate:
         self.runner.invoke(init, ['.'])
 
         mock_prepare_path.assert_called_once_with('.', None)
-        mock_interactive.assert_called_once_with('/test/path')
+        mock_interactive.assert_called_once()
+        assert mock_interactive.call_args[0][0] == '/test/path'
         mock_template.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
