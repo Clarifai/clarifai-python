@@ -962,6 +962,36 @@ class TestPipelineInitCommand:
             assert config['pipeline']['user_id'] == 'ctx-user'
             assert config['pipeline']['app_id'] == 'pipeline-app'
 
+    def test_init_command_dir_app_id_option_overrides_context_app(self):
+        """Test explicit DIR init uses --app_id over context app_id."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                init, ['--app_id', 'override-app', 'my_pipeline'], obj=MockConfig()
+            )
+
+            assert result.exit_code == 0
+            assert "App ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'ctx-user'
+            assert config['pipeline']['app_id'] == 'override-app'
+
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
@@ -1418,6 +1448,31 @@ class TestPipelineInitCommand:
 
         assert user_id == 'ctx-user'
         assert app_id == 'pipeline-app'
+
+    def test_resolve_template_context_app_id_option_overrides_context_and_default(self):
+        """Test template context resolution prioritizes explicit app_id override."""
+        from clarifai.cli.pipeline import _resolve_template_context
+
+        class MockCurrentContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockObj:
+            def __init__(self):
+                self.current = MockCurrentContext()
+
+        class MockCtx:
+            def __init__(self):
+                self.obj = MockObj()
+
+        user_id, app_id = _resolve_template_context(MockCtx(), app_id_override='override-app')
+
+        assert user_id == 'ctx-user'
+        assert app_id == 'override-app'
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_with_parameters(self, mock_template_manager_class):

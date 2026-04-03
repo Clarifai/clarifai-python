@@ -290,8 +290,13 @@ def run(
     required=False,
     help='Initialize from a template (e.g., image-classification, text-prep)',
 )
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID for generated configs. Overrides context or default app id.',
+)
 @click.pass_context
-def init(ctx, pipeline_path, template):
+def init(ctx, pipeline_path, template, app_id):
     """Initialize a new pipeline project structure.
 
     Creates a pipeline project structure either from a template or interactively.
@@ -435,7 +440,7 @@ def _pick_template_for_init():
     return templates[selection - 1]['name']
 
 
-def _resolve_template_context(ctx):
+def _resolve_template_context(ctx, app_id_override=None):
     """Resolve user_id and app_id for template initialization from context/env."""
     current_context = getattr(getattr(ctx, 'obj', None), 'current', None)
     if current_context is None:
@@ -447,7 +452,9 @@ def _resolve_template_context(ctx):
             "Unable to resolve user_id from the active context. Run `clarifai login` and retry."
         )
 
-    app_id = os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    app_id = (
+        app_id_override or os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    )
     if app_id:
         return user_id, app_id
 
@@ -458,14 +465,16 @@ def _resolve_template_context(ctx):
     return user_id, DEFAULT_PIPELINE_APP_ID
 
 
-def _resolve_user_app_defaults(ctx):
+def _resolve_user_app_defaults(ctx, app_id_override=None):
     """Resolve default user_id and app_id from context/env for init flows."""
     current_context = getattr(getattr(ctx, 'obj', None), 'current', None)
     if current_context is None:
         return None, None
 
     user_id = current_context.get('user_id', None)
-    app_id = os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    app_id = (
+        app_id_override or os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    )
 
     if user_id and not app_id:
         click.echo(
@@ -536,15 +545,16 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
         click.echo()
 
         click_ctx = click.get_current_context(silent=True)
+        app_id_override = click_ctx.params.get('app_id') if click_ctx else None
         if (
             click_ctx is not None
             and getattr(getattr(click_ctx, 'obj', None), 'current', None) is not None
         ):
-            user_id, app_id = _resolve_template_context(click_ctx)
+            user_id, app_id = _resolve_template_context(click_ctx, app_id_override=app_id_override)
         else:
             click.echo("Please provide the following information:")
             user_id = click.prompt("User ID", type=str)
-            app_id = click.prompt("App ID", type=str)
+            app_id = app_id_override or click.prompt("App ID", type=str)
 
         overrides = _parse_set_overrides(set_values)
         has_context = (
@@ -615,7 +625,10 @@ def _init_interactive(pipeline_path):
 
     try:
         click_ctx = click.get_current_context(silent=True)
-        default_user_id, default_app_id = _resolve_user_app_defaults(click_ctx)
+        app_id_override = click_ctx.params.get('app_id') if click_ctx else None
+        default_user_id, default_app_id = _resolve_user_app_defaults(
+            click_ctx, app_id_override=app_id_override
+        )
         has_context = (
             click_ctx is not None
             and getattr(getattr(click_ctx, 'obj', None), 'current', None) is not None
@@ -634,7 +647,7 @@ def _init_interactive(pipeline_path):
         else:
             click.echo("Please provide the following information:")
             user_id = click.prompt("User ID", type=str)
-            app_id = click.prompt("App ID", type=str)
+            app_id = app_id_override or click.prompt("App ID", type=str)
             pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
             num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
 
