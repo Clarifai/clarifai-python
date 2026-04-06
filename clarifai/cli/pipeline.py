@@ -290,13 +290,19 @@ def run(
     required=False,
     help='Initialize from a template (e.g., image-classification, text-prep)',
 )
+@optgroup.option(
+    '--set',
+    'set_values',
+    multiple=True,
+    help='Override template parameters inline. Format: --set key=value. Can be used multiple times.',
+)
 @click.option(
     '--app_id',
     required=False,
     help='App ID for generated configs. Overrides context or default app id.',
 )
 @click.pass_context
-def init(ctx, pipeline_path, template, app_id):
+def init(ctx, pipeline_path, template, set_values, app_id):
     """Initialize a new pipeline project structure.
 
     Creates a pipeline project structure either from a template or interactively.
@@ -350,7 +356,7 @@ def init(ctx, pipeline_path, template, app_id):
 
     # Branch to specific initialization method
     if template:
-        success = _init_from_template(pipeline_path, template)
+        success = _init_from_template(pipeline_path, template, set_values=set_values)
     else:
         success = _init_interactive(pipeline_path)
 

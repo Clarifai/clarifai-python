@@ -1176,7 +1176,9 @@ class TestPipelineInitCommand:
 
                 # Should call template initialization with prepared path
                 mock_prepare.assert_called_once_with('.', 'image-classification')
-                mock_template_init.assert_called_once_with('/test/path', 'image-classification')
+                mock_template_init.assert_called_once_with(
+                    '/test/path', 'image-classification', set_values=()
+                )
                 mock_completion.assert_called_once_with('/test/path')
 
     def test_init_command_without_template_calls_interactive(self):
@@ -1242,7 +1244,43 @@ class TestPipelineInitCommand:
 
                 assert result.exit_code == 0
                 mock_prepare.assert_called_once_with('.', 'text-prep')
-                mock_template_init.assert_called_once_with('/test/path', 'text-prep')
+                mock_template_init.assert_called_once_with(
+                    '/test/path', 'text-prep', set_values=()
+                )
+
+    def test_init_command_with_template_set_overrides(self):
+        """Test that init forwards repeatable --set values to template initialization."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            with (
+                patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
+                patch('clarifai.cli.pipeline._init_from_template') as mock_template_init,
+                patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
+            ):
+                mock_prepare.return_value = '/test/path'
+                mock_template_init.return_value = True
+
+                result = runner.invoke(
+                    init,
+                    [
+                        '--template',
+                        'image-classification',
+                        '--set',
+                        'key1=value1',
+                        '--set',
+                        'key2=value2',
+                        '.',
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_prepare.assert_called_once_with('.', 'image-classification')
+                mock_template_init.assert_called_once_with(
+                    '/test/path',
+                    'image-classification',
+                    set_values=('key1=value1', 'key2=value2'),
+                )
                 mock_completion.assert_called_once_with('/test/path')
 
     def test_init_command_without_args_non_tty_shows_actionable_error(self):
