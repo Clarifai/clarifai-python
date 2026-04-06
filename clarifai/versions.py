@@ -10,7 +10,7 @@ PYTHON_VERSION = '.'.join(
 )
 
 
-def get_latest_version_from_pypi():
+def get_latest_version_from_pypi(package: str = 'clarifai'):
     """
     Fetch the latest version of the clarifai package from PyPI.
 
@@ -24,7 +24,7 @@ def get_latest_version_from_pypi():
     try:
         import requests
 
-        response = requests.get("https://pypi.org/pypi/clarifai/json", timeout=5)
+        response = requests.get(f"https://pypi.org/pypi/{package}/json", timeout=5)
         if response.status_code == 200:
             return response.json().get("info", {}).get("version")
         return None
