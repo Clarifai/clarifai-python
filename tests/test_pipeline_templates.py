@@ -166,7 +166,14 @@ class TestPipelineInitWithTemplate:
         )
 
         mock_prepare_path.assert_called_once_with('.', 'image-classification')
-        mock_template.assert_called_once()
+        mock_template.assert_called_once_with(
+            '/test/path',
+            'image-classification',
+            user_id='u',
+            app_id='a',
+            pipeline_id='hello-world-pipeline',
+            override_params=(),
+        )
         mock_flag_based.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
@@ -184,7 +191,13 @@ class TestPipelineInitWithTemplate:
         self.runner.invoke(init, ['.', '--user_id', 'u', '--app_id', 'a'])
 
         mock_prepare_path.assert_called_once_with('.', None)
-        mock_flag_based.assert_called_once()
+        mock_flag_based.assert_called_once_with(
+            '/test/path',
+            user_id='u',
+            app_id='a',
+            pipeline_id='hello-world-pipeline',
+            step_names=['stepA', 'stepB'],
+        )
         mock_template.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
