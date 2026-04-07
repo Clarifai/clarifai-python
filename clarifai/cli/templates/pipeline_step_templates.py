@@ -3,12 +3,21 @@
 from clarifai.versions import CLIENT_VERSION
 
 
-def get_config_template():
+def get_config_template(
+    step_id="text-classifier-train-upload-step",
+    user_id="your_user_id",
+    app_id="your_app_id",
+):
     """Get the config.yaml template for pipeline steps."""
-    return """pipeline_step:
-  id: "text-classifier-train-upload-step"  # TODO: please fill in
-  user_id: "your_user_id"  # TODO: please fill in
-  app_id: "your_app_id"  # TODO: please fill in
+    user_id_comment = "" if user_id != "your_user_id" else "  # TODO: please fill in"
+    app_id_comment = "" if app_id != "your_app_id" else "  # TODO: please fill in"
+    step_id_comment = (
+        "" if step_id != "text-classifier-train-upload-step" else "  # TODO: please fill in"
+    )
+    return f"""pipeline_step:
+  id: "{step_id}"{step_id_comment}
+  user_id: "{user_id}"{user_id_comment}
+  app_id: "{app_id}"{app_id_comment}
   # Optional: visibility for the pipeline step
   # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
   visibility:

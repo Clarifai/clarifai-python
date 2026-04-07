@@ -827,9 +827,22 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            # Provide inputs for the interactive prompts
-            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--pipeline_id',
+                    'hello-world-pipeline',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -849,13 +862,28 @@ class TestPipelineInitCommand:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
 
     def test_init_command_with_custom_inputs(self):
-        """Test that init command works with custom user inputs."""
+        """Test that init command works with custom flag inputs."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            # Provide custom inputs
-            inputs = "custom-user\ncustom-app\ncustom-pipeline\n3\ndata-prep\nmodel-train\nmodel-deploy\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'custom-user',
+                    '--app_id',
+                    'custom-app',
+                    '--pipeline_id',
+                    'custom-pipeline',
+                    '--steps',
+                    'data-prep',
+                    '--steps',
+                    'model-train',
+                    '--steps',
+                    'model-deploy',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -882,8 +910,20 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['my_pipeline'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    'my_pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -901,8 +941,20 @@ class TestPipelineInitCommand:
             with open('config.yaml', 'w') as f:
                 f.write('existing content')
 
-            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -920,8 +972,22 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -955,8 +1021,22 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -981,8 +1061,22 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -1006,8 +1100,22 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
-            result = runner.invoke(init, ['.'], input=inputs)
+            result = runner.invoke(
+                init,
+                [
+                    '.',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--steps',
+                    'stepA',
+                    '--steps',
+                    'stepB',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -1057,33 +1165,49 @@ class TestPipelineInitCommand:
                 mock_prepare.return_value = '/test/path'
                 mock_template_init.return_value = True
 
-                runner.invoke(init, ['--template', 'image-classification', '.'])
+                runner.invoke(
+                    init,
+                    ['--template', 'image-classification', '.', '--user_id', 'u', '--app_id', 'a'],
+                )
 
-                # Should call template initialization with prepared path
+                # Should call template initialization with prepared path and flags
                 mock_prepare.assert_called_once_with('.', 'image-classification')
-                mock_template_init.assert_called_once_with('/test/path', 'image-classification')
+                mock_template_init.assert_called_once_with(
+                    '/test/path',
+                    'image-classification',
+                    user_id='u',
+                    app_id='a',
+                    pipeline_id='hello-world-pipeline',
+                    override_params=(),
+                )
                 mock_completion.assert_called_once_with('/test/path')
 
-    def test_init_command_without_template_calls_interactive(self):
-        """Test that init command without --template calls interactive flow."""
+    def test_init_command_without_template_calls_flag_based(self):
+        """Test that init command without --template calls flag-based flow."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             # Mock helper functions
             with (
                 patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
-                patch('clarifai.cli.pipeline._init_interactive') as mock_interactive,
+                patch('clarifai.cli.pipeline._init_flag_based') as mock_flag_based,
                 patch('clarifai.cli.pipeline._init_from_template') as mock_template,
                 patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
             ):
                 mock_prepare.return_value = '/test/path'
-                mock_interactive.return_value = True
+                mock_flag_based.return_value = True
 
-                runner.invoke(init, ['.'])
+                runner.invoke(init, ['.', '--user_id', 'u', '--app_id', 'a'])
 
-                # Should call interactive initialization with prepared path
+                # Should call flag-based initialization with prepared path and defaults
                 mock_prepare.assert_called_once_with('.', None)
-                mock_interactive.assert_called_once_with('/test/path')
+                mock_flag_based.assert_called_once_with(
+                    '/test/path',
+                    user_id='u',
+                    app_id='a',
+                    pipeline_id='hello-world-pipeline',
+                    step_names=['stepA', 'stepB'],
+                )
                 mock_template.assert_not_called()
                 mock_completion.assert_called_once_with('/test/path')
 
@@ -1120,38 +1244,35 @@ class TestPipelineInitCommand:
             # Import the function to test directly
             from clarifai.cli.pipeline import _init_from_template
 
-            # Mock click.prompt to simulate user input
-            with patch('click.prompt') as mock_prompt:
-                # Setup prompt responses
-                mock_prompt.side_effect = [
-                    'test-user',  # User ID
-                    'test-app',  # App ID
-                    'my-pipeline',  # Pipeline ID
-                    '/custom/path',  # Example Path parameter
-                    '32',  # Example Size parameter
-                ]
+            # Call with flags instead of interactive prompts
+            result = _init_from_template(
+                '/test/path',
+                'test-template',
+                user_id='test-user',
+                app_id='test-app',
+                pipeline_id='my-pipeline',
+                override_params=['EXAMPLE_PATH=/custom/path', 'EXAMPLE_SIZE=32'],
+            )
 
-                result = _init_from_template('/test/path', 'test-template')
+            # Verify template manager was called correctly
+            mock_manager.get_template_info.assert_called_once_with('test-template')
+            mock_manager.copy_template.assert_called_once()
 
-                # Verify template manager was called correctly
-                mock_manager.get_template_info.assert_called_once_with('test-template')
-                mock_manager.copy_template.assert_called_once()
+            # Check that substitutions were passed
+            call_args = mock_manager.copy_template.call_args
+            assert call_args[0][0] == 'test-template'  # template name
+            assert call_args[0][1] == '/test/path'  # destination path
 
-                # Check that substitutions were passed
-                call_args = mock_manager.copy_template.call_args
-                assert call_args[0][0] == 'test-template'  # template name
-                assert call_args[0][1] == '/test/path'  # destination path
+            substitutions = call_args[0][2]  # substitutions dict
+            assert 'user_id' in substitutions  # Basic substitutions
+            assert 'app_id' in substitutions
+            assert 'id' in substitutions
+            assert substitutions['user_id'] == 'test-user'
+            assert substitutions['app_id'] == 'test-app'
+            assert substitutions['id'] == 'my-pipeline'
 
-                substitutions = call_args[0][2]  # substitutions dict
-                assert 'user_id' in substitutions  # Basic substitutions
-                assert 'app_id' in substitutions
-                assert 'id' in substitutions
-                assert substitutions['user_id'] == 'test-user'
-                assert substitutions['app_id'] == 'test-app'
-                assert substitutions['id'] == 'my-pipeline'
-
-                # Should return True for success
-                assert result is True
+            # Should return True for success
+            assert result is True
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_not_found(self, mock_template_manager_class):
@@ -1191,14 +1312,16 @@ class TestPipelineInitCommand:
         # Import the function to test directly
         from clarifai.cli.pipeline import _init_from_template
 
-        # Mock click.prompt for basic inputs
-        with patch('click.prompt') as mock_prompt:
-            mock_prompt.side_effect = ['test-user', 'test-app', 'my-pipeline']
+        result = _init_from_template(
+            '/test/path',
+            'test-template',
+            user_id='test-user',
+            app_id='test-app',
+            pipeline_id='my-pipeline',
+        )
 
-            result = _init_from_template('/test/path', 'test-template')
-
-            # Should return False for copy failure
-            assert result is False
+        # Should return False for copy failure
+        assert result is False
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_with_parameters(self, mock_template_manager_class):
@@ -1238,44 +1361,44 @@ class TestPipelineInitCommand:
         # Import the function to test directly
         from clarifai.cli.pipeline import _init_from_template
 
-        # Mock click.prompt for all inputs
-        with patch('click.prompt') as mock_prompt:
-            mock_prompt.side_effect = [
-                'user',  # User ID
-                'app',  # App ID
-                'pipeline',  # Pipeline ID
-                '/new/input',  # Param A
-                '/new/output',  # Param B
-                'new_value',  # Param C
-                '0.002',  # Param D
-            ]
+        # Call with --set overrides for the parameters
+        result = _init_from_template(
+            '/test/path',
+            'complex-template',
+            user_id='user',
+            app_id='app',
+            pipeline_id='pipeline',
+            override_params=[
+                'PARAM_A=/new/input',
+                'PARAM_B=/new/output',
+                'PARAM_C=new_value',
+                'PARAM_D=0.002',
+            ],
+        )
 
-            result = _init_from_template('/test/path', 'complex-template')
+        # Verify the function succeeded
+        assert result is True
 
-            # Verify the function succeeded
-            assert result is True
+        # Verify copy_template was called
+        assert mock_manager.copy_template.called
+        call_args = mock_manager.copy_template.call_args
+        substitutions = call_args[0][2]
 
-            # Verify copy_template was called
-            assert mock_manager.copy_template.called
-            call_args = mock_manager.copy_template.call_args
-            substitutions = call_args[0][2]
+        # Check that basic substitutions are present
+        assert 'user_id' in substitutions
+        assert 'app_id' in substitutions
+        assert 'id' in substitutions
+        assert substitutions['user_id'] == 'user'
+        assert substitutions['app_id'] == 'app'
+        assert substitutions['id'] == 'pipeline'
 
-            # Check that basic substitutions are present
-            assert 'user_id' in substitutions
-            assert 'app_id' in substitutions
-            assert 'id' in substitutions
-            assert substitutions['user_id'] == 'user'
-            assert substitutions['app_id'] == 'app'
-            assert substitutions['id'] == 'pipeline'
-
-            # Check that parameter substitutions are present (only if different from default)
-            # Since all inputs differ from defaults, they should be in substitutions
-            assert 'PARAM_A' in substitutions
-            assert substitutions['PARAM_A'] == '/new/input'
-            assert 'PARAM_C' in substitutions
-            assert substitutions['PARAM_C'] == 'new_value'
-            assert 'PARAM_D' in substitutions
-            assert substitutions['PARAM_D'] == '0.002'
+        # Check that parameter substitutions are present
+        assert 'PARAM_A' in substitutions
+        assert substitutions['PARAM_A'] == '/new/input'
+        assert 'PARAM_C' in substitutions
+        assert substitutions['PARAM_C'] == 'new_value'
+        assert 'PARAM_D' in substitutions
+        assert substitutions['PARAM_D'] == '0.002'
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
@@ -1297,28 +1420,27 @@ class TestPipelineInitCommand:
         # Import the function to test directly
         from clarifai.cli.pipeline import _init_from_template
 
-        # Mock click.prompt for inputs with custom pipeline name
-        with patch('click.prompt') as mock_prompt:
-            mock_prompt.side_effect = [
-                'user',  # User ID
-                'app',  # App ID
-                'custom-pipeline-name',  # Custom Pipeline ID
-            ]
+        # Call with a custom pipeline ID
+        result = _init_from_template(
+            '/test/path',
+            'original-template',
+            user_id='user',
+            app_id='app',
+            pipeline_id='custom-pipeline-name',
+        )
 
-            result = _init_from_template('/test/path', 'original-template')
+        # Verify pipeline ID substitution was included
+        call_args = mock_manager.copy_template.call_args
+        substitutions = call_args[0][2]
 
-            # Verify pipeline ID substitution was included
-            call_args = mock_manager.copy_template.call_args
-            substitutions = call_args[0][2]
+        # The new system stores basic fields directly
+        assert 'user_id' in substitutions
+        assert 'app_id' in substitutions
+        assert 'id' in substitutions
+        assert substitutions['id'] == 'custom-pipeline-name'
 
-            # The new system stores basic fields directly
-            assert 'user_id' in substitutions
-            assert 'app_id' in substitutions
-            assert 'id' in substitutions
-            assert substitutions['id'] == 'custom-pipeline-name'
-
-            # Should return True for success
-            assert result is True
+        # Should return True for success
+        assert result is True
 
 
 class TestPipelineRunCommand:
