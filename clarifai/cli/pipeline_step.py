@@ -102,7 +102,7 @@ def init(pipeline_step_path, user_id, app_id, step_id):
         logger.warning(f"File {pipeline_step_py_path} already exists, skipping...")
     else:
         pipeline_step_template = get_pipeline_step_template()
-        with open(pipeline_step_py_path, 'w') as f:
+        with open(pipeline_step_py_path, 'w', encoding='utf-8') as f:
             f.write(pipeline_step_template)
         logger.info(f"Created {pipeline_step_py_path}")
 
@@ -112,7 +112,7 @@ def init(pipeline_step_path, user_id, app_id, step_id):
         logger.warning(f"File {requirements_path} already exists, skipping...")
     else:
         requirements_template = get_requirements_template()
-        with open(requirements_path, 'w') as f:
+        with open(requirements_path, 'w', encoding='utf-8') as f:
             f.write(requirements_template)
         logger.info(f"Created {requirements_path}")
 
@@ -124,7 +124,7 @@ def init(pipeline_step_path, user_id, app_id, step_id):
         config_template = get_config_template(
             user_id=user_id, app_id=app_id, **({'step_id': step_id} if step_id else {})
         )
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
 

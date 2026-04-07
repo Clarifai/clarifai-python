@@ -306,7 +306,7 @@ def run(
 @click.option(
     '--num_steps',
     required=False,
-    type=int,
+    type=click.IntRange(min=1),
     default=2,
     show_default=True,
     help='Number of pipeline steps to create when --steps is not specified. Ignored when --template or --steps is used.',
