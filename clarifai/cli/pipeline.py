@@ -8,10 +8,10 @@ from clarifai.utils.cli import (
     AliasedGroup,
     convert_timestamp_to_string,
     display_co_resources,
+    resolve_id,
     validate_context,
 )
 from clarifai.utils.logging import logger
-
 
 _DEFAULT_PIPELINE_ID = "hello-world-pipeline"
 
@@ -344,7 +344,7 @@ def init(pipeline_path, template, user_id, app_id, pipeline_id, steps, num_steps
 
     Examples:
 
-        # Basic initialization with defaults
+        # user_id/app_id auto-detected from global config (~/.clarifai/config.yaml)
         clarifai pipeline init
 
         # Initialize with explicit IDs and steps
@@ -359,6 +359,10 @@ def init(pipeline_path, template, user_id, app_id, pipeline_id, steps, num_steps
         # Initialize from a template with custom parameters
         clarifai pipeline init --template=image-classification --user_id=my_user --app_id=my_app --set model_name=resnet50
     """
+    # Resolve user_id and app_id from flag → global config → prompt
+    user_id = resolve_id(user_id, 'user_id', 'User ID')
+    app_id = resolve_id(app_id, 'app_id', 'App ID')
+
     # Common setup logic
     pipeline_path = _prepare_pipeline_path(pipeline_path, template)
     if not pipeline_path:
@@ -482,7 +486,7 @@ def _init_from_template(
             click.echo(f"Parameters: {len(parameters)} available")
         click.echo()
 
-        # Apply defaults for unset values
+        # user_id and app_id already resolved by the init command caller
         effective_user_id = user_id or "your_user_id"
         effective_app_id = app_id or "your_app_id"
         effective_pipeline_id = (
@@ -562,6 +566,7 @@ def _init_flag_based(
     if step_names is None:
         step_names = ["stepA", "stepB"]
 
+    # user_id and app_id already resolved by the init command caller
     effective_user_id = user_id or "your_user_id"
     effective_app_id = app_id or "your_app_id"
 

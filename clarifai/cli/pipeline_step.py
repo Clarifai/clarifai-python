@@ -8,6 +8,7 @@ from clarifai.utils.cli import (
     AliasedGroup,
     convert_timestamp_to_string,
     display_co_resources,
+    resolve_id,
     validate_context,
 )
 from clarifai.utils.logging import logger
@@ -66,7 +67,7 @@ def init(pipeline_step_path, user_id, app_id, step_id):
 
     Examples:
 
-        # Basic initialization with defaults
+        # Basic initialization with defaults (user_id/app_id from global config)
         clarifai pipelinestep init
 
         # Initialize with explicit IDs
@@ -80,6 +81,10 @@ def init(pipeline_step_path, user_id, app_id, step_id):
         get_pipeline_step_template,
         get_requirements_template,
     )
+
+    # Resolve user_id and app_id from flag → global config → prompt
+    user_id = resolve_id(user_id, 'user_id', 'User ID')
+    app_id = resolve_id(app_id, 'app_id', 'App ID')
 
     # Resolve the absolute path
     pipeline_step_path = os.path.abspath(pipeline_step_path)
@@ -116,21 +121,15 @@ def init(pipeline_step_path, user_id, app_id, step_id):
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        # Pass explicit values; get_config_template uses placeholder defaults for None
         config_template = get_config_template(
-            **{
-                k: v
-                for k, v in [('step_id', step_id), ('user_id', user_id), ('app_id', app_id)]
-                if v
-            }
+            user_id=user_id, app_id=app_id, **({'step_id': step_id} if step_id else {})
         )
         with open(config_path, 'w') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
 
     logger.info(f"Pipeline step initialization complete in {pipeline_step_path}")
-    has_todos = not (user_id and app_id and step_id)
-    if has_todos:
+    if not step_id:
         logger.info("Next steps:")
         logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
         logger.info("2. Update the pipeline step configuration in config.yaml")
