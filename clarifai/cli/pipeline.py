@@ -13,6 +13,9 @@ from clarifai.utils.cli import (
 from clarifai.utils.logging import logger
 
 
+_DEFAULT_PIPELINE_ID = "hello-world-pipeline"
+
+
 @cli.group(
     ['pipeline', 'pl'],
     cls=AliasedGroup,
@@ -290,7 +293,7 @@ def run(
 @click.option(
     '--pipeline_id',
     required=False,
-    default='hello-world-pipeline',
+    default=_DEFAULT_PIPELINE_ID,
     show_default=True,
     help='Pipeline ID.',
 )
@@ -483,7 +486,7 @@ def _init_from_template(
         effective_user_id = user_id or "your_user_id"
         effective_app_id = app_id or "your_app_id"
         effective_pipeline_id = (
-            pipeline_id if pipeline_id and pipeline_id != 'hello-world-pipeline' else template_name
+            pipeline_id if pipeline_id and pipeline_id != _DEFAULT_PIPELINE_ID else template_name
         )
 
         # Build parameter substitutions from flags
@@ -534,7 +537,7 @@ def _init_from_template(
 
 
 def _init_flag_based(
-    pipeline_path, user_id=None, app_id=None, pipeline_id="hello-world-pipeline", step_names=None
+    pipeline_path, user_id=None, app_id=None, pipeline_id=_DEFAULT_PIPELINE_ID, step_names=None
 ):
     """Flag-based pipeline initialization.
 

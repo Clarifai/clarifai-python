@@ -116,15 +116,14 @@ def init(pipeline_step_path, user_id, app_id, step_id):
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        # Build kwargs for template; only pass values that were explicitly provided
-        config_kwargs = {}
-        if user_id:
-            config_kwargs['user_id'] = user_id
-        if app_id:
-            config_kwargs['app_id'] = app_id
-        if step_id:
-            config_kwargs['step_id'] = step_id
-        config_template = get_config_template(**config_kwargs)
+        # Pass explicit values; get_config_template uses placeholder defaults for None
+        config_template = get_config_template(
+            **{
+                k: v
+                for k, v in [('step_id', step_id), ('user_id', user_id), ('app_id', app_id)]
+                if v
+            }
+        )
         with open(config_path, 'w') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
