@@ -1476,9 +1476,7 @@ class TestPipelineRunCommand:
 
             assert result.exit_code != 0
             assert result.exception is not None
-            assert '--compute_cluster_id and --nodepool_id are mandatory parameters' in str(
-                result.exception
-            )
+            assert '--instance is required' in str(result.exception)
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
