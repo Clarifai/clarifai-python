@@ -623,3 +623,51 @@ def upload_pipeline(path: str, no_lockfile: bool = False):
     except Exception as e:
         logger.error(f"Pipeline upload failed: {e}")
         sys.exit(1)
+
+
+def upload_dev_pipeline(path: str) -> tuple[str, str, str, str]:
+    """
+    Upload a dev variant of a pipeline, reusing unchanged steps.
+
+    Creates (or updates) a pipeline named ``{pipeline_id}-dev`` by uploading
+    only the steps whose local files have changed since the last upload. A
+    separate lockfile (``config-lock-dev.yaml``) is written so that the
+    production lockfile is not affected.
+
+    :param path: Path to the pipeline project directory or config.yaml
+    :return: Tuple of (pipeline_id, pipeline_version_id, user_id, app_id)
+    """
+    # Resolve config path
+    if os.path.isdir(path):
+        config_path = os.path.join(path, "config.yaml")
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"config.yaml not found in directory: {path}")
+    else:
+        config_path = path
+
+    builder = PipelineBuilder(config_path)
+    original_pipeline_id = builder.pipeline_id
+    dev_pipeline_id = f"{original_pipeline_id}-dev"
+    builder.pipeline_id = dev_pipeline_id
+
+    logger.info(f"Starting dev pipeline upload ({dev_pipeline_id}) from config: {config_path}")
+
+    # Step 1: Upload only changed pipeline steps (hash-based skip)
+    if not builder.upload_pipeline_steps():
+        raise RuntimeError("Failed to upload pipeline steps for dev pipeline")
+
+    # Step 2: Prepare lockfile data with step versions
+    lockfile_data = builder.prepare_lockfile_with_step_versions()
+
+    # Step 3: Create the dev pipeline (or new version of it)
+    success, pipeline_version_id = builder.create_pipeline()
+    if not success:
+        raise RuntimeError("Failed to create dev pipeline")
+
+    # Step 4: Save dev lockfile (separate from production)
+    lockfile_data = builder.update_lockfile_with_pipeline_info(lockfile_data, pipeline_version_id)
+    dev_lockfile_path = os.path.join(builder.config_dir, "config-lock-dev.yaml")
+    builder.save_lockfile(lockfile_data, lockfile_path=dev_lockfile_path)
+
+    logger.info(f"Dev pipeline upload complete: {dev_pipeline_id} v{pipeline_version_id}")
+    return dev_pipeline_id, pipeline_version_id, builder.user_id, builder.app_id

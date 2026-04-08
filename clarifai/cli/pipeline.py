@@ -40,11 +40,12 @@ def upload(path, no_lockfile):
 
 
 @pipeline.command()
+@click.argument('path', type=click.Path(exists=True), required=False, default=None)
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=False,
-    help='Path to the pipeline run config file.',
+    help='Path to the pipeline run config file (deprecated, use PATH positional argument).',
 )
 @click.option('--pipeline_id', required=False, help='Pipeline ID to run.')
 @click.option('--pipeline_version_id', required=False, help='Pipeline Version ID to run.')
@@ -95,9 +96,17 @@ def upload(path, no_lockfile):
     type=click.Path(exists=True),
     help='Path to JSON/YAML file containing parameter overrides.',
 )
+@click.option(
+    '--dev',
+    is_flag=True,
+    default=False,
+    help='Upload local code to an ephemeral dev pipeline before running. '
+    'Only changed steps are re-uploaded.',
+)
 @click.pass_context
 def run(
     ctx,
+    path,
     config,
     pipeline_id,
     pipeline_version_id,
@@ -113,8 +122,16 @@ def run(
     monitor,
     override_params,
     overrides_file,
+    dev,
 ):
-    """Run a pipeline and monitor its progress."""
+    """Run a pipeline and monitor its progress.
+
+    PATH: Optional path to a pipeline directory or config file. Default '.' (current directory).
+
+    \tWhen provided, config precedence is config-lock.yaml > config.yaml.
+    The --config option is accepted for backwards compatibility but PATH
+    is preferred.
+    """
     import json
 
     from clarifai.client.pipeline import Pipeline
@@ -122,11 +139,20 @@ def run(
 
     validate_context(ctx)
 
-    # Try to load from config-lock.yaml first if no config is specified
-    lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
-    if not config and os.path.exists(lockfile_path):
-        logger.info("Found config-lock.yaml, using it as default config source")
-        config = lockfile_path
+    # Resolve the config file from the positional PATH (preferred) or --config
+    if not config:
+        run_path = path or os.getcwd()
+        if os.path.isdir(run_path):
+            lockfile = os.path.join(run_path, 'config-lock.yaml')
+            configfile = os.path.join(run_path, 'config.yaml')
+            if os.path.exists(lockfile):
+                config = lockfile
+                logger.info(f"Using lockfile as config source: {config}")
+            elif os.path.exists(configfile):
+                config = configfile
+                logger.info(f"Using config file: {config}")
+        elif os.path.isfile(run_path):
+            config = run_path
 
     if config:
         config_data = from_yaml(config)
@@ -168,6 +194,17 @@ def run(
             nodepool_id = ctx.obj.current.get('nodepool_id', '')
         if not compute_cluster_id:
             compute_cluster_id = ctx.obj.current.get('compute_cluster_id', '')
+
+    # Dev mode: upload local code to an ephemeral dev pipeline before running
+    if dev:
+        from clarifai.runners.pipelines.pipeline_builder import upload_dev_pipeline
+
+        dev_pipeline_id, dev_version_id, dev_user_id, dev_app_id = upload_dev_pipeline(path)
+        pipeline_id = dev_pipeline_id
+        pipeline_version_id = dev_version_id
+        user_id = dev_user_id
+        app_id = dev_app_id
+        pipeline_url = None  # dev mode always uses explicit IDs
 
     # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
     if not compute_cluster_id or not nodepool_id:
