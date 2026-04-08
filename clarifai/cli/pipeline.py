@@ -297,17 +297,19 @@ def run(
                 argo_args_override=resources_pb2.ArgoArgsOverride(parameters=parameters)
             )
 
-    if monitor:
-        # Monitor existing pipeline run instead of starting new one
-        result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
-    else:
-        # Start new pipeline run and monitor it
-        result = pipeline.run(
-            timeout=timeout,
-            monitor_interval=monitor_interval,
-            input_args_override=input_args_override,
-        )
-    click.echo(json.dumps(result, indent=2, default=str))
+    from clarifai.utils.logging import pipeline_logging
+
+    with pipeline_logging():
+        if monitor:
+            # Monitor existing pipeline run instead of starting new one
+            result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
+        else:
+            # Start new pipeline run and monitor it
+            result = pipeline.run(
+                timeout=timeout,
+                monitor_interval=monitor_interval,
+                input_args_override=input_args_override,
+            )
 
 
 @pipeline.command()

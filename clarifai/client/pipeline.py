@@ -1,3 +1,4 @@
+import json
 import time
 import uuid
 from typing import Dict, List, Optional
@@ -146,8 +147,6 @@ class Pipeline(Lister, BaseClient):
         if self._runner_selector:
             run_request.runner_selector.CopyFrom(self._runner_selector)
 
-        logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
-
         response = self.STUB.PostPipelineVersionRuns(
             run_request, metadata=self.auth_helper.metadata
         )
@@ -169,7 +168,7 @@ class Pipeline(Lister, BaseClient):
         pipeline_version_run = response.pipeline_version_runs[0]
         run_id = pipeline_version_run.id or self.pipeline_version_run_id
 
-        logger.info(f"Pipeline version run created with ID: {run_id}")
+        logger.info(f"Pipeline run started: {self.pipeline_id} (run: {run_id})")
 
         # Monitor the run
         return self._monitor_pipeline_run(run_id, timeout, monitor_interval)
@@ -206,6 +205,7 @@ class Pipeline(Lister, BaseClient):
         start_time = time.time()
         seen_logs = set()
         current_page = 1  # Track current page for log pagination.
+        prev_status = None
 
         while time.time() - start_time < timeout:
             # Get run status
@@ -233,9 +233,6 @@ class Pipeline(Lister, BaseClient):
                 # Display new log entries and update current page
                 current_page = self._display_new_logs(run_id, seen_logs, current_page)
 
-                elapsed_time = time.time() - start_time
-                logger.info(f"Pipeline run monitoring... (elapsed {elapsed_time:.1f}s)")
-
                 # Check if we have orchestration status
                 if (
                     hasattr(pipeline_run, 'orchestration_status')
@@ -245,30 +242,33 @@ class Pipeline(Lister, BaseClient):
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
                         status_name = status_code_pb2.StatusCode.Name(status_code)
-                        logger.info(f"Pipeline run status: {status_code} ({status_name})")
 
-                        # Display orchestration status details if available
-                        if hasattr(orch_status, 'description') and orch_status.description:
-                            logger.info(f"Orchestration status: {orch_status.description}")
+                        # Only log when status changes
+                        if status_code != prev_status:
+                            prev_status = status_code
+                            elapsed_time = time.time() - start_time
+                            logger.info(
+                                f"Status: {status_name.removeprefix('JOB_')} ({elapsed_time:.1f}s)"
+                            )
+                            if hasattr(orch_status, 'description') and orch_status.description:
+                                logger.info(f"  {orch_status.description}")
 
                         # Success codes that allow continuation: JOB_RUNNING, JOB_QUEUED
                         if status_code in [
                             status_code_pb2.JOB_QUEUED,
                             status_code_pb2.JOB_RUNNING,
-                        ]:  # JOB_QUEUED, JOB_RUNNING
-                            logger.info(f"Pipeline run in progress: {status_code} ({status_name})")
-                            # Continue monitoring
+                        ]:
+                            pass  # Continue monitoring
                         # Successful terminal state: JOB_COMPLETED
-                        elif status_code == status_code_pb2.JOB_COMPLETED:  # JOB_COMPLETED
-                            logger.info("Pipeline run completed successfully!")
+                        elif status_code == status_code_pb2.JOB_COMPLETED:
                             return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
                         elif status_code in [
                             status_code_pb2.JOB_FAILED,
                             status_code_pb2.JOB_UNEXPECTED_ERROR,
-                        ]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
+                        ]:
                             logger.error(
-                                f"Pipeline run failed with status: {status_code} ({status_name})"
+                                f"Pipeline run failed: {status_name.removeprefix('JOB_')}"
                             )
                             return {"status": "failed", "pipeline_version_run": pipeline_run_dict}
                         # Handle legacy SUCCESS status for backward compatibility
@@ -276,9 +276,8 @@ class Pipeline(Lister, BaseClient):
                             logger.info("Pipeline run completed successfully!")
                             return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
-                            # Log other unexpected statuses but continue monitoring
                             logger.warning(
-                                f"Unexpected pipeline run status: {status_code} ({status_name}). Continuing to monitor..."
+                                f"Unexpected pipeline run status: {status_name}. Continuing to monitor..."
                             )
 
             except Exception as e:
@@ -322,14 +321,30 @@ class Pipeline(Lister, BaseClient):
                     log_id = log_entry.url or f"{log_entry.created_at.seconds}_{log_entry.message}"
                     if log_id not in seen_logs:
                         seen_logs.add(log_id)
-                        log_message = f"[LOG] {log_entry.message.strip()}"
+                        raw_entries = log_entry.message.strip().split('\n')
 
-                        # Write to file if log_file is specified, otherwise log to console
-                        if self.log_file:
-                            with open(self.log_file, 'a', encoding='utf-8') as f:
-                                f.write(log_message + '\n')
-                        else:
-                            logger.info(log_message)
+                        for raw in raw_entries:
+                            # Filter: only show logs from pipeline_step.py
+                            # and extract the "msg" property from JSON log lines.
+                            try:
+                                parsed = json.loads(raw)
+                            except (ValueError, TypeError):
+                                parsed = None
+
+                            if parsed and isinstance(parsed, dict):
+                                filename = parsed.get('filename', '')
+                                if filename != 'pipeline_step.py':
+                                    continue
+                                log_message = parsed.get('msg', raw)
+                            else:
+                                continue  # skip non-JSON lines
+
+                            # Write to file if log_file is specified, otherwise log to console
+                            if self.log_file:
+                                with open(self.log_file, 'a', encoding='utf-8') as f:
+                                    f.write(log_message + '\n')
+                            else:
+                                logger.info(log_message)
 
                 # If we got a full page (50 entries), there might be more logs on the next page
                 # If we got fewer than 50 entries, we've reached the end and should stay on current page
