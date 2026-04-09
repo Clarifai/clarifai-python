@@ -163,9 +163,9 @@ class TestPipelineRunInstanceFlag:
                 'version_id': 'v1',
                 'user_id': 'test-user',
                 'app_id': 'test-app',
-            },
-            'compute': {
-                'instance': 'g5.xlarge',
+                'compute': {
+                    'instance': 'g5.xlarge',
+                },
             },
         }
 
@@ -201,9 +201,9 @@ class TestPipelineRunInstanceFlag:
                 'version_id': 'v1',
                 'user_id': 'test-user',
                 'app_id': 'test-app',
-            },
-            'compute': {
-                'instance': 'g5.xlarge',  # config says g5.xlarge
+                'compute': {
+                    'instance': 'g5.xlarge',  # config says g5.xlarge
+                },
             },
         }
 
@@ -240,11 +240,11 @@ class TestPipelineRunInstanceFlag:
                 'version_id': 'v1',
                 'user_id': 'test-user',
                 'app_id': 'test-app',
-            },
-            'compute': {
-                'instance': 'a10g',
-                'cloud': 'gcp',
-                'region': 'eu-west1',
+                'compute': {
+                    'instance': 'a10g',
+                    'cloud': 'gcp',
+                    'region': 'eu-west1',
+                },
             },
         }
 

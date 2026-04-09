@@ -241,8 +241,13 @@ def run(
         )
         nodepool_id = config_data.get('nodepool_id', nodepool_id)
         compute_cluster_id = config_data.get('compute_cluster_id', compute_cluster_id)
-        # Read compute section for auto-creation support
-        compute_section = config_data.get('compute', {})
+        # Read compute section from inside pipeline config for auto-creation support
+        pipeline_sect = (
+            config_data.get('pipeline', {})
+            if isinstance(config_data.get('pipeline'), dict)
+            else {}
+        )
+        compute_section = pipeline_sect.get('compute', {})
         instance = instance or compute_section.get('instance')
         cloud = cloud or compute_section.get('cloud')
         region = region or compute_section.get('region')

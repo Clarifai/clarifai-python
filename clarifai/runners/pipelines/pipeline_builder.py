@@ -281,6 +281,11 @@ class PipelineBuilder:
                 lockfile_data["pipeline"]["config"] = {}
             lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
 
+        # Preserve compute section from pipeline config (used by `clarifai pipeline run`)
+        compute = pipeline_config.get("compute")
+        if compute:
+            lockfile_data["pipeline"]["compute"] = compute
+
         return lockfile_data
 
     def update_lockfile_with_pipeline_info(
@@ -331,6 +336,11 @@ class PipelineBuilder:
             if "config" not in lockfile_data["pipeline"]:
                 lockfile_data["pipeline"]["config"] = {}
             lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
+
+        # Preserve compute section from pipeline config (used by `clarifai pipeline run`)
+        compute = pipeline_config.get("compute")
+        if compute:
+            lockfile_data["pipeline"]["compute"] = compute
 
         return lockfile_data
 
