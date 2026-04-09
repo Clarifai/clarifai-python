@@ -1,0 +1,12 @@
+pipeline_step:
+  id: "dummy-pipeline-step"
+  user_id: "test_user"
+  app_id: "test_app"
+
+build_info:
+  python_version: "3.12"
+
+pipeline_step_compute_info:
+  cpu_limit: "500m"
+  cpu_memory: "500Mi"
+  num_accelerators: 0

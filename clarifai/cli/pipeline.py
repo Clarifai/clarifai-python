@@ -93,6 +93,61 @@ def pipeline():
     """Create and manage pipelines."""
 
 
+@pipeline.command('local-run')
+@click.argument("step_path", type=click.Path(exists=True), required=False, default=".")
+@click.option(
+    '--mode',
+    type=click.Choice(['container']),
+    default='container',
+    help='Execution mode. Currently only "container" is supported.',
+)
+@click.option(
+    '--keep-image',
+    is_flag=True,
+    default=False,
+    help='Keep the Docker image after the pipeline step finishes.',
+)
+def local_run(step_path, mode, keep_image):
+    """Run a pipeline step locally in a Docker container.
+
+    STEP_PATH: Path to the pipeline step directory (containing config.yaml,
+    requirements.txt, and 1/pipeline_step.py). Defaults to current directory.
+
+    This reuses the same Docker build infrastructure as ``clarifai model serve
+    --mode container`` but executes pipeline_step.py once and exits.
+    """
+    from clarifai.runners.pipeline_steps.pipeline_run_locally import PipelineStepRunLocally
+
+    manager = PipelineStepRunLocally(step_path)
+
+    if not manager.is_docker_installed():
+        raise click.ClickException("Docker is not installed.")
+
+    # Generate Dockerfile if missing
+    manager.builder.create_dockerfile()
+
+    image_tag = manager._docker_hash()
+    step_id = manager.config['pipeline_step']['id'].lower()
+    image_name = f"{step_id}:{image_tag}"
+    container_name = f"{step_id}-local-run"
+
+    if not manager.docker_image_exists(image_name):
+        logger.info("Building Docker image...")
+        manager.build_docker_image(image_name=image_name)
+
+    try:
+        manager.run_pipeline_step_container(
+            image_name=image_name,
+            container_name=container_name,
+        )
+    finally:
+        if manager.container_exists(container_name):
+            manager.stop_docker_container(container_name)
+            manager.remove_docker_container(container_name)
+        if not keep_image:
+            manager.remove_docker_image(image_name)
+
+
 @pipeline.command()
 @click.argument("path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
