@@ -13,6 +13,73 @@ from clarifai.utils.cli import (
 from clarifai.utils.logging import logger
 
 
+def _ensure_pipeline_compute(
+    ctx, user_id, instance, cloud, region, compute_cluster_id, nodepool_id
+):
+    """Resolve instance type and auto-create compute cluster/nodepool if needed.
+
+    Uses the same deterministic ID and get-or-create pattern as model deploy.
+
+    Returns:
+        tuple: (compute_cluster_id, nodepool_id)
+    """
+    from clarifai.utils.compute_presets import (
+        get_compute_cluster_config,
+        get_deploy_compute_cluster_id,
+        get_deploy_nodepool_id,
+        get_nodepool_config,
+        resolve_gpu,
+    )
+
+    gpu_preset = resolve_gpu(instance, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
+    if not gpu_preset:
+        raise ValueError(
+            f"Unknown instance type '{instance}'. Use 'clarifai list-instances' to see available options."
+        )
+
+    cloud = cloud or gpu_preset.get('cloud_provider', 'aws')
+    region = region or gpu_preset.get('region', 'us-east-1')
+    instance_type_id = gpu_preset['instance_type_id']
+
+    cc_id = compute_cluster_id or get_deploy_compute_cluster_id(cloud, region)
+    np_id = nodepool_id or get_deploy_nodepool_id(instance_type_id)
+
+    from clarifai.client.user import User
+
+    user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
+
+    # Get-or-create compute cluster
+    try:
+        user.compute_cluster(cc_id)
+    except Exception:
+        logger.info(f"Creating compute cluster '{cc_id}'...")
+        cc_config = get_compute_cluster_config(user_id, cloud, region)
+        user.create_compute_cluster(compute_cluster_config=cc_config)
+
+    # Get-or-create nodepool
+    from clarifai.client.compute_cluster import ComputeCluster
+
+    cc = ComputeCluster(
+        compute_cluster_id=cc_id,
+        user_id=user_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
+    try:
+        cc.nodepool(np_id)
+    except Exception:
+        logger.info(f"Creating nodepool '{np_id}'...")
+        np_config = get_nodepool_config(
+            instance_type_id=instance_type_id,
+            compute_cluster_id=cc_id,
+            user_id=user_id,
+            compute_info=gpu_preset.get("inference_compute_info"),
+        )
+        cc.create_nodepool(nodepool_config=np_config)
+
+    return cc_id, np_id
+
+
 @cli.group(
     ['pipeline', 'pl'],
     cls=AliasedGroup,
@@ -55,9 +122,30 @@ def upload(path, no_lockfile):
 )
 @click.option('--user_id', required=False, help='User ID of the pipeline.')
 @click.option('--app_id', required=False, help='App ID that contains the pipeline.')
-@click.option('--nodepool_id', required=False, help='Nodepool ID to run the pipeline on.')
 @click.option(
-    '--compute_cluster_id', required=False, help='Compute Cluster ID to run the pipeline on.'
+    '--nodepool_id',
+    required=False,
+    help='[Advanced] Existing nodepool ID (skip auto-creation).',
+)
+@click.option(
+    '--compute_cluster_id',
+    required=False,
+    help='[Advanced] Existing compute cluster ID (skip auto-creation).',
+)
+@click.option(
+    '--instance',
+    default=None,
+    help='Hardware instance type (e.g., g5.xlarge, A10G). Auto-creates compute cluster and nodepool.',
+)
+@click.option(
+    '--cloud',
+    default=None,
+    help='Cloud provider (e.g., aws, gcp). Auto-detected from --instance if omitted.',
+)
+@click.option(
+    '--region',
+    default=None,
+    help='Cloud region (e.g., us-east-1). Auto-detected from --instance if omitted.',
 )
 @click.option('--pipeline_url', required=False, help='Pipeline URL to run.')
 @click.option(
@@ -106,6 +194,9 @@ def run(
     app_id,
     nodepool_id,
     compute_cluster_id,
+    instance,
+    cloud,
+    region,
     pipeline_url,
     timeout,
     monitor_interval,
@@ -150,6 +241,16 @@ def run(
         )
         nodepool_id = config_data.get('nodepool_id', nodepool_id)
         compute_cluster_id = config_data.get('compute_cluster_id', compute_cluster_id)
+        # Read compute section from inside pipeline config for auto-creation support
+        pipeline_sect = (
+            config_data.get('pipeline', {})
+            if isinstance(config_data.get('pipeline'), dict)
+            else {}
+        )
+        compute_section = pipeline_sect.get('compute', {})
+        instance = instance or compute_section.get('instance')
+        cloud = cloud or compute_section.get('cloud')
+        region = region or compute_section.get('region')
         pipeline_url = config_data.get('pipeline_url', pipeline_url)
         timeout = config_data.get('timeout', timeout)
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
@@ -169,9 +270,19 @@ def run(
         if not compute_cluster_id:
             compute_cluster_id = ctx.obj.current.get('compute_cluster_id', '')
 
-    # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
+    # Auto-resolve compute cluster and nodepool from --instance if not explicitly provided
     if not compute_cluster_id or not nodepool_id:
-        raise ValueError("--compute_cluster_id and --nodepool_id are mandatory parameters.")
+        if instance:
+            compute_cluster_id, nodepool_id = _ensure_pipeline_compute(
+                ctx, user_id, instance, cloud, region, compute_cluster_id, nodepool_id
+            )
+        else:
+            raise ValueError(
+                "--instance is required when --compute_cluster_id and --nodepool_id are not both provided.\n"
+                "  Example: clarifai pipeline run --instance g5.xlarge\n"
+                "  Or provide both: --compute_cluster_id <id> --nodepool_id <id>\n"
+                "  List available instances: clarifai list-instances"
+            )
 
     # When monitor flag is used, pipeline_version_run_id is mandatory
     if monitor and not pipeline_version_run_id:
