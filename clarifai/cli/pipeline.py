@@ -1,7 +1,9 @@
 import os
 import shutil
+import sys
 
 import click
+from click_option_group import optgroup
 
 from clarifai.cli.base import cli
 from clarifai.utils.cli import (
@@ -11,6 +13,8 @@ from clarifai.utils.cli import (
     validate_context,
 )
 from clarifai.utils.logging import logger
+
+DEFAULT_PIPELINE_APP_ID = 'pipeline-app'
 
 
 def _ensure_pipeline_compute(
@@ -216,7 +220,7 @@ def run(
     # Try to load from config-lock.yaml first if no config is specified
     lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
     if not config and os.path.exists(lockfile_path):
-        logger.info("Found config-lock.yaml, using it as default config source")
+        click.echo("Found config-lock.yaml, using it as default config source")
         config = lockfile_path
 
     if config:
@@ -389,14 +393,32 @@ def run(
     "pipeline_path",
     type=click.Path(),
     required=False,
-    default=".",
+    default=None,
 )
-@click.option(
+@optgroup('Template')
+@optgroup.option(
     '--template',
     required=False,
     help='Initialize from a template (e.g., image-classification, text-prep)',
 )
-def init(pipeline_path, template):
+@optgroup.option(
+    '--set',
+    'set_values',
+    multiple=True,
+    help='Override template parameters inline. Format: --set key=value. Can be used multiple times.',
+)
+@click.option(
+    '--user_id',
+    required=False,
+    help='User ID for generated configs. Overrides context user id.',
+)
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID for generated configs. Overrides context or default app id.',
+)
+@click.pass_context
+def init(ctx, pipeline_path, template, set_values, user_id, app_id):
     """Initialize a new pipeline project structure.
 
     Creates a pipeline project structure either from a template or interactively.
@@ -405,6 +427,7 @@ def init(pipeline_path, template):
     parameters and structure. Without --template, uses the interactive flow
     to create a custom pipeline structure.
 
+    \b
     Creates the following structure in the specified directory:
     ├── config.yaml          # Pipeline configuration
     ├── stepA/               # First pipeline step
@@ -419,8 +442,29 @@ def init(pipeline_path, template):
     │       └── pipeline_step.py  # Step B implementation
     └── README.md           # Documentation
 
-    PIPELINE_PATH: Path where to create the pipeline project structure. If not specified, the current directory is used by default.
+    PIPELINE_PATH: Path where to create the pipeline project structure.
+    If not specified, the current directory is used by default.
     """
+    if pipeline_path and pipeline_path != "." and os.path.exists(pipeline_path):
+        click.echo(
+            f"Warning: The specified path '{pipeline_path}' already exists. "
+            "Please choose a different path or remove the existing one.",
+            err=True,
+        )
+        sys.exit(1)
+
+    if pipeline_path is None and not template:
+        template = _pick_template_for_init()
+        if not template:
+            return
+        pipeline_path = "."
+
+    if template:
+        validate_context(ctx)
+
+    if pipeline_path is None:
+        pipeline_path = "."
+
     # Common setup logic
     pipeline_path = _prepare_pipeline_path(pipeline_path, template)
     if not pipeline_path:
@@ -428,7 +472,7 @@ def init(pipeline_path, template):
 
     # Branch to specific initialization method
     if template:
-        success = _init_from_template(pipeline_path, template)
+        success = _init_from_template(pipeline_path, template, set_values=set_values)
     else:
         success = _init_interactive(pipeline_path)
 
@@ -457,11 +501,10 @@ def _prepare_pipeline_path(pipeline_path, template_name):
     # For template initialization, check if directory exists and is not empty
     # For interactive initialization, allow existing directories (files will be skipped individually)
     if template_name and os.path.exists(pipeline_path) and os.listdir(pipeline_path):
-        click.echo(
-            f"Error: Directory '{pipeline_path}' already exists and is not empty.", err=True
+        raise click.ClickException(
+            f"Directory '{pipeline_path}' already exists and is not empty. "
+            "Choose a different directory or remove the existing one."
         )
-        click.echo("Please choose a different directory or remove the existing one.", err=True)
-        return None
 
     # Create the pipeline directory
     os.makedirs(pipeline_path, exist_ok=True)
@@ -474,14 +517,128 @@ def _show_completion_message(pipeline_path):
     Args:
         pipeline_path: Path where pipeline was created
     """
-    logger.info(f"Pipeline initialization complete in {pipeline_path}")
-    logger.info("Next steps:")
-    logger.info("1. Review and customize the generated pipeline steps")
-    logger.info("2. Add any additional dependencies to requirements.txt files")
-    logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+    click.echo()
+    click.echo(f"Pipeline initialization complete in {pipeline_path}")
+    click.echo()
+    click.echo("Next steps:")
+    click.echo("1. Review and customize the generated pipeline steps")
+    click.echo("2. Add any additional dependencies to requirements.txt files")
+    click.echo(
+        f"3. Run 'clarifai pipeline upload {pipeline_path}/config.yaml' to upload your pipeline"
+    )
+    click.echo(
+        f"4. Use 'clarifai pipeline run --config {pipeline_path}/config.yaml [--set key=value]' to execute your pipeline"
+    )
 
 
-def _init_from_template(pipeline_path, template_name):
+def _is_interactive_terminal():
+    return bool(getattr(sys.stdin, 'isatty', lambda: False)()) and bool(
+        getattr(sys.stdout, 'isatty', lambda: False)()
+    )
+
+
+def _pick_template_for_init():
+    """Prompt the user to select a template for initialization."""
+    from clarifai.utils.template_manager import TemplateManager
+
+    if not _is_interactive_terminal():
+        raise click.ClickException(
+            "Error: Interactive template picker requires a TTY. "
+            "Use 'clarifai pipeline init --template TEMPLATE_NAME DIR'. List available templates with 'clarifai pipelinetemplate ls'."
+        )
+
+    template_manager = TemplateManager()
+    templates = sorted(
+        template_manager.list_templates(), key=lambda t: (t.get('type', ''), t['name'])
+    )
+    if not templates:
+        raise click.ClickException("Error: No pipeline templates available.")
+
+    click.echo("Select a pipeline template:")
+    for idx, template in enumerate(templates, start=1):
+        template_type = template.get('type', 'unknown')
+        click.echo(f"  [{idx}] {template['name']} ({template_type})")
+
+    selection = click.prompt("Template", type=int, default=1)
+    if selection < 1 or selection > len(templates):
+        raise click.ClickException(
+            f"Error: Please select a number between 1 and {len(templates)}."
+        )
+
+    return templates[selection - 1]['name']
+
+
+def _resolve_template_context(ctx, user_id_override=None, app_id_override=None):
+    """Resolve user_id and app_id for template initialization from context/env."""
+    current_context = getattr(getattr(ctx, 'obj', None), 'current', None)
+    if current_context is None:
+        raise click.ClickException("No active context found. Run `clarifai login` and try again.")
+
+    user_id = user_id_override or current_context.get('user_id', None)
+    if not user_id:
+        raise click.ClickException(
+            "Unable to resolve user_id from the active context. Run `clarifai login` and retry."
+        )
+
+    app_id = (
+        app_id_override or os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    )
+    if app_id:
+        return user_id, app_id
+
+    click.echo(
+        f"No app_id found in context/env; using default app_id '{DEFAULT_PIPELINE_APP_ID}'. "
+        "App creation is deferred until upload."
+    )
+    return user_id, DEFAULT_PIPELINE_APP_ID
+
+
+def _resolve_user_app_defaults(ctx, user_id_override=None, app_id_override=None):
+    """Resolve default user_id and app_id from context/env for init flows."""
+    current_context = getattr(getattr(ctx, 'obj', None), 'current', None)
+    if current_context is None:
+        return None, None
+
+    user_id = user_id_override or current_context.get('user_id', None)
+    app_id = (
+        app_id_override or os.environ.get('CLARIFAI_APP_ID') or current_context.get('app_id', None)
+    )
+
+    if user_id and not app_id:
+        click.echo(
+            f"No app_id found in context/env; using default app_id '{DEFAULT_PIPELINE_APP_ID}'. "
+            "App creation is deferred until upload."
+        )
+        app_id = DEFAULT_PIPELINE_APP_ID
+
+    return user_id, app_id
+
+
+def _parse_set_overrides(set_values):
+    """Parse --set key=value parameters into a dictionary."""
+    overrides = {}
+    if not set_values:
+        return overrides
+
+    for param in set_values:
+        if '=' not in param:
+            raise click.ClickException(
+                f"Invalid --set format: {param}. Expected format: key=value"
+            )
+        key, value = param.split('=', 1)
+        overrides[key] = value
+    return overrides
+
+
+def _default_pipeline_id_from_path(pipeline_path):
+    """Derive a deterministic pipeline id from destination path."""
+    name = os.path.basename(os.path.abspath(pipeline_path))
+    if not name or name == os.path.sep:
+        return 'hello-world-pipeline'
+    return name
+
+
+def _init_from_template(pipeline_path, template_name, set_values=None):
     """Initialize pipeline from a template.
 
     Args:
@@ -493,7 +650,6 @@ def _init_from_template(pipeline_path, template_name):
     """
     from clarifai.utils.template_manager import TemplateManager
 
-    click.echo("Welcome to Clarifai Pipeline Template Initialization!")
     click.echo(f"Using template: {template_name}")
     click.echo()
 
@@ -516,29 +672,47 @@ def _init_from_template(pipeline_path, template_name):
             click.echo(f"Parameters: {len(parameters)} required")
         click.echo()
 
-        # Collect basic pipeline information
-        click.echo("Please provide the following information:")
-        user_id = click.prompt("User ID", type=str)
-        app_id = click.prompt("App ID", type=str)
+        click_ctx = click.get_current_context(silent=True)
+        user_id_override = click_ctx.params.get('user_id') if click_ctx else None
+        app_id_override = click_ctx.params.get('app_id') if click_ctx else None
+        if (
+            click_ctx is not None
+            and getattr(getattr(click_ctx, 'obj', None), 'current', None) is not None
+        ):
+            user_id, app_id = _resolve_template_context(
+                click_ctx,
+                user_id_override=user_id_override,
+                app_id_override=app_id_override,
+            )
+        else:
+            click.echo("Please provide the following information:")
+            user_id = user_id_override or click.prompt("User ID", type=str)
+            app_id = app_id_override or click.prompt("App ID", type=str)
 
-        # Use template name as default pipeline ID
-        default_pipeline_id = template_name
-        pipeline_id = click.prompt("Pipeline ID", default=default_pipeline_id, type=str)
+        overrides = _parse_set_overrides(set_values)
+        has_context = (
+            click_ctx is not None
+            and getattr(getattr(click_ctx, 'obj', None), 'current', None) is not None
+        )
 
-        # Collect template-specific parameters
+        if has_context:
+            pipeline_id = overrides.get('id', template_name)
+        else:
+            pipeline_id = click.prompt("Pipeline ID", default=template_name, type=str)
+
         parameter_substitutions = {}
         if parameters:
-            click.echo("\nTemplate Parameters:")
+            if not has_context:
+                click.echo("\nTemplate Parameters:")
             for param in parameters:
                 param_name = param['name']
                 default_value = param['default_value']
 
-                # Format prompt as "param_name (default: value)"
-                prompt_text = f"{param_name} (default: {default_value})"
-                value = click.prompt(prompt_text, default=default_value)
-
-                # Map parameter name to user's new value for substitution
-                # Only add to substitutions if the value actually changed
+                if has_context:
+                    value = overrides.get(param_name, default_value)
+                else:
+                    prompt_text = f"{param_name} (default: {default_value})"
+                    value = click.prompt(prompt_text, default=default_value)
                 if value != default_value:
                     parameter_substitutions[param_name] = value
 
@@ -547,7 +721,7 @@ def _init_from_template(pipeline_path, template_name):
         parameter_substitutions['app_id'] = app_id
         parameter_substitutions['id'] = pipeline_id
 
-        click.echo(f"\nCreating pipeline '{pipeline_id}' from template '{template_name}'...")
+        click.echo(f"Creating pipeline '{pipeline_id}' from template '{template_name}'...")
 
         # Copy template with substitutions
         success = template_manager.copy_template(
@@ -556,6 +730,11 @@ def _init_from_template(pipeline_path, template_name):
 
         if not success:
             click.echo("Error: Failed to create pipeline from template", err=True)
+        elif parameters:
+            click.echo("\nTemplate Parameters (default values):")
+            max_name_len = max(len(str(param['name'])) for param in parameters)
+            for param in parameters:
+                click.echo(f"  {param['name']:<{max_name_len}} : {param['default_value']}")
 
         return success
 
@@ -583,23 +762,42 @@ def _init_interactive(pipeline_path):
     )
 
     try:
-        # Prompt for user inputs
-        click.echo("Welcome to Clarifai Pipeline Initialization!")
-        click.echo("Please provide the following information:")
+        click_ctx = click.get_current_context(silent=True)
+        user_id_override = click_ctx.params.get('user_id') if click_ctx else None
+        app_id_override = click_ctx.params.get('app_id') if click_ctx else None
+        default_user_id, default_app_id = _resolve_user_app_defaults(
+            click_ctx,
+            user_id_override=user_id_override,
+            app_id_override=app_id_override,
+        )
+        has_context = (
+            click_ctx is not None
+            and getattr(getattr(click_ctx, 'obj', None), 'current', None) is not None
+        )
 
-        user_id = click.prompt("User ID", type=str)
-        app_id = click.prompt("App ID", type=str)
-        pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
-        num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
+        if has_context and not default_user_id:
+            raise click.ClickException(
+                "Unable to resolve user_id from active context. Run `clarifai login` and retry."
+            )
 
-        # Get step names
-        step_names = []
-        default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
+        if has_context:
+            user_id = default_user_id
+            app_id = default_app_id or DEFAULT_PIPELINE_APP_ID
+            pipeline_id = _default_pipeline_id_from_path(pipeline_path)
+            step_names = ["stepA"]
+        else:
+            click.echo("Please provide the following information:")
+            user_id = click.prompt("User ID", type=str)
+            app_id = app_id_override or click.prompt("App ID", type=str)
+            pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
+            num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
 
-        for i in range(num_steps):
-            default_name = default_names[i] if i < len(default_names) else f"step{i + 1}"
-            step_name = click.prompt(f"Name for step {i + 1}", default=default_name, type=str)
-            step_names.append(step_name)
+            step_names = []
+            default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
+            for i in range(num_steps):
+                default_name = default_names[i] if i < len(default_names) else f"step{i + 1}"
+                step_name = click.prompt(f"Name for step {i + 1}", default=default_name, type=str)
+                step_names.append(step_name)
 
         click.echo(f"\nCreating pipeline '{pipeline_id}' with steps: {', '.join(step_names)}")
 
@@ -613,7 +811,7 @@ def _init_interactive(pipeline_path):
             )
             with open(config_path, 'w', encoding='utf-8') as f:
                 f.write(config_template)
-            logger.info(f"Created {config_path}")
+            logger.debug(f"Created {config_path}")
 
         # Create README.md
         readme_path = os.path.join(pipeline_path, "README.md")
@@ -623,7 +821,7 @@ def _init_interactive(pipeline_path):
             readme_template = get_readme_template()
             with open(readme_path, 'w', encoding='utf-8') as f:
                 f.write(readme_template)
-            logger.info(f"Created {readme_path}")
+            logger.debug(f"Created {readme_path}")
 
         # Create pipeline steps
         for step_id in step_names:
@@ -644,7 +842,7 @@ def _init_interactive(pipeline_path):
                 )
                 with open(step_config_path, 'w', encoding='utf-8') as f:
                     f.write(step_config_template)
-                logger.info(f"Created {step_config_path}")
+                logger.debug(f"Created {step_config_path}")
 
             # Create step requirements.txt
             step_requirements_path = os.path.join(step_dir, "requirements.txt")
@@ -654,7 +852,7 @@ def _init_interactive(pipeline_path):
                 step_requirements_template = get_pipeline_step_requirements_template()
                 with open(step_requirements_path, 'w', encoding='utf-8') as f:
                     f.write(step_requirements_template)
-                logger.info(f"Created {step_requirements_path}")
+                logger.debug(f"Created {step_requirements_path}")
 
             # Create step pipeline_step.py
             step_py_path = os.path.join(step_version_dir, "pipeline_step.py")
@@ -664,7 +862,7 @@ def _init_interactive(pipeline_path):
                 step_py_template = get_pipeline_step_template(step_id)
                 with open(step_py_path, 'w', encoding='utf-8') as f:
                     f.write(step_py_template)
-                logger.info(f"Created {step_py_path}")
+                logger.debug(f"Created {step_py_path}")
 
         return True
 
@@ -719,11 +917,11 @@ def validate_lock(lockfile_path):
             validator = PipelineConfigValidator()
             validator._validate_orchestration_spec(temp_config)
 
-        logger.info(f"✅ Lockfile {lockfile_path} is valid")
-        logger.info(f"Pipeline: {pipeline['id']}")
-        logger.info(f"User: {pipeline['user_id']}")
-        logger.info(f"App: {pipeline['app_id']}")
-        logger.info(f"Version: {pipeline['version_id']}")
+        click.echo(f"✅ Lockfile {lockfile_path} is valid")
+        click.echo(f"Pipeline: {pipeline['id']}")
+        click.echo(f"User: {pipeline['user_id']}")
+        click.echo(f"App: {pipeline['app_id']}")
+        click.echo(f"Version: {pipeline['version_id']}")
 
     except Exception as e:
         logger.error(f"❌ Lockfile validation failed: {e}")

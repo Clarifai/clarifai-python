@@ -346,7 +346,7 @@ class TemplateManager:
                 # Apply parameter substitutions to all copied files
                 self._apply_substitutions(destination, substitutions)
 
-                logger.info(f"Template '{template_name}' copied to {destination}")
+                logger.debug(f"Template '{template_name}' copied to {destination}")
                 return True
 
         except Exception as e:
