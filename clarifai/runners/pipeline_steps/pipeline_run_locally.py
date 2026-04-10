@@ -110,7 +110,7 @@ class PipelineStepRunLocally:
                 cmd.extend(step_args)
 
             logger.info(f"Running pipeline step in container '{container_name}'...")
-            logger.info(f"Docker command: {cmd}")
+            logger.info(f"Docker command: {' '.join(cmd)}")
 
             process = subprocess.Popen(cmd)
 

@@ -111,7 +111,7 @@ def init(pipeline_step_path):
     logger.info("4. Implement your pipeline step logic in 1/pipeline_step.py")
 
 
-@pipeline_step.command('local-run')
+@pipeline_step.command(['local-run'])
 @click.argument("pipeline_step_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--mode',
@@ -172,7 +172,7 @@ def local_run(pipeline_step_path, mode, keep_image, step_args):
         manager.run_pipeline_step_container(
             image_name=image_name,
             container_name=container_name,
-            step_args=list(step_args) if step_args else None,
+            step_args=step_args,
         )
     finally:
         if manager.container_exists(container_name):
