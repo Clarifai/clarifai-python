@@ -21,8 +21,8 @@ def dummy_pipeline_step_path(tmp_path):
 
 
 @pytest.fixture
-def pipeline_run_locally(dummy_pipeline_step_path):
-    """Instantiate PipelineRunLocally with the dummy pipeline step."""
+def pipeline_step_run_locally(dummy_pipeline_step_path):
+    """Instantiate PipelineStepRunLocally with the dummy pipeline step."""
     return PipelineStepRunLocally(dummy_pipeline_step_path)
 
 
@@ -31,28 +31,28 @@ def pipeline_run_locally(dummy_pipeline_step_path):
     sys.platform not in ["linux", "darwin"],
     reason="Test only runs on Linux and macOS.",
 )
-def test_pipeline_step_docker_build_and_run(pipeline_run_locally):
+def test_pipeline_step_docker_build_and_run(pipeline_step_run_locally):
     """Test building a Docker image and running a pipeline step in a container."""
-    assert pipeline_run_locally.is_docker_installed(), "Docker not installed."
+    assert pipeline_step_run_locally.is_docker_installed(), "Docker not installed."
 
-    pipeline_run_locally.builder.create_dockerfile()
-    image_tag = pipeline_run_locally._docker_hash()
-    step_id = pipeline_run_locally.config['pipeline_step']['id'].lower()
+    pipeline_step_run_locally.builder.create_dockerfile()
+    image_tag = pipeline_step_run_locally._docker_hash()
+    step_id = pipeline_step_run_locally.config['pipeline_step']['id'].lower()
     image_name = f"{step_id}:{image_tag}"
     container_name = "test-pipeline-step-container"
 
-    if not pipeline_run_locally.docker_image_exists(image_name):
-        pipeline_run_locally.build_docker_image(image_name=image_name)
+    if not pipeline_step_run_locally.docker_image_exists(image_name):
+        pipeline_step_run_locally.build_docker_image(image_name=image_name)
 
     try:
-        pipeline_run_locally.run_pipeline_step_container(
+        pipeline_step_run_locally.run_pipeline_step_container(
             image_name=image_name,
             container_name=container_name,
         )
     except subprocess.CalledProcessError:
         pytest.fail("Failed to run pipeline step inside the docker container.")
     finally:
-        if pipeline_run_locally.container_exists(container_name):
-            pipeline_run_locally.stop_docker_container(container_name)
-            pipeline_run_locally.remove_docker_container(container_name)
-        pipeline_run_locally.remove_docker_image(image_name)
+        if pipeline_step_run_locally.container_exists(container_name):
+            pipeline_step_run_locally.stop_docker_container(container_name)
+            pipeline_step_run_locally.remove_docker_container(container_name)
+        pipeline_step_run_locally.remove_docker_image(image_name)

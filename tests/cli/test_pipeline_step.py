@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
-from clarifai.cli.pipeline_step import init, list, upload
+from clarifai.cli.pipeline_step import init, list, local_run, upload
 
 
 class TestPipelineStepInitCommand:
@@ -452,3 +452,55 @@ class TestPipelineStepCommandHelp:
         assert '--pipeline_id' in result.output
         assert '--page_no' in result.output
         assert '--per_page' in result.output
+
+    def test_local_run_command_help(self):
+        """Test that local-run command shows helpful usage information."""
+        runner = CliRunner()
+
+        result = runner.invoke(local_run, ['--help'])
+
+        assert result.exit_code == 0
+        assert 'Run a pipeline step locally in a Docker container' in result.output
+        assert '--mode' in result.output
+        assert '--keep-image' in result.output
+        assert 'PIPELINE_STEP_PATH' in result.output
+
+
+class TestPipelineStepLocalRunCommand:
+    """Test cases for the pipeline step local-run CLI command."""
+
+    def test_local_run_nonexistent_path(self):
+        """Test local-run with nonexistent path fails."""
+        runner = CliRunner()
+
+        result = runner.invoke(local_run, ['nonexistent_path'])
+
+        assert result.exit_code != 0
+        assert 'does not exist' in result.output
+
+    @patch(
+        'clarifai.runners.pipeline_steps.pipeline_run_locally.PipelineStepRunLocally.is_docker_installed',
+        return_value=False,
+    )
+    def test_local_run_no_docker(self, mock_docker):
+        """Test local-run fails gracefully when Docker is not installed."""
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            # Create minimal pipeline step structure
+            os.makedirs('1', exist_ok=True)
+            with open('config.yaml', 'w') as f:
+                f.write(
+                    'pipeline_step:\n  id: test\n  user_id: u\n  app_id: a\n'
+                    'build_info:\n  python_version: "3.12"\n'
+                    'pipeline_step_compute_info:\n  cpu_limit: "500m"\n  cpu_memory: "500Mi"\n  num_accelerators: 0\n'
+                )
+            with open('requirements.txt', 'w') as f:
+                f.write('clarifai\n')
+            with open('1/pipeline_step.py', 'w') as f:
+                f.write('print("hello")\n')
+
+            result = runner.invoke(local_run, ['.'])
+
+            assert result.exit_code != 0
+            assert 'Docker is not installed' in result.output
