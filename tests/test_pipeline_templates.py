@@ -150,38 +150,54 @@ class TestPipelineInitWithTemplate:
         self.runner = CliRunner()
 
     @patch('clarifai.cli.pipeline._init_from_template')
-    @patch('clarifai.cli.pipeline._init_interactive')
+    @patch('clarifai.cli.pipeline._init_flag_based')
     @patch('clarifai.cli.pipeline._prepare_pipeline_path')
     @patch('clarifai.cli.pipeline._show_completion_message')
     def test_init_with_template_option(
-        self, mock_completion, mock_prepare_path, mock_interactive, mock_template
+        self, mock_completion, mock_prepare_path, mock_flag_based, mock_template
     ):
         """Test that --template option calls template initialization."""
         mock_prepare_path.return_value = '/test/path'
         mock_template.return_value = True
 
-        self.runner.invoke(init, ['--template', 'image-classification', '.'])
+        self.runner.invoke(
+            init,
+            ['--template', 'image-classification', '.', '--user_id', 'u', '--app_id', 'a'],
+        )
 
         mock_prepare_path.assert_called_once_with('.', 'image-classification')
-        mock_template.assert_called_once_with('/test/path', 'image-classification')
-        mock_interactive.assert_not_called()
+        mock_template.assert_called_once_with(
+            '/test/path',
+            'image-classification',
+            user_id='u',
+            app_id='a',
+            pipeline_id='hello-world-pipeline',
+            override_params=(),
+        )
+        mock_flag_based.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
     @patch('clarifai.cli.pipeline._init_from_template')
-    @patch('clarifai.cli.pipeline._init_interactive')
+    @patch('clarifai.cli.pipeline._init_flag_based')
     @patch('clarifai.cli.pipeline._prepare_pipeline_path')
     @patch('clarifai.cli.pipeline._show_completion_message')
     def test_init_without_template_option(
-        self, mock_completion, mock_prepare_path, mock_interactive, mock_template
+        self, mock_completion, mock_prepare_path, mock_flag_based, mock_template
     ):
-        """Test that without --template option calls interactive initialization."""
+        """Test that without --template option calls flag-based initialization."""
         mock_prepare_path.return_value = '/test/path'
-        mock_interactive.return_value = True
+        mock_flag_based.return_value = True
 
-        self.runner.invoke(init, ['.'])
+        self.runner.invoke(init, ['.', '--user_id', 'u', '--app_id', 'a'])
 
         mock_prepare_path.assert_called_once_with('.', None)
-        mock_interactive.assert_called_once_with('/test/path')
+        mock_flag_based.assert_called_once_with(
+            '/test/path',
+            user_id='u',
+            app_id='a',
+            pipeline_id='hello-world-pipeline',
+            step_names=['stepA', 'stepB'],
+        )
         mock_template.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 

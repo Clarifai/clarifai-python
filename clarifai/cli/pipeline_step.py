@@ -8,6 +8,7 @@ from clarifai.utils.cli import (
     AliasedGroup,
     convert_timestamp_to_string,
     display_co_resources,
+    resolve_id,
     validate_context,
 )
 from clarifai.utils.logging import logger
@@ -46,7 +47,14 @@ def upload(pipeline_step_path, skip_dockerfile):
     required=False,
     default=".",
 )
-def init(pipeline_step_path):
+@click.option('--user_id', required=False, help='User ID for the pipeline step.')
+@click.option('--app_id', required=False, help='App ID for the pipeline step.')
+@click.option(
+    '--step_id',
+    required=False,
+    help='Pipeline step ID.',
+)
+def init(pipeline_step_path, user_id, app_id, step_id):
     """Initialize a new pipeline step directory structure.
 
     Creates the following structure in the specified directory:
@@ -56,12 +64,27 @@ def init(pipeline_step_path):
     └── config.yaml
 
     PIPELINE_STEP_PATH: Path where to create the pipeline step directory structure. If not specified, the current directory is used by default.
+
+    Examples:
+
+        # Basic initialization with defaults (user_id/app_id from global config)
+        clarifai pipelinestep init
+
+        # Initialize with explicit IDs
+        clarifai pipelinestep init --user_id=my_user --app_id=my_app --step_id=my-step
+
+        # Initialize in a specific directory
+        clarifai pipelinestep init ./my-step --user_id=my_user --app_id=my_app --step_id=my-step
     """
     from clarifai.cli.templates.pipeline_step_templates import (
         get_config_template,
         get_pipeline_step_template,
         get_requirements_template,
     )
+
+    # Resolve user_id and app_id from flag → global config → prompt
+    user_id = resolve_id(user_id, 'user_id', 'User ID')
+    app_id = resolve_id(app_id, 'app_id', 'App ID')
 
     # Resolve the absolute path
     pipeline_step_path = os.path.abspath(pipeline_step_path)
@@ -79,7 +102,7 @@ def init(pipeline_step_path):
         logger.warning(f"File {pipeline_step_py_path} already exists, skipping...")
     else:
         pipeline_step_template = get_pipeline_step_template()
-        with open(pipeline_step_py_path, 'w') as f:
+        with open(pipeline_step_py_path, 'w', encoding='utf-8') as f:
             f.write(pipeline_step_template)
         logger.info(f"Created {pipeline_step_py_path}")
 
@@ -89,7 +112,7 @@ def init(pipeline_step_path):
         logger.warning(f"File {requirements_path} already exists, skipping...")
     else:
         requirements_template = get_requirements_template()
-        with open(requirements_path, 'w') as f:
+        with open(requirements_path, 'w', encoding='utf-8') as f:
             f.write(requirements_template)
         logger.info(f"Created {requirements_path}")
 
@@ -98,17 +121,24 @@ def init(pipeline_step_path):
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        config_template = get_config_template()
-        with open(config_path, 'w') as f:
+        config_template = get_config_template(
+            user_id=user_id, app_id=app_id, **({'step_id': step_id} if step_id else {})
+        )
+        with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
 
     logger.info(f"Pipeline step initialization complete in {pipeline_step_path}")
-    logger.info("Next steps:")
-    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-    logger.info("2. Update the pipeline step configuration in config.yaml")
-    logger.info("3. Add your pipeline step dependencies to requirements.txt")
-    logger.info("4. Implement your pipeline step logic in 1/pipeline_step.py")
+    if not step_id:
+        logger.info("Next steps:")
+        logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
+        logger.info("2. Update the pipeline step configuration in config.yaml")
+        logger.info("3. Add your pipeline step dependencies to requirements.txt")
+        logger.info("4. Implement your pipeline step logic in 1/pipeline_step.py")
+    else:
+        logger.info("Next steps:")
+        logger.info("1. Add your pipeline step dependencies to requirements.txt")
+        logger.info("2. Implement your pipeline step logic in 1/pipeline_step.py")
 
 
 @pipeline_step.command(['ls'])

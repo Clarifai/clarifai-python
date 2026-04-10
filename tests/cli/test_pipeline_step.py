@@ -19,7 +19,7 @@ class TestPipelineStepInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            result = runner.invoke(init, ['.', '--user_id', 'test-user', '--app_id', 'test-app'])
 
             assert result.exit_code == 0
 
@@ -39,7 +39,9 @@ class TestPipelineStepInitCommand:
 
         with runner.isolated_filesystem():
             custom_path = 'my_pipeline_step'
-            result = runner.invoke(init, [custom_path])
+            result = runner.invoke(
+                init, [custom_path, '--user_id', 'test-user', '--app_id', 'test-app']
+            )
 
             assert result.exit_code == 0
 
@@ -62,7 +64,7 @@ class TestPipelineStepInitCommand:
             with open('config.yaml', 'w') as f:
                 f.write('existing content')
 
-            result = runner.invoke(init, ['.'])
+            result = runner.invoke(init, ['.', '--user_id', 'test-user', '--app_id', 'test-app'])
 
             assert result.exit_code == 0
 
@@ -80,7 +82,7 @@ class TestPipelineStepInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            result = runner.invoke(init, ['.', '--user_id', 'test-user', '--app_id', 'test-app'])
 
             assert result.exit_code == 0
 
@@ -100,7 +102,7 @@ class TestPipelineStepInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            result = runner.invoke(init, ['.', '--user_id', 'test-user', '--app_id', 'test-app'])
 
             assert result.exit_code == 0
 
@@ -118,7 +120,8 @@ class TestPipelineStepInitCommand:
         caplog.set_level(logging.INFO)
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            # Provide user_id and app_id but not step_id so TODO message is shown
+            result = runner.invoke(init, ['.', '--user_id', 'test-user', '--app_id', 'test-app'])
 
             assert result.exit_code == 0, result.output
 
@@ -360,8 +363,10 @@ class TestPipelineStepCommandIntegration:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            # Initialize pipeline step
-            init_result = runner.invoke(init, ['.'])
+            # Initialize pipeline step with required IDs
+            init_result = runner.invoke(
+                init, ['.', '--user_id', 'test-user', '--app_id', 'test-app']
+            )
             assert init_result.exit_code == 0
 
             # Verify that the created structure would be valid for upload

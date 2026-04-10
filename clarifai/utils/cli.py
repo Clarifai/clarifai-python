@@ -914,3 +914,42 @@ def print_field_help(name: str, description: str) -> None:
     click.echo(click.style(f"➤ {name}", fg="bright_green", bold=True))
     if description:
         click.echo(click.style(f"    {description}", fg="green"))
+
+
+def resolve_id(value, config_key, prompt_text):
+    """Resolve a user/app ID value from a CLI flag, global config, or an interactive prompt.
+
+    Resolution order:
+    1. Use ``value`` directly if provided (non-empty).
+    2. Try ``Config.from_yaml().current.get(config_key)`` from the active context in
+       ``~/.clarifai/config.yaml``.
+    3. Fall back to ``click.prompt(prompt_text)``.
+
+    Args:
+        value: Value passed via CLI flag (may be None or empty).
+        config_key: Key to look up in the current context (e.g. ``'user_id'``).
+        prompt_text: Text shown to the user when prompting interactively.
+
+    Returns:
+        str: Resolved non-empty value.
+    """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+
+    if value:
+        return value
+
+    # Try global config
+    try:
+        from clarifai.utils.config import Config
+
+        config_value = Config.from_yaml().current.get(config_key)
+        if config_value and config_value != '_empty_':
+            _logger.debug(f"Using {config_key} from global config: {config_value}")
+            return config_value
+    except Exception:
+        pass
+
+    # Fall back to interactive prompt
+    return click.prompt(prompt_text, type=str)
