@@ -125,15 +125,30 @@ def init(pipeline_step_path):
     default=False,
     help='Keep the Docker image after the pipeline step finishes.',
 )
-def local_run(pipeline_step_path, mode, keep_image):
+@click.option(
+    '--step-args',
+    default=None,
+    help='Arguments to pass to pipeline_step.py (e.g., "--param_a hello --param_b world").',
+)
+def local_run(pipeline_step_path, mode, keep_image, step_args):
     """Run a pipeline step locally in a Docker container.
 
+    \b
     PIPELINE_STEP_PATH: Path to the pipeline step directory (containing config.yaml,
     requirements.txt, and 1/pipeline_step.py). Defaults to current directory.
+
+    \b
+    Pass arguments to the step script via --step-args:
+      clarifai pipelinestep local-run ./my-step --step-args "--param_a hello --param_b world"
 
     This reuses the same Docker build infrastructure as ``clarifai model serve
     --mode container`` but executes pipeline_step.py once and exits.
     """
+    # Parse step-args string into a list
+    if step_args:
+        import shlex
+
+        step_args = shlex.split(step_args)
     from clarifai.runners.pipeline_steps.pipeline_run_locally import PipelineStepRunLocally
 
     manager = PipelineStepRunLocally(pipeline_step_path)
@@ -157,6 +172,7 @@ def local_run(pipeline_step_path, mode, keep_image):
         manager.run_pipeline_step_container(
             image_name=image_name,
             container_name=container_name,
+            step_args=list(step_args) if step_args else None,
         )
     finally:
         if manager.container_exists(container_name):

@@ -70,11 +70,15 @@ class PipelineStepRunLocally:
         image_name,
         container_name="clarifai-pipeline-step-container",
         env_vars=None,
+        step_args=None,
     ):
         """Run pipeline_step.py inside a Docker container and wait for it to finish.
 
         Unlike ``ModelRunLocally.run_docker_container`` which starts a long-running
         server, this method executes the pipeline step script once and exits.
+
+        Args:
+            step_args: Optional list of arguments to pass to pipeline_step.py.
         """
         try:
             cmd = ["docker", "run", "--name", container_name, "--rm", "--network", "host"]
@@ -100,6 +104,10 @@ class PipelineStepRunLocally:
             cmd.extend(["--entrypoint", "python"])
             cmd.append(image_name)
             cmd.extend(["/home/nonroot/main/1/pipeline_step.py"])
+
+            # Append any extra arguments for the pipeline step script
+            if step_args:
+                cmd.extend(step_args)
 
             logger.info(f"Running pipeline step in container '{container_name}'...")
             logger.info(f"Docker command: {cmd}")

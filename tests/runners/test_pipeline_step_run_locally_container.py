@@ -48,6 +48,7 @@ def test_pipeline_step_docker_build_and_run(pipeline_step_run_locally):
         pipeline_step_run_locally.run_pipeline_step_container(
             image_name=image_name,
             container_name=container_name,
+            step_args=["--param_a", "hello", "--param_b", "world"],
         )
     except subprocess.CalledProcessError:
         pytest.fail("Failed to run pipeline step inside the docker container.")

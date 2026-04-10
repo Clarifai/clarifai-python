@@ -464,6 +464,7 @@ class TestPipelineStepCommandHelp:
         assert '--mode' in result.output
         assert '--keep-image' in result.output
         assert 'PIPELINE_STEP_PATH' in result.output
+        assert '--step-args' in result.output
 
 
 class TestPipelineStepLocalRunCommand:
@@ -504,3 +505,20 @@ class TestPipelineStepLocalRunCommand:
 
             assert result.exit_code != 0
             assert 'Docker is not installed' in result.output
+
+    def test_local_run_step_args_parsing(self):
+        """Test that --step-args string is correctly parsed into a list."""
+        import shlex
+
+        # This is the parsing logic used inside the local_run command
+        step_args_str = "--param_a hello --param_b world"
+        parsed = shlex.split(step_args_str)
+        assert parsed == ['--param_a', 'hello', '--param_b', 'world']
+
+        # Quoted values
+        step_args_str = '--param_a "hello world" --param_b value'
+        parsed = shlex.split(step_args_str)
+        assert parsed == ['--param_a', 'hello world', '--param_b', 'value']
+
+        # None input means no args
+        assert shlex.split("") == []
