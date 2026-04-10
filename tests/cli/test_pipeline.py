@@ -631,11 +631,13 @@ class TestUploadPipeline:
 
         mock_builder.upload_pipeline_steps.return_value = True
         mock_builder.create_pipeline.return_value = (True, "version-123")
+        mock_builder.ensure_app_exists.return_value = True
 
         # Should not raise any exception
         upload_pipeline("test-config.yaml")
 
         mock_builder_class.assert_called_once_with("test-config.yaml")
+        mock_builder.ensure_app_exists.assert_called_once()
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
         # Note: config.yaml is no longer modified during pipeline upload
@@ -654,6 +656,7 @@ class TestUploadPipeline:
 
         mock_builder.upload_pipeline_steps.return_value = True
         mock_builder.create_pipeline.return_value = (True, "version-123")
+        mock_builder.ensure_app_exists.return_value = True
 
         # Should not raise any exception
         path_to_dir = "/path/to/directory"
@@ -661,6 +664,7 @@ class TestUploadPipeline:
 
         # Should call PipelineBuilder with the config.yaml path
         mock_builder_class.assert_called_once_with(os.path.join(path_to_dir, "config.yaml"))
+        mock_builder.ensure_app_exists.assert_called_once()
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
         # Note: config.yaml is no longer modified during pipeline upload
@@ -687,13 +691,32 @@ class TestUploadPipeline:
 
         mock_builder.upload_pipeline_steps.return_value = True
         mock_builder.create_pipeline.return_value = (True, "version-123")
+        mock_builder.ensure_app_exists.return_value = True
 
         # Should not raise any exception
         upload_pipeline("test-config.yaml")
 
+        mock_builder.ensure_app_exists.assert_called_once()
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
         # Note: config.yaml is no longer modified during pipeline upload
+
+    @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
+    @patch('sys.exit')
+    def test_upload_pipeline_app_check_failure(self, mock_exit, mock_builder_class):
+        """Test pipeline upload exits when app ensure/create fails."""
+        mock_builder = Mock()
+        mock_builder_class.return_value = mock_builder
+
+        mock_builder.ensure_app_exists.return_value = False
+        mock_exit.side_effect = SystemExit(1)
+
+        with pytest.raises(SystemExit):
+            upload_pipeline("test-config.yaml")
+
+        mock_exit.assert_called_once_with(1)
+        mock_builder.upload_pipeline_steps.assert_not_called()
+        mock_builder.create_pipeline.assert_not_called()
 
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     @patch('sys.exit')
@@ -702,6 +725,7 @@ class TestUploadPipeline:
         mock_builder = Mock()
         mock_builder_class.return_value = mock_builder
 
+        mock_builder.ensure_app_exists.return_value = True
         mock_builder.upload_pipeline_steps.return_value = False
         # Make sys.exit raise an exception to stop execution
         mock_exit.side_effect = SystemExit(1)
@@ -719,6 +743,7 @@ class TestUploadPipeline:
         mock_builder = Mock()
         mock_builder_class.return_value = mock_builder
 
+        mock_builder.ensure_app_exists.return_value = True
         mock_builder.upload_pipeline_steps.return_value = True
         mock_builder.create_pipeline.return_value = (False, "")
 
@@ -876,6 +901,159 @@ class TestPipelineInitCommand:
                 'model-train',
                 'model-deploy',
             ]
+
+    def test_init_command_dir_uses_context_user_and_app_without_prompting(self):
+        """Test that explicit DIR init uses context user/app without prompting for them."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            # only prompts for pipeline id, num steps, and step names
+            inputs = "ctx-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['my_pipeline'], input=inputs, obj=MockConfig())
+
+            assert result.exit_code == 0
+            assert "User ID" not in result.output
+            assert "App ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'ctx-user'
+            assert config['pipeline']['app_id'] == 'ctx-app'
+
+    def test_init_command_dir_uses_default_app_id_when_context_app_missing(self):
+        """Test explicit DIR init falls back to pipeline-app when app_id missing in context."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = None
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            inputs = "ctx-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['my_pipeline'], input=inputs, obj=MockConfig())
+
+            assert result.exit_code == 0
+            assert "App ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'ctx-user'
+            assert config['pipeline']['app_id'] == 'pipeline-app'
+
+    def test_init_command_dir_app_id_option_overrides_context_app(self):
+        """Test explicit DIR init uses --app_id over context app_id."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                init, ['--app_id', 'override-app', 'my_pipeline'], obj=MockConfig()
+            )
+
+            assert result.exit_code == 0
+            assert "App ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'ctx-user'
+            assert config['pipeline']['app_id'] == 'override-app'
+
+    def test_init_command_dir_user_id_option_overrides_context_user(self):
+        """Test explicit DIR init uses --user_id over context user_id."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                init, ['--user_id', 'override-user', 'my_pipeline'], obj=MockConfig()
+            )
+
+            assert result.exit_code == 0
+            assert "User ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'override-user'
+            assert config['pipeline']['app_id'] == 'ctx-app'
+
+    def test_init_command_dir_user_and_app_options_override_context(self):
+        """Test explicit DIR init uses --user_id and --app_id over context values."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                init,
+                ['--user_id', 'override-user', '--app_id', 'override-app', 'my_pipeline'],
+                obj=MockConfig(),
+            )
+
+            assert result.exit_code == 0
+            assert "User ID" not in result.output
+            assert "App ID" not in result.output
+
+            with open('my_pipeline/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['user_id'] == 'override-user'
+            assert config['pipeline']['app_id'] == 'override-app'
 
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
@@ -1061,7 +1239,9 @@ class TestPipelineInitCommand:
 
                 # Should call template initialization with prepared path
                 mock_prepare.assert_called_once_with('.', 'image-classification')
-                mock_template_init.assert_called_once_with('/test/path', 'image-classification')
+                mock_template_init.assert_called_once_with(
+                    '/test/path', 'image-classification', set_values=()
+                )
                 mock_completion.assert_called_once_with('/test/path')
 
     def test_init_command_without_template_calls_interactive(self):
@@ -1086,6 +1266,96 @@ class TestPipelineInitCommand:
                 mock_interactive.assert_called_once_with('/test/path')
                 mock_template.assert_not_called()
                 mock_completion.assert_called_once_with('/test/path')
+
+    def test_init_command_without_args_uses_template_picker(self):
+        """Test that no-arg init uses template picker flow."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+
+            class MockContext:
+                def __init__(self):
+                    self.user_id = 'test-user'
+                    self.app_id = 'test-app'
+                    self.pat = 'test-pat'
+                    self.api_base = 'https://api.clarifai.com'
+
+                def get(self, key, default=None):
+                    return getattr(self, key, default)
+
+            class MockConfig:
+                def __init__(self):
+                    self.current = MockContext()
+
+            with (
+                patch('clarifai.cli.pipeline._is_interactive_terminal', return_value=True),
+                patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
+                patch('clarifai.cli.pipeline._init_from_template') as mock_template_init,
+                patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
+                patch('clarifai.utils.template_manager.TemplateManager') as mock_tm_class,
+            ):
+                mock_prepare.return_value = '/test/path'
+                mock_template_init.return_value = True
+                mock_tm = Mock()
+                mock_tm_class.return_value = mock_tm
+                mock_tm.list_templates.return_value = [
+                    {'name': 'image-classification', 'type': 'train'},
+                    {'name': 'text-prep', 'type': 'data'},
+                ]
+
+                result = runner.invoke(init, [], input='1\n', obj=MockConfig())
+
+                assert result.exit_code == 0
+                mock_prepare.assert_called_once_with('.', 'text-prep')
+                mock_template_init.assert_called_once_with(
+                    '/test/path', 'text-prep', set_values=()
+                )
+
+    def test_init_command_with_template_set_overrides(self):
+        """Test that init forwards repeatable --set values to template initialization."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            with (
+                patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
+                patch('clarifai.cli.pipeline._init_from_template') as mock_template_init,
+                patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
+            ):
+                mock_prepare.return_value = '/test/path'
+                mock_template_init.return_value = True
+
+                result = runner.invoke(
+                    init,
+                    [
+                        '--template',
+                        'image-classification',
+                        '--set',
+                        'key1=value1',
+                        '--set',
+                        'key2=value2',
+                        '.',
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_prepare.assert_called_once_with('.', 'image-classification')
+                mock_template_init.assert_called_once_with(
+                    '/test/path',
+                    'image-classification',
+                    set_values=('key1=value1', 'key2=value2'),
+                )
+                mock_completion.assert_called_once_with('/test/path')
+
+    def test_init_command_without_args_non_tty_shows_actionable_error(self):
+        """Test that no-arg init fails in non-interactive shells with guidance."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, [])
+
+            assert result.exit_code != 0
+            assert 'Interactive template picker requires a TTY' in result.output
+            assert '--template TEMPLATE_NAME DIR' in result.output
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_success(self, mock_template_manager_class):
@@ -1200,6 +1470,136 @@ class TestPipelineInitCommand:
             # Should return False for copy failure
             assert result is False
 
+    @patch('clarifai.cli.pipeline._resolve_template_context')
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_uses_context_without_prompting_for_user_or_app(
+        self, mock_template_manager_class, mock_resolve_context
+    ):
+        """Test that template init resolves user/app from context without prompts."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+        mock_manager.get_template_info.return_value = {
+            'name': 'test-template',
+            'type': 'train',
+            'step_directories': ['StepA'],
+            'parameters': [],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.copy_template.return_value = True
+        mock_resolve_context.return_value = ('ctx-user', 'ctx-app')
+
+        class MockContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        with runner.isolated_filesystem():
+            with patch('click.prompt') as mock_prompt:
+                result = runner.invoke(
+                    init,
+                    ['--template', 'test-template', '.'],
+                    obj=MockConfig(),
+                )
+
+                assert result.exit_code == 0
+                assert result.output.count('User ID') == 0
+                assert result.output.count('App ID') == 0
+                prompts = [args[0] for args, _ in mock_prompt.call_args_list]
+                assert 'User ID' not in prompts
+                assert 'App ID' not in prompts
+                assert 'Pipeline ID' not in prompts
+                assert result.exit_code == 0
+
+        call_args = mock_manager.copy_template.call_args
+        substitutions = call_args[0][2]
+        assert substitutions['user_id'] == 'ctx-user'
+        assert substitutions['app_id'] == 'ctx-app'
+        assert substitutions['id'] == 'test-template'
+
+    def test_resolve_template_context_uses_default_app_id_when_missing(self):
+        """Test context resolution falls back to default app id if app_id is absent."""
+        from clarifai.cli.pipeline import _resolve_template_context
+
+        class MockCurrentContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = None
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockObj:
+            def __init__(self):
+                self.current = MockCurrentContext()
+
+        class MockCtx:
+            def __init__(self):
+                self.obj = MockObj()
+
+        user_id, app_id = _resolve_template_context(MockCtx())
+
+        assert user_id == 'ctx-user'
+        assert app_id == 'pipeline-app'
+
+    def test_resolve_template_context_app_id_option_overrides_context_and_default(self):
+        """Test template context resolution prioritizes explicit app_id override."""
+        from clarifai.cli.pipeline import _resolve_template_context
+
+        class MockCurrentContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockObj:
+            def __init__(self):
+                self.current = MockCurrentContext()
+
+        class MockCtx:
+            def __init__(self):
+                self.obj = MockObj()
+
+        user_id, app_id = _resolve_template_context(MockCtx(), app_id_override='override-app')
+
+        assert user_id == 'ctx-user'
+        assert app_id == 'override-app'
+
+    def test_resolve_template_context_user_id_option_overrides_context_user(self):
+        """Test template context resolution prioritizes explicit user_id override."""
+        from clarifai.cli.pipeline import _resolve_template_context
+
+        class MockCurrentContext:
+            def __init__(self):
+                self.user_id = 'ctx-user'
+                self.app_id = 'ctx-app'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
+        class MockObj:
+            def __init__(self):
+                self.current = MockCurrentContext()
+
+        class MockCtx:
+            def __init__(self):
+                self.obj = MockObj()
+
+        user_id, app_id = _resolve_template_context(MockCtx(), user_id_override='override-user')
+
+        assert user_id == 'override-user'
+        assert app_id == 'ctx-app'
+
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_with_parameters(self, mock_template_manager_class):
         """Test template initialization with multiple generic parameters."""
@@ -1276,6 +1676,52 @@ class TestPipelineInitCommand:
             assert substitutions['PARAM_C'] == 'new_value'
             assert 'PARAM_D' in substitutions
             assert substitutions['PARAM_D'] == '0.002'
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_prints_parameter_defaults_after_success(
+        self, mock_template_manager_class, capsys
+    ):
+        """Test template init prints parameter defaults after successful creation."""
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        mock_info = {
+            'name': 'test-template',
+            'type': 'train',
+            'step_directories': ['StepA'],
+            'parameters': [
+                {
+                    'name': 'EXAMPLE_PATH',
+                    'default_value': '/default/path',
+                },
+                {
+                    'name': 'EXAMPLE_BATCH_SIZE',
+                    'default_value': 16,
+                },
+            ],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = True
+
+        from clarifai.cli.pipeline import _init_from_template
+
+        with patch('click.prompt') as mock_prompt:
+            mock_prompt.side_effect = [
+                'test-user',
+                'test-app',
+                'test-pipeline',
+                '/custom/path',
+                '32',
+            ]
+
+            result = _init_from_template('/test/path', 'test-template')
+
+        assert result is True
+        output = capsys.readouterr().out
+        assert 'Template Parameters (default values):' in output
+        assert '  EXAMPLE_PATH       : /default/path' in output
+        assert '  EXAMPLE_BATCH_SIZE : 16' in output
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
@@ -1476,9 +1922,7 @@ class TestPipelineRunCommand:
 
             assert result.exit_code != 0
             assert result.exception is not None
-            assert '--compute_cluster_id and --nodepool_id are mandatory parameters' in str(
-                result.exception
-            )
+            assert '--instance is required' in str(result.exception)
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')

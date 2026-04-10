@@ -101,6 +101,70 @@ spec:
             assert saved_data["pipeline"]["id"] == "test-pipeline"
             assert saved_data["pipeline"]["version_id"] == "pipeline-version-456"
 
+    def test_generate_lockfile_preserves_compute_section(self):
+        """Test that compute section inside pipeline config is preserved in lockfile."""
+        config_with_compute = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "step_directories": ["stepA"],
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-workflow
+spec:
+  entrypoint: sequence
+  templates:
+  - name: sequence
+    steps:
+    - - name: step1
+        templateRef:
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
+                    """
+                },
+                "compute": {
+                    "instance": "g5.xlarge",
+                    "cloud": "aws",
+                    "region": "us-east-1",
+                },
+            },
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(config_with_compute, f)
+            temp_path = f.name
+
+        try:
+            builder = PipelineBuilder(temp_path)
+            builder.uploaded_step_versions = {"stepA": "version-123"}
+
+            # Test both lockfile generation methods
+            lockfile_data = builder.generate_lockfile_data(
+                pipeline_id="test-pipeline", pipeline_version_id="v1"
+            )
+            assert lockfile_data["pipeline"]["compute"]["instance"] == "g5.xlarge"
+            assert lockfile_data["pipeline"]["compute"]["cloud"] == "aws"
+            assert lockfile_data["pipeline"]["compute"]["region"] == "us-east-1"
+
+            lockfile_data2 = builder.prepare_lockfile_with_step_versions()
+            assert lockfile_data2["pipeline"]["compute"]["instance"] == "g5.xlarge"
+        finally:
+            os.unlink(temp_path)
+
+    def test_generate_lockfile_no_compute_section(self, temp_config_file):
+        """Test that lockfile works fine when config has no compute section."""
+        builder = PipelineBuilder(temp_config_file)
+        builder.uploaded_step_versions = {"stepA": "version-123"}
+
+        lockfile_data = builder.generate_lockfile_data(
+            pipeline_id="test-pipeline", pipeline_version_id="v1"
+        )
+        assert "compute" not in lockfile_data["pipeline"]
+
     def test_generate_lockfile_data_no_step_versions(self, temp_config_file):
         """Test generating lockfile data when no step versions are uploaded."""
         builder = PipelineBuilder(temp_config_file)

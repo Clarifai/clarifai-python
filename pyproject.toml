@@ -14,4 +14,9 @@ dynamic = [
 
 
 [tool.pytest.ini_options]
-markers = ["requires_secrets: mark a test as requiring secrets to run", "coverage_only: mark a test as required to run for coverage purpose only"]
+markers = [
+    "requires_secrets: mark a test as requiring secrets to run",
+    "coverage_only: mark a test as required to run for coverage purpose only",
+    "asyncio",
+    "maintainer_approval: marks tests that require maintainer approval to run"
+]

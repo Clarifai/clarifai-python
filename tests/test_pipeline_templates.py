@@ -163,7 +163,7 @@ class TestPipelineInitWithTemplate:
         self.runner.invoke(init, ['--template', 'image-classification', '.'])
 
         mock_prepare_path.assert_called_once_with('.', 'image-classification')
-        mock_template.assert_called_once_with('/test/path', 'image-classification')
+        mock_template.assert_called_once_with('/test/path', 'image-classification', set_values=())
         mock_interactive.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
@@ -181,7 +181,8 @@ class TestPipelineInitWithTemplate:
         self.runner.invoke(init, ['.'])
 
         mock_prepare_path.assert_called_once_with('.', None)
-        mock_interactive.assert_called_once_with('/test/path')
+        mock_interactive.assert_called_once()
+        assert mock_interactive.call_args[0][0] == '/test/path'
         mock_template.assert_not_called()
         mock_completion.assert_called_once_with('/test/path')
 
