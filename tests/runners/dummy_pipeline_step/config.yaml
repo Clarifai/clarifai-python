@@ -3,6 +3,10 @@ pipeline_step:
   user_id: "test_user"
   app_id: "test_app"
 
+pipeline_step_input_params:
+  - name: input_text
+    description: "Text input for processing"
+
 build_info:
   python_version: "3.12"
 

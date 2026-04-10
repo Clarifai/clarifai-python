@@ -511,14 +511,14 @@ class TestPipelineStepLocalRunCommand:
         import shlex
 
         # This is the parsing logic used inside the local_run command
-        step_args_str = "--param_a hello --param_b world"
+        step_args_str = "--input_text hello"
         parsed = shlex.split(step_args_str)
-        assert parsed == ['--param_a', 'hello', '--param_b', 'world']
+        assert parsed == ['--input_text', 'hello']
 
-        # Quoted values
-        step_args_str = '--param_a "hello world" --param_b value'
+        # Quoted values with spaces
+        step_args_str = '--input_text "hello world"'
         parsed = shlex.split(step_args_str)
-        assert parsed == ['--param_a', 'hello world', '--param_b', 'value']
+        assert parsed == ['--input_text', 'hello world']
 
         # None input means no args
         assert shlex.split("") == []
