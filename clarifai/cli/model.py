@@ -2016,6 +2016,17 @@ def serve_cmd(
     with _quiet_sdk_logger(suppress):
         user = User(user_id=user_id, pat=pat, base_url=base_url)
 
+        # Determine visibility for all created resources.
+        # Private by default; use --public to make resources publicly visible.
+        if public:
+            app_visibility = resources_pb2.Visibility(
+                gettable=resources_pb2.Visibility.Gettable.PUBLIC
+            )
+        else:
+            app_visibility = resources_pb2.Visibility(
+                gettable=resources_pb2.Visibility.Gettable.PRIVATE
+            )
+
         # 1. Compute cluster (shared, reusable — never cleaned up)
         cc_id = _get_saved('compute_cluster_id') or DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
         try:
@@ -2025,6 +2036,7 @@ def serve_cmd(
             out.status("Creating compute cluster... ", nl=False)
             cc_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG)
             cc_config["compute_cluster"]["id"] = cc_id
+            cc_config["compute_cluster"]["visibility"]["gettable"] = app_visibility.gettable
             user.create_compute_cluster(
                 compute_cluster_id=cc_id,
                 compute_cluster_config=cc_config,
@@ -2041,6 +2053,7 @@ def serve_cmd(
             np_config = copy.deepcopy(DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG)
             np_config["nodepool"]["id"] = np_id
             np_config["nodepool"]["compute_cluster"]["id"] = cc_id
+            np_config["nodepool"]["visibility"]["gettable"] = app_visibility.gettable
             nodepool = user.compute_cluster(cc_id).create_nodepool(
                 nodepool_config=np_config,
                 nodepool_id=np_id,
@@ -2048,15 +2061,6 @@ def serve_cmd(
             click.echo("done")
 
         # 3. App (shared, reusable — never cleaned up)
-        # Private by default; use --public to make resources publicly visible.
-        if public:
-            app_visibility = resources_pb2.Visibility(
-                gettable=resources_pb2.Visibility.Gettable.PUBLIC
-            )
-        else:
-            app_visibility = resources_pb2.Visibility(
-                gettable=resources_pb2.Visibility.Gettable.PRIVATE
-            )
         app_exists = True
         try:
             app = user.app(app_id)
