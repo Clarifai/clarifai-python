@@ -2110,11 +2110,16 @@ def serve_cmd(
                 ):
                     _saved_state.pop(stale_key, None)
                 raise Exception("recreate")
-            # Patch visibility to match --public flag
+            # Patch visibility to match --public flag (PUBLIC or PRIVATE)
             try:
                 app.patch_model(model_id, visibility=app_visibility.gettable)
-            except Exception:
-                pass
+            except Exception as e:
+                if "user profile has to be set public" in str(e).lower():
+                    out.warning(
+                        "Your user profile must be public to use --public. "
+                        "Set it at https://clarifai.com/me/settings and try again."
+                    )
+                    raise SystemExit(1)
             out.status("Model ready")
         except Exception:
             if not model_existed:
