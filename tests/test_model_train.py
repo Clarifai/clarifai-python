@@ -37,6 +37,10 @@ class Testmodeltrain:
             model_id=CREATE_MODEL_ID_1, model_type_id='text-classifier'
         )
 
+    @pytest.mark.skip(
+        reason="Legacy training template API has been deprecated server-side. "
+        "Use the pipelines-based training path instead."
+    )
     def test_model_templates(self):
         model_types = self.app.list_trainable_model_types()
         templates = self.visual_classifier_model.list_training_templates()
@@ -46,6 +50,10 @@ class Testmodeltrain:
         assert len(model_types) == 8  # list trainable model types test
         assert len(templates) >= 11  # list training templates test
 
+    @pytest.mark.skip(
+        reason="Legacy training template API has been deprecated server-side. "
+        "Use the pipelines-based training path instead."
+    )
     def test_model_params(self):
         model_params = self.visual_classifier_model.get_params(
             template='MMClassification_AdvancedConfig', save_to='tests/assets/model_params.yaml'
