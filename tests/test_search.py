@@ -130,18 +130,18 @@ class TestAnnotationSearch:
         query = self.search.query(filters=filter_dict_list)
         assert len(list(query)) == expected_hits
 
-    # TODO: Remove flaky marker once backend LOPQ search latency is addressed.
+    # TODO: Re-enable once backend LOPQ search latency is addressed.
     # Rank search on freshly-created apps can time out in CI due to slow Postgres
     # query plans (missing index with model_version_id) in py-svc-lopq-searcher.
     # Tests pass reliably locally; CI failures are backend-side, not code regressions.
-    @pytest.mark.flaky(reruns=2, reruns_delay=10)
+    @pytest.mark.skip(reason="Skipped due to backend LOPQ search latency on fresh CI apps")
     def test_rank_search(self):
         query = self.search.query(ranks=[{"image_url": "https://samples.clarifai.com/dog.tiff"}])
         for q in query:
             assert len(q.hits) == 1
             assert q.hits[0].input.id == "dog-tiff"
 
-    @pytest.mark.flaky(reruns=2, reruns_delay=10)
+    @pytest.mark.skip(reason="Skipped due to backend LOPQ search latency on fresh CI apps")
     def test_rank_filter_search(self):
         query = self.search.query(
             ranks=[{"image_url": "https://samples.clarifai.com/dog.tiff"}],
@@ -200,7 +200,7 @@ class TestAnnotationSearch:
         with pytest.raises(UserError):
             _ = self.search.query(filters=[{"input_id": "test"}])
 
-    @pytest.mark.flaky(reruns=2, reruns_delay=10)
+    @pytest.mark.skip(reason="Skipped due to backend LOPQ search latency on fresh CI apps")
     def test_rank_search_deduplicate(self):
         query = self.search_deduplicate.query(
             ranks=[{"image_url": "https://samples.clarifai.com/dog.tiff"}]
