@@ -1,3 +1,18 @@
+## [[12.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.0) - [PyPI](https://pypi.org/project/clarifai/12.4.0/) - 2026-04-15
+
+### Added
+- `clarifai pipeline local-run` command to run pipeline steps locally in Docker [(#1013)](https://github.com/Clarifai/clarifai-python/pull/1013)
+- Auto-create compute cluster/nodepool for `clarifai pipeline run` via `--instance` flag [(#1011)](https://github.com/Clarifai/clarifai-python/pull/1011)
+
+### Changed
+- Improved `clarifai pipeline init` UX [(#1008)](https://github.com/Clarifai/clarifai-python/pull/1008)
+- Local runner defaults set to PRIVATE; `--public` flag now patches all resource visibilities [(#1014)](https://github.com/Clarifai/clarifai-python/pull/1014)
+- Updated additional requirements for `model init --streaming-video` [(#987)](https://github.com/Clarifai/clarifai-python/pull/987)
+
+### Fixed
+- `User.app()` now returns actual server data instead of empty values [(#954)](https://github.com/Clarifai/clarifai-python/pull/954)
+- Skip flaky `test_model_templates` and `test_model_params` [(#1015)](https://github.com/Clarifai/clarifai-python/pull/1015)
+
 ## [[12.3.5]](https://github.com/Clarifai/clarifai-python/releases/tag/12.3.5) - [PyPI](https://pypi.org/project/clarifai/12.3.5/) - 2026-03-31
 
 ### Changed
