@@ -100,6 +100,28 @@ class PipelineConfigValidator:
                         if "templateRef" in step:
                             template_ref = step["templateRef"]
                             cls._validate_template_ref(template_ref)
+            if "dag" in template:
+                dag = template["dag"]
+                if not isinstance(dag, dict) or "tasks" not in dag:
+                    raise ValueError("dag template must contain a 'tasks' field")
+                for task in dag["tasks"]:
+                    if "templateRef" in task:
+                        template_ref = task["templateRef"]
+                        cls._validate_template_ref(template_ref)
+
+    @classmethod
+    def iter_template_refs(cls, argo_spec: Dict[str, Any]):
+        """Yield templateRef dictionaries from either Argo steps or dag templates."""
+        for template in argo_spec.get("spec", {}).get("templates", []):
+            if "steps" in template:
+                for step_group in template["steps"]:
+                    for step in step_group:
+                        if "templateRef" in step:
+                            yield step["templateRef"]
+            if "dag" in template:
+                for task in template["dag"].get("tasks", []):
+                    if "templateRef" in task:
+                        yield task["templateRef"]
 
     @classmethod
     def _validate_template_ref(cls, template_ref: Dict[str, Any]) -> None:
@@ -134,20 +156,12 @@ class PipelineConfigValidator:
 
         steps_without_versions = []
 
-        for template in argo_spec["spec"]["templates"]:
-            if "steps" in template:
-                for step_group in template["steps"]:
-                    for step in step_group:
-                        if "templateRef" in step:
-                            template_ref = step["templateRef"]
-                            name = template_ref["name"]
-
-                            # Check if it's without version
-                            if cls.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
-                                # Extract step name
-                                parts = name.split('/')
-                                step_name = parts[-1]  # Last part is the step name
-                                if step_name not in steps_without_versions:
-                                    steps_without_versions.append(step_name)
+        for template_ref in cls.iter_template_refs(argo_spec):
+            name = template_ref["name"]
+            if cls.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
+                parts = name.split('/')
+                step_name = parts[-1]
+                if step_name not in steps_without_versions:
+                    steps_without_versions.append(step_name)
 
         return steps_without_versions

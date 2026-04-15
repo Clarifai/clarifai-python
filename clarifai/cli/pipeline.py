@@ -105,9 +105,35 @@ def upload(path, no_lockfile):
 
     PATH: Path to the pipeline configuration file or directory containing config.yaml. If not specified, the current directory is used by default.
     """
+    from clarifai.runners.pipelines import load_pipeline_from_file
     from clarifai.runners.pipelines.pipeline_builder import upload_pipeline
 
+    if os.path.isfile(path) and path.endswith('.py'):
+        pipeline_obj = load_pipeline_from_file(path)
+        pipeline_obj.upload(no_lockfile=no_lockfile)
+        return
+
     upload_pipeline(path, no_lockfile=no_lockfile)
+
+
+@pipeline.command('generate')
+@click.argument('path', type=click.Path(exists=True), required=True)
+@click.option(
+    '--output-dir',
+    type=click.Path(),
+    required=True,
+    help='Directory to write the generated pipeline config and step folders.',
+)
+def generate(path, output_dir):
+    """Generate YAML/config-based pipeline assets from a Python pipeline definition."""
+    from clarifai.runners.pipelines import load_pipeline_from_file
+
+    if not os.path.isfile(path) or not path.endswith('.py'):
+        raise ValueError('clarifai pipeline generate expects a Python file path.')
+
+    pipeline_obj = load_pipeline_from_file(path)
+    config_path = pipeline_obj.generate(output_dir)
+    logger.info(f"Generated pipeline assets at {config_path}")
 
 
 @pipeline.command()
