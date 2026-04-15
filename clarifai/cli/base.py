@@ -695,7 +695,7 @@ def env(ctx):
 def view(ctx, output_format):
     """Display the current configuration."""
     config_dict = {
-        'current-context': ctx.obj.current_context,
+        'current_context': ctx.obj.current_context,
         'contexts': {
             name: context.to_serializable_dict() for name, context in ctx.obj.contexts.items()
         },
