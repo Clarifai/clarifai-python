@@ -3,6 +3,7 @@
 
 This example demonstrates:
 - code-first step definitions with `@step`
+- mixed local and pre-existing remote steps
 - helper-function extraction within a single step
 - diamond DAG composition using `>>`
 - step-level secret configuration
@@ -19,11 +20,15 @@ After generation, the resulting directory can be uploaded with either:
 or directly from this file:
 
   clarifai pipeline upload examples/pipeline_dsl_text_pipeline.py
+
+Only locally managed steps are generated into the bundle. Pre-existing steps
+declared with `step_ref(...)` are emitted as versioned `templateRef`s and are
+not included in `step_directories`.
 """
 
 import argparse
 
-from clarifai.runners.pipelines import ComputeConfig, Pipeline, step
+from clarifai.runners.pipelines import ComputeConfig, Pipeline, step, step_ref
 
 
 def normalize_text(value: str) -> str:
@@ -42,23 +47,21 @@ def prepare_text(input_text: str) -> str:
     return cleaned.lower()
 
 
-@step(
+summarize = step_ref(
     id="summarize",
-    requirements=["openai>=1.0"],
-    compute=ComputeConfig(cpu_limit="1000m", cpu_memory="1Gi", num_accelerators=1),
+    user_id="demo-user",
+    app_id="shared-app",
+    version_id="summary-v1",
     secrets={"OPENAI_API_KEY": "users/demo-user/secrets/openai-key"},
 )
-def summarize(input_text: str) -> str:
-    """Placeholder summary logic for the example pipeline."""
-    return f"Summary of: {input_text[:80]}"
 
 
-@step(id="classify-sentiment", requirements=["textblob>=0.18.0"])
-def classify_sentiment(input_text: str) -> str:
-    """A lightweight branch that simulates sentiment classification."""
-    positive_words = {"great", "good", "love", "excellent", "happy"}
-    tokens = set(input_text.split())
-    return "positive" if tokens & positive_words else "neutral"
+classify_sentiment = step_ref(
+    id="classify-sentiment",
+    user_id="demo-user",
+    app_id="shared-app",
+    version_id="sentiment-v3",
+)
 
 
 @step(id="assemble-report")

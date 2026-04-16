@@ -63,6 +63,8 @@ class StepNode:
 
 
 class StepDefinition:
+    is_managed = True
+
     def __init__(
         self,
         func: Callable[..., Any],
@@ -84,6 +86,9 @@ class StepDefinition:
     @property
     def __name__(self):
         return self.func.__name__
+
+    def template_ref(self, default_user_id: str, default_app_id: str) -> str:
+        return f'users/{default_user_id}/apps/{default_app_id}/pipeline_steps/{self.id}'
 
     def __call__(self, *args, **kwargs):
         pipeline = get_active_pipeline()
@@ -114,6 +119,55 @@ class StepDefinition:
         return params
 
 
+class ExistingStepDefinition:
+    is_managed = False
+
+    def __init__(
+        self,
+        *,
+        id: str,
+        version_id: str,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        secrets: Optional[Dict[str, str]] = None,
+    ):
+        if not version_id:
+            raise ValueError('version_id is required for step_ref()')
+        self.id = id
+        self.version_id = version_id
+        self.user_id = user_id
+        self.app_id = app_id
+        self.secrets = secrets or {}
+
+    @property
+    def __name__(self):
+        return self.id.replace('-', '_')
+
+    def template_ref(self, default_user_id: str, default_app_id: str) -> str:
+        user_id = self.user_id or default_user_id
+        app_id = self.app_id or default_app_id
+        return (
+            f'users/{user_id}/apps/{app_id}/pipeline_steps/{self.id}/versions/{self.version_id}'
+        )
+
+    def __call__(self, *args, **kwargs):
+        pipeline = get_active_pipeline()
+        if pipeline is None:
+            raise RuntimeError('step_ref() instances can only be used inside an active Pipeline')
+
+        if args:
+            raise TypeError('step_ref() calls only support keyword arguments')
+
+        task_name = kwargs.pop('name', None)
+        return pipeline.add_node(self, arguments=dict(kwargs), name=task_name)
+
+    def test(self, *args, **kwargs):
+        raise RuntimeError('step_ref() does not support local execution')
+
+    def get_input_params(self):
+        return []
+
+
 def step(
     *,
     id: Optional[str] = None,
@@ -133,3 +187,20 @@ def step(
         )
 
     return decorator
+
+
+def step_ref(
+    *,
+    id: str,
+    version_id: str,
+    user_id: Optional[str] = None,
+    app_id: Optional[str] = None,
+    secrets: Optional[Dict[str, str]] = None,
+) -> ExistingStepDefinition:
+    return ExistingStepDefinition(
+        id=id,
+        version_id=version_id,
+        user_id=user_id,
+        app_id=app_id,
+        secrets=secrets,
+    )

@@ -1,9 +1,10 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 import yaml
 
-from clarifai.runners.pipelines import ComputeConfig, Pipeline, step
+from clarifai.runners.pipelines import ComputeConfig, Pipeline, step, step_ref
 from clarifai.runners.utils.pipeline_validation import PipelineConfigValidator
 
 
@@ -20,18 +21,21 @@ def prepare_text(input_text: str) -> str:
     return normalize_text(input_text)
 
 
-@step(
+summarize = step_ref(
     id='summarize',
-    requirements=['openai>=1.0'],
+    user_id='me',
+    app_id='shared-app',
+    version_id='summary-v1',
     secrets={'OPENAI_API_KEY': 'users/me/secrets/openai-key'},
 )
-def summarize(input_text: str) -> str:
-    return f'summary:{input_text}'
 
 
-@step(id='classify-sentiment')
-def classify_sentiment(input_text: str) -> str:
-    return 'positive'
+classify_sentiment = step_ref(
+    id='classify-sentiment',
+    user_id='me',
+    app_id='shared-app',
+    version_id='sentiment-v2',
+)
 
 
 @step(id='assemble-report')
@@ -75,9 +79,18 @@ def test_pipeline_to_config_supports_diamond_dag_and_secrets():
     assert tasks['classify-sentiment']['dependencies'] == ['prepare-text']
     assert tasks['assemble-report']['dependencies'] == ['classify-sentiment', 'summarize']
     assert (
+        tasks['summarize']['templateRef']['name']
+        == 'users/me/apps/shared-app/pipeline_steps/summarize/versions/summary-v1'
+    )
+    assert (
+        tasks['classify-sentiment']['templateRef']['name']
+        == 'users/me/apps/shared-app/pipeline_steps/classify-sentiment/versions/sentiment-v2'
+    )
+    assert (
         tasks['summarize']['arguments']['parameters'][0]['value']
         == '{{tasks.prepare-text.outputs.parameters.result}}'
     )
+    assert config['pipeline']['step_directories'] == ['prepare-text', 'assemble-report']
     assert config['pipeline']['config']['step_version_secrets'] == {
         'summarize': {'OPENAI_API_KEY': 'users/me/secrets/openai-key'}
     }
@@ -103,14 +116,16 @@ def test_pipeline_generate_writes_helper_functions_and_expected_files(tmp_path: 
     assert '@step' not in step_script_content
     assert 'clarifai==' in requirements_content
     assert 'transformers>=4.0' in requirements_content
+    assert not (tmp_path / 'summarize').exists()
+    assert not (tmp_path / 'classify-sentiment').exists()
 
 
-def test_validator_collects_unversioned_steps_from_dag_config():
+def test_validator_collects_only_managed_steps_without_versions():
     pipeline = build_pipeline()
 
     steps = PipelineConfigValidator.get_pipeline_steps_without_versions(pipeline.to_config())
 
-    assert steps == ['prepare-text', 'summarize', 'classify-sentiment', 'assemble-report']
+    assert steps == ['prepare-text', 'assemble-report']
 
 
 def test_pipeline_run_uploads_then_delegates_to_client():
@@ -141,3 +156,8 @@ def test_pipeline_run_uploads_then_delegates_to_client():
         monitor_interval=3,
         input_args_override=None,
     )
+
+
+def test_step_ref_is_not_callable_outside_pipeline():
+    with pytest.raises(RuntimeError, match='active Pipeline'):
+        summarize(input_text='hello')

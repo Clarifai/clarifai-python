@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import yaml
 
 from clarifai.runners.pipelines.codegen import generate_step_directory
-from clarifai.runners.pipelines.step import OutputRef, StepDefinition, StepNode, WorkflowInputRef, _clear_active_pipeline, _set_active_pipeline
+from clarifai.runners.pipelines.step import OutputRef, StepNode, WorkflowInputRef, _clear_active_pipeline, _set_active_pipeline
 
 
 class Pipeline:
@@ -39,7 +39,7 @@ class Pipeline:
         self._workflow_params[param_name] = default
         return WorkflowInputRef(name=param_name)
 
-    def add_node(self, step_definition: StepDefinition, arguments: Dict[str, Any], name: Optional[str] = None) -> StepNode:
+    def add_node(self, step_definition, arguments: Dict[str, Any], name: Optional[str] = None) -> StepNode:
         if not self._active:
             raise RuntimeError('Pipeline nodes can only be created inside an active Pipeline context')
 
@@ -120,11 +120,12 @@ class Pipeline:
 
         tasks = []
         for node in self.nodes:
+            template_ref_name = node.step_definition.template_ref(self.user_id, self.app_id)
             task = {
                 'name': node.name,
                 'templateRef': {
-                    'name': f'users/{self.user_id}/apps/{self.app_id}/pipeline_steps/{node.step_definition.id}',
-                    'template': f'users/{self.user_id}/apps/{self.app_id}/pipeline_steps/{node.step_definition.id}',
+                    'name': template_ref_name,
+                    'template': template_ref_name,
                 },
             }
             if node.dependencies:
@@ -158,7 +159,7 @@ class Pipeline:
         seen = set()
         step_version_secrets = {}
         for node in self.nodes:
-            if node.step_definition.id not in seen:
+            if node.step_definition.is_managed and node.step_definition.id not in seen:
                 used_step_ids.append(node.step_definition.id)
                 seen.add(node.step_definition.id)
             if node.step_definition.secrets:
@@ -188,7 +189,8 @@ class Pipeline:
         os.makedirs(output_dir, exist_ok=True)
         step_definitions = OrderedDict()
         for node in self.nodes:
-            step_definitions.setdefault(node.step_definition.id, node.step_definition)
+            if node.step_definition.is_managed:
+                step_definitions.setdefault(node.step_definition.id, node.step_definition)
 
         for step_definition in step_definitions.values():
             generate_step_directory(step_definition, output_dir, self.user_id, self.app_id)
