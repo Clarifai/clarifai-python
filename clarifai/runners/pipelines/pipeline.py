@@ -7,7 +7,13 @@ from typing import Any, Dict, Iterable, List, Optional
 import yaml
 
 from clarifai.runners.pipelines.codegen import generate_step_directory
-from clarifai.runners.pipelines.step import OutputRef, StepNode, WorkflowInputRef, _clear_active_pipeline, _set_active_pipeline
+from clarifai.runners.pipelines.step import (
+    OutputRef,
+    StepNode,
+    WorkflowInputRef,
+    _clear_active_pipeline,
+    _set_active_pipeline,
+)
 
 
 class Pipeline:
@@ -39,9 +45,13 @@ class Pipeline:
         self._workflow_params[param_name] = default
         return WorkflowInputRef(name=param_name)
 
-    def add_node(self, step_definition, arguments: Dict[str, Any], name: Optional[str] = None) -> StepNode:
+    def add_node(
+        self, step_definition, arguments: Dict[str, Any], name: Optional[str] = None
+    ) -> StepNode:
         if not self._active:
-            raise RuntimeError('Pipeline nodes can only be created inside an active Pipeline context')
+            raise RuntimeError(
+                'Pipeline nodes can only be created inside an active Pipeline context'
+            )
 
         node_name = name or self._generate_task_name(step_definition.id)
         node = StepNode(self, step_definition, node_name, arguments)
@@ -79,7 +89,9 @@ class Pipeline:
     def validate(self):
         nodes_by_name = {node.name: node for node in self.nodes}
         for node in self.nodes:
-            missing = [dependency for dependency in node.dependencies if dependency not in nodes_by_name]
+            missing = [
+                dependency for dependency in node.dependencies if dependency not in nodes_by_name
+            ]
             if missing:
                 raise ValueError(f'Unknown dependencies for {node.name}: {missing}')
 
@@ -109,6 +121,28 @@ class Pipeline:
             return 'true' if value else 'false'
         return str(value)
 
+    def _topological_layers(self) -> List[List[StepNode]]:
+        """Group nodes into layers where each layer's dependencies are satisfied by earlier layers."""
+        nodes_by_name = {node.name: node for node in self.nodes}
+        remaining = {node.name for node in self.nodes}
+        satisfied: set = set()
+        layers: List[List[StepNode]] = []
+
+        while remaining:
+            layer = [
+                nodes_by_name[name]
+                for name in sorted(remaining)
+                if nodes_by_name[name].dependencies <= satisfied
+            ]
+            if not layer:
+                raise ValueError('Cycle detected in pipeline graph')
+            for node in layer:
+                remaining.discard(node.name)
+                satisfied.add(node.name)
+            layers.append(layer)
+
+        return layers
+
     def to_argo_spec(self) -> Dict[str, Any]:
         self.validate()
         parameters = []
@@ -118,26 +152,27 @@ class Pipeline:
                 item['value'] = str(default)
             parameters.append(item)
 
-        tasks = []
-        for node in self.nodes:
-            template_ref_name = node.step_definition.template_ref(self.user_id, self.app_id)
-            task = {
-                'name': node.name,
-                'templateRef': {
-                    'name': template_ref_name,
-                    'template': template_ref_name,
-                },
-            }
-            if node.dependencies:
-                task['dependencies'] = sorted(node.dependencies)
-            if node.arguments:
-                task['arguments'] = {
-                    'parameters': [
-                        {'name': key, 'value': self._serialize_argument_value(value)}
-                        for key, value in node.arguments.items()
-                    ]
+        step_groups = []
+        for layer in self._topological_layers():
+            group = []
+            for node in layer:
+                template_ref_name = node.step_definition.template_ref(self.user_id, self.app_id)
+                step_entry = {
+                    'name': node.name,
+                    'templateRef': {
+                        'name': template_ref_name,
+                        'template': template_ref_name,
+                    },
                 }
-            tasks.append(task)
+                if node.arguments:
+                    step_entry['arguments'] = {
+                        'parameters': [
+                            {'name': key, 'value': self._serialize_argument_value(value)}
+                            for key, value in node.arguments.items()
+                        ]
+                    }
+                group.append(step_entry)
+            step_groups.append(group)
 
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
@@ -148,7 +183,7 @@ class Pipeline:
                 'templates': [
                     {
                         'name': self.id,
-                        'dag': {'tasks': tasks},
+                        'steps': step_groups,
                     }
                 ],
             },

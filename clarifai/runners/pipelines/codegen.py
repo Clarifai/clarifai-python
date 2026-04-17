@@ -1,11 +1,13 @@
 import ast
 import inspect
 import os
+import subprocess
 import textwrap
-from typing import Any, Dict, List, Sequence, Set
+from typing import List, Sequence, Set
 
 import yaml
 
+from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
 
 
@@ -27,10 +29,30 @@ def _ensure_list_requirements(requirements) -> List[str]:
 
 
 def _get_node_source(source_lines: Sequence[str], node: ast.AST) -> str:
-    return ''.join(source_lines[node.lineno - 1:node.end_lineno])
+    return ''.join(source_lines[node.lineno - 1 : node.end_lineno])
 
 
-def _collect_helper_functions(tree: ast.Module, source_lines: Sequence[str], root_name: str) -> List[str]:
+# Modules that are only needed for the DSL definition, not at step runtime.
+_DSL_ONLY_MODULES = frozenset(
+    {
+        'clarifai.runners.pipelines',
+    }
+)
+
+
+def _is_dsl_only_import(node: ast.AST) -> bool:
+    """Return True if an import node pulls exclusively from DSL-only modules."""
+    if isinstance(node, ast.ImportFrom):
+        module = node.module or ''
+        return any(
+            module == prefix or module.startswith(prefix + '.') for prefix in _DSL_ONLY_MODULES
+        )
+    return False
+
+
+def _collect_helper_functions(
+    tree: ast.Module, source_lines: Sequence[str], root_name: str
+) -> List[str]:
     functions = {
         node.name: node
         for node in tree.body
@@ -39,7 +61,7 @@ def _collect_helper_functions(tree: ast.Module, source_lines: Sequence[str], roo
     imports = [
         _get_node_source(source_lines, node)
         for node in tree.body
-        if isinstance(node, (ast.Import, ast.ImportFrom))
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and not _is_dsl_only_import(node)
     ]
 
     visited: Set[str] = set()
@@ -80,13 +102,20 @@ def _build_step_script(step_definition) -> str:
         module_source = handle.read()
     source_lines = module_source.splitlines(keepends=True)
     tree = ast.parse(module_source)
-    extracted_sources = _collect_helper_functions(tree, source_lines, step_definition.func.__name__)
-    function_source = '\n'.join(textwrap.dedent(block).rstrip() for block in extracted_sources if block.strip())
+    extracted_sources = _collect_helper_functions(
+        tree, source_lines, step_definition.func.__name__
+    )
+    function_source = '\n'.join(
+        textwrap.dedent(block).rstrip() for block in extracted_sources if block.strip()
+    )
 
     parser_lines = []
     call_args = []
     for param in step_definition.signature.parameters.values():
-        if param.kind not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+        if param.kind not in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
             continue
         annotation = _annotation_to_argparse(param.annotation)
         required = param.default is inspect._empty
@@ -144,7 +173,27 @@ def generate_step_directory(step_definition, output_dir: str, user_id: str, app_
     with open(os.path.join(step_dir, 'requirements.txt'), 'w', encoding='utf-8') as handle:
         handle.write('\n'.join(_ensure_list_requirements(step_definition.requirements)) + '\n')
 
-    with open(os.path.join(version_dir, 'pipeline_step.py'), 'w', encoding='utf-8') as handle:
+    step_script_path = os.path.join(version_dir, 'pipeline_step.py')
+    with open(step_script_path, 'w', encoding='utf-8') as handle:
         handle.write(_build_step_script(step_definition))
 
+    _format_file(step_script_path)
+
     return step_dir
+
+
+def _format_file(path: str) -> None:
+    """Run ruff format on *path*, silently skipping if ruff is not available."""
+    try:
+        subprocess.run(
+            ['ruff', 'check', '--select', 'I', '--fix', '--quiet', path],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ['ruff', 'format', '--quiet', path],
+            check=True,
+            capture_output=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        logger.debug('ruff not available; skipping formatting of %s', path)

@@ -61,9 +61,9 @@ def test_pipeline_to_config_supports_diamond_dag_and_secrets():
     PipelineConfigValidator.validate_config(config)
 
     argo_spec = yaml.safe_load(config['pipeline']['orchestration_spec']['argo_orchestration_spec'])
-    tasks = {
-        task['name']: task for task in argo_spec['spec']['templates'][0]['dag']['tasks']
-    }
+    step_groups = argo_spec['spec']['templates'][0]['steps']
+    # Flatten into a name→entry map for easy assertions
+    tasks = {entry['name']: entry for group in step_groups for entry in group}
 
     assert set(tasks) == {
         'prepare-text',
@@ -71,10 +71,11 @@ def test_pipeline_to_config_supports_diamond_dag_and_secrets():
         'classify-sentiment',
         'assemble-report',
     }
-    assert 'dependencies' not in tasks['prepare-text']
-    assert tasks['summarize']['dependencies'] == ['prepare-text']
-    assert tasks['classify-sentiment']['dependencies'] == ['prepare-text']
-    assert tasks['assemble-report']['dependencies'] == ['classify-sentiment', 'summarize']
+    # Verify layer ordering: prepare-text before summarize/sentiment, both before assemble-report
+    layer_names = [sorted(entry['name'] for entry in group) for group in step_groups]
+    assert layer_names[0] == ['prepare-text']
+    assert layer_names[1] == ['classify-sentiment', 'summarize']
+    assert layer_names[2] == ['assemble-report']
     assert (
         tasks['summarize']['templateRef']['name']
         == 'users/me/apps/shared-app/pipeline_steps/summarize/versions/summary-v1'
@@ -85,7 +86,7 @@ def test_pipeline_to_config_supports_diamond_dag_and_secrets():
     )
     assert (
         tasks['summarize']['arguments']['parameters'][0]['value']
-        == '{{tasks.prepare-text.outputs.parameters.result}}'
+        == '{{steps.prepare-text.outputs.parameters.result}}'
     )
     assert config['pipeline']['step_directories'] == ['prepare-text', 'assemble-report']
     assert config['pipeline']['config']['step_version_secrets'] == {

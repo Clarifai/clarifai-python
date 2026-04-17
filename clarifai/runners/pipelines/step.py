@@ -56,13 +56,15 @@ class OutputRef:
     output_name: str = 'result'
 
     def as_argo_value(self) -> str:
-        return f"{{{{tasks.{self.node.name}.outputs.parameters.{self.output_name}}}}}"
+        return f"{{{{steps.{self.node.name}.outputs.parameters.{self.output_name}}}}}"
 
 
 class StepNode:
     """A concrete task instance in a pipeline DAG."""
 
-    def __init__(self, pipeline, step_definition: 'StepDefinition', name: str, arguments: Dict[str, Any]):
+    def __init__(
+        self, pipeline, step_definition: 'StepDefinition', name: str, arguments: Dict[str, Any]
+    ):
         self.pipeline = pipeline
         self.step_definition = step_definition
         self.name = name
@@ -128,7 +130,10 @@ class StepDefinition:
     def get_input_params(self):
         params = []
         for param in self.signature.parameters.values():
-            if param.kind not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+            if param.kind not in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ):
                 continue
             param_config = {'name': param.name}
             if param.default is not inspect._empty:
@@ -181,9 +186,7 @@ class ExistingStepDefinition:
     def template_ref(self, default_user_id: str, default_app_id: str) -> str:
         user_id = self.user_id or default_user_id
         app_id = self.app_id or default_app_id
-        return (
-            f'users/{user_id}/apps/{app_id}/pipeline_steps/{self.id}/versions/{self.version_id}'
-        )
+        return f'users/{user_id}/apps/{app_id}/pipeline_steps/{self.id}/versions/{self.version_id}'
 
     def __call__(self, *args, **kwargs):
         pipeline = get_active_pipeline()

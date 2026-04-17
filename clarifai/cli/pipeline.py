@@ -110,7 +110,11 @@ def upload(path, no_lockfile):
 
     if os.path.isfile(path) and path.endswith('.py'):
         pipeline_obj = load_pipeline_from_file(path)
-        pipeline_obj.upload(no_lockfile=no_lockfile)
+        output_dir = os.path.join(
+            os.path.dirname(os.path.abspath(path)), f'generated-{pipeline_obj.id}'
+        )
+        pipeline_obj.generate(output_dir)
+        upload_pipeline(output_dir, no_lockfile=no_lockfile)
         return
 
     upload_pipeline(path, no_lockfile=no_lockfile)
