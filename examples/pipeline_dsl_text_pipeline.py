@@ -47,11 +47,8 @@ def prepare_text(input_text: str) -> str:
     return cleaned.lower()
 
 
-summarize = step_ref(
-    id="summarize",
-    user_id="demo-user",
-    app_id="shared-app",
-    version_id="summary-v1",
+summarize = step_ref.from_url(
+    "https://api.clarifai.com/v2/users/demo-user/apps/shared-app/pipeline_steps/summarize/versions/summary-v1",
     secrets={"OPENAI_API_KEY": "users/demo-user/secrets/openai-key"},
 )
 

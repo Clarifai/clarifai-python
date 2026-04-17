@@ -21,11 +21,8 @@ def prepare_text(input_text: str) -> str:
     return normalize_text(input_text)
 
 
-summarize = step_ref(
-    id='summarize',
-    user_id='me',
-    app_id='shared-app',
-    version_id='summary-v1',
+summarize = step_ref.from_url(
+    'users/me/apps/shared-app/pipeline_steps/summarize/versions/summary-v1',
     secrets={'OPENAI_API_KEY': 'users/me/secrets/openai-key'},
 )
 
@@ -161,3 +158,21 @@ def test_pipeline_run_uploads_then_delegates_to_client():
 def test_step_ref_is_not_callable_outside_pipeline():
     with pytest.raises(RuntimeError, match='active Pipeline'):
         summarize(input_text='hello')
+
+
+def test_step_ref_from_url_parses_versioned_pipeline_step_url():
+    step_definition = step_ref.from_url(
+        'https://api.clarifai.com/v2/users/demo-user/apps/shared-app/pipeline_steps/summarize/versions/summary-v1',
+        secrets={'OPENAI_API_KEY': 'users/demo-user/secrets/openai-key'},
+    )
+
+    assert step_definition.id == 'summarize'
+    assert step_definition.user_id == 'demo-user'
+    assert step_definition.app_id == 'shared-app'
+    assert step_definition.version_id == 'summary-v1'
+    assert step_definition.secrets == {'OPENAI_API_KEY': 'users/demo-user/secrets/openai-key'}
+
+
+def test_step_ref_from_url_requires_versioned_pipeline_step_path():
+    with pytest.raises(ValueError, match='versioned pipeline step URL or resource path'):
+        step_ref.from_url('users/demo-user/apps/shared-app/pipeline_steps/summarize')

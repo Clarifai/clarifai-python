@@ -1,11 +1,33 @@
 import inspect
+import re
 import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import urlparse
 
 from clarifai.runners.pipelines.compute import ComputeConfig
 
 _ACTIVE_PIPELINE = threading.local()
+_STEP_REF_URL_PATTERN = re.compile(
+    r'^users/(?P<user_id>[^/]+)/apps/(?P<app_id>[^/]+)/pipeline_steps/(?P<step_id>[^/]+)/versions/(?P<version_id>[^/]+)$'
+)
+
+
+def _parse_step_ref_url(step_url: str) -> Dict[str, str]:
+    parsed_url = urlparse(step_url)
+    resource_path = parsed_url.path if (parsed_url.scheme or parsed_url.netloc) else step_url
+    normalized_path = resource_path.strip('/')
+    if normalized_path.startswith('v2/'):
+        normalized_path = normalized_path[3:]
+
+    match = _STEP_REF_URL_PATTERN.match(normalized_path)
+    if match is None:
+        raise ValueError(
+            'step_ref.from_url() expects a versioned pipeline step URL or resource path of the form '
+            "'users/{user_id}/apps/{app_id}/pipeline_steps/{step_id}/versions/{version_id}'"
+        )
+
+    return match.groupdict()
 
 
 def _set_active_pipeline(pipeline):
@@ -122,6 +144,19 @@ class StepDefinition:
 class ExistingStepDefinition:
     is_managed = False
 
+    @classmethod
+    def from_url(
+        cls, step_url: str, *, secrets: Optional[Dict[str, str]] = None
+    ) -> 'ExistingStepDefinition':
+        parsed_step = _parse_step_ref_url(step_url)
+        return cls(
+            id=parsed_step['step_id'],
+            version_id=parsed_step['version_id'],
+            user_id=parsed_step['user_id'],
+            app_id=parsed_step['app_id'],
+            secrets=secrets,
+        )
+
     def __init__(
         self,
         *,
@@ -204,3 +239,12 @@ def step_ref(
         app_id=app_id,
         secrets=secrets,
     )
+
+
+def _step_ref_from_url(
+    step_url: str, *, secrets: Optional[Dict[str, str]] = None
+) -> ExistingStepDefinition:
+    return ExistingStepDefinition.from_url(step_url, secrets=secrets)
+
+
+step_ref.from_url = _step_ref_from_url
