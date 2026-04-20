@@ -692,8 +692,9 @@ class ModelBuilder:
                 if has_access:
                     # Public repo — no token needed anywhere.
                     pass
-                elif reason == "gated_no_token":
-                    # Repo requires auth. Validate with the available token.
+                elif reason in ("gated_no_token", "not_found"):
+                    # Repo requires auth (gated) or is private (returns not_found
+                    # to anonymous requests). Validate with the available token.
                     if is_valid_token:
                         has_access, reason = HuggingFaceLoader.validate_hf_repo_access(
                             repo_id=repo_id,
