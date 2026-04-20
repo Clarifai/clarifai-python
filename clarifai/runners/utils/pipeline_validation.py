@@ -95,8 +95,15 @@ class PipelineConfigValidator:
         """Validate Argo workflow templates."""
         for template in templates:
             if "steps" in template:
-                for step_group in template["steps"]:
+                steps = template["steps"]
+                if not isinstance(steps, list):
+                    raise ValueError("'steps' in template must be a list")
+                for step_group in steps:
+                    if not isinstance(step_group, list):
+                        raise ValueError("each step group in 'steps' must be a list")
                     for step in step_group:
+                        if not isinstance(step, dict):
+                            raise ValueError("each step in a step group must be a dict")
                         if "templateRef" in step:
                             template_ref = step["templateRef"]
                             cls._validate_template_ref(template_ref)
@@ -104,7 +111,12 @@ class PipelineConfigValidator:
                 dag = template["dag"]
                 if not isinstance(dag, dict) or "tasks" not in dag:
                     raise ValueError("dag template must contain a 'tasks' field")
-                for task in dag["tasks"]:
+                tasks = dag["tasks"]
+                if not isinstance(tasks, list):
+                    raise ValueError("dag 'tasks' must be a list")
+                for task in tasks:
+                    if not isinstance(task, dict):
+                        raise ValueError("each item in dag 'tasks' must be a dict")
                     if "templateRef" in task:
                         template_ref = task["templateRef"]
                         cls._validate_template_ref(template_ref)
