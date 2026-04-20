@@ -1,8 +1,8 @@
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from click.testing import CliRunner
 import yaml
+from click.testing import CliRunner
 
 from clarifai.cli.pipeline import generate, upload
 

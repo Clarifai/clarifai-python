@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 from urllib.parse import urlparse
 
-from clarifai.runners.pipelines.compute import ComputeConfig
+from clarifai.runners.pipelines.compute import ComputeInfo
 
 _ACTIVE_PIPELINE = threading.local()
 _STEP_REF_URL_PATTERN = re.compile(
@@ -95,14 +95,14 @@ class StepDefinition:
         *,
         id: Optional[str] = None,
         requirements=None,
-        compute: Optional[ComputeConfig] = None,
+        compute: Optional[ComputeInfo] = None,
         python_version: str = '3.12',
         secrets: Optional[Dict[str, str]] = None,
     ):
         self.func = func
         self.id = id or func.__name__.replace('_', '-')
         self.requirements = requirements or []
-        self.compute = compute or ComputeConfig()
+        self.compute = compute or ComputeInfo()
         self.python_version = python_version
         self.secrets = secrets or {}
         self.signature = inspect.signature(func)
@@ -210,7 +210,7 @@ def step(
     *,
     id: Optional[str] = None,
     requirements=None,
-    compute: Optional[ComputeConfig] = None,
+    compute: Optional[ComputeInfo] = None,
     python_version: str = '3.12',
     secrets: Optional[Dict[str, str]] = None,
 ):

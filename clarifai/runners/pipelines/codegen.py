@@ -6,6 +6,7 @@ import textwrap
 from typing import List, Sequence, Set
 
 import yaml
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
@@ -164,7 +165,9 @@ def generate_step_directory(step_definition, output_dir: str, user_id: str, app_
         },
         'pipeline_step_input_params': step_definition.get_input_params(),
         'build_info': {'python_version': step_definition.python_version},
-        'pipeline_step_compute_info': step_definition.compute.to_dict(),
+        'pipeline_step_compute_info': MessageToDict(
+            step_definition.compute, preserving_proto_field_name=True
+        ),
     }
 
     with open(os.path.join(step_dir, 'config.yaml'), 'w', encoding='utf-8') as handle:

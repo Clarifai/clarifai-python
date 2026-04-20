@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from clarifai.runners.pipelines import ComputeConfig, Pipeline, step, step_ref
+from clarifai.runners.pipelines import ComputeInfo, Pipeline, step, step_ref
 from clarifai.runners.utils.pipeline_validation import PipelineConfigValidator
 
 
@@ -15,7 +15,7 @@ def normalize_text(value: str) -> str:
 @step(
     id='prepare-text',
     requirements=['transformers>=4.0'],
-    compute=ComputeConfig(cpu_limit='500m', cpu_memory='500Mi'),
+    compute=ComputeInfo(cpu_limit='500m', cpu_memory='500Mi'),
 )
 def prepare_text(input_text: str) -> str:
     return normalize_text(input_text)

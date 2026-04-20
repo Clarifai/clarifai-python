@@ -28,7 +28,7 @@ not included in `step_directories`.
 
 import argparse
 
-from clarifai.runners.pipelines import ComputeConfig, Pipeline, step, step_ref
+from clarifai.runners.pipelines import ComputeInfo, Pipeline, step, step_ref
 
 
 def normalize_text(value: str) -> str:
@@ -39,7 +39,7 @@ def normalize_text(value: str) -> str:
 @step(
     id="prepare-text",
     requirements=["transformers>=4.0"],
-    compute=ComputeConfig(cpu_limit="500m", cpu_memory="500Mi"),
+    compute=ComputeInfo(cpu_limit="500m", cpu_memory="500Mi"),
 )
 def prepare_text(input_text: str) -> str:
     """Normalize text before downstream processing."""
