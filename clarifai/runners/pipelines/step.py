@@ -120,7 +120,7 @@ class StepDefinition:
             return self.func(*args, **kwargs)
 
         task_name = kwargs.pop('name', None)
-        bound = self.signature.bind_partial(*args, **kwargs)
+        bound = self.signature.bind(*args, **kwargs)
         bound.apply_defaults()
         return pipeline.add_node(self, arguments=dict(bound.arguments), name=task_name)
 

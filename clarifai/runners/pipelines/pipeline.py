@@ -238,25 +238,25 @@ class Pipeline:
     def upload(self, no_lockfile: bool = False) -> Optional[str]:
         from clarifai.runners.pipelines.pipeline_builder import PipelineBuilder
 
-        temp_dir = tempfile.mkdtemp(prefix='clarifai-pipeline-')
-        config_path = self.generate(temp_dir)
-        builder = PipelineBuilder(config_path)
-        if not builder.ensure_app_exists():
-            raise RuntimeError('Failed to verify or create app for pipeline upload')
-        if not builder.upload_pipeline_steps():
-            raise RuntimeError('Failed to upload pipeline steps')
-        lockfile_data = None
-        if not no_lockfile:
-            lockfile_data = builder.prepare_lockfile_with_step_versions()
-        success, pipeline_version_id = builder.create_pipeline()
-        if not success:
-            raise RuntimeError('Failed to create pipeline')
-        if not no_lockfile and lockfile_data:
-            builder.save_lockfile(
-                builder.update_lockfile_with_pipeline_info(lockfile_data, pipeline_version_id)
-            )
-        self._uploaded_pipeline_version_id = pipeline_version_id
-        return pipeline_version_id
+        with tempfile.TemporaryDirectory(prefix='clarifai-pipeline-') as temp_dir:
+            config_path = self.generate(temp_dir)
+            builder = PipelineBuilder(config_path)
+            if not builder.ensure_app_exists():
+                raise RuntimeError('Failed to verify or create app for pipeline upload')
+            if not builder.upload_pipeline_steps():
+                raise RuntimeError('Failed to upload pipeline steps')
+            lockfile_data = None
+            if not no_lockfile:
+                lockfile_data = builder.prepare_lockfile_with_step_versions()
+            success, pipeline_version_id = builder.create_pipeline()
+            if not success:
+                raise RuntimeError('Failed to create pipeline')
+            if not no_lockfile and lockfile_data:
+                builder.save_lockfile(
+                    builder.update_lockfile_with_pipeline_info(lockfile_data, pipeline_version_id)
+                )
+            self._uploaded_pipeline_version_id = pipeline_version_id
+            return pipeline_version_id
 
     def run(
         self,

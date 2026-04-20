@@ -133,7 +133,7 @@ def generate(path, output_dir):
     from clarifai.runners.pipelines import load_pipeline_from_file
 
     if not os.path.isfile(path) or not path.endswith('.py'):
-        raise ValueError('clarifai pipeline generate expects a Python file path.')
+        raise click.UsageError('clarifai pipeline generate expects a Python file path.')
 
     pipeline_obj = load_pipeline_from_file(path)
     config_path = pipeline_obj.generate(output_dir)
