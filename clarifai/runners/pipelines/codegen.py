@@ -9,7 +9,6 @@ import yaml
 from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
-from clarifai.versions import CLIENT_VERSION
 
 
 def _ensure_list_requirements(requirements) -> List[str]:
@@ -24,8 +23,6 @@ def _ensure_list_requirements(requirements) -> List[str]:
     else:
         entries = [str(item).strip() for item in requirements if str(item).strip()]
 
-    if not any(entry.startswith('clarifai') for entry in entries):
-        entries.insert(0, f'clarifai=={CLIENT_VERSION}')
     return entries
 
 

@@ -112,7 +112,6 @@ def test_pipeline_generate_writes_helper_functions_and_expected_files(tmp_path: 
 
     assert 'def normalize_text(value: str) -> str:' in step_script_content
     assert '@step' not in step_script_content
-    assert 'clarifai==' in requirements_content
     assert 'transformers>=4.0' in requirements_content
     assert not (tmp_path / 'summarize').exists()
     assert not (tmp_path / 'classify-sentiment').exists()
