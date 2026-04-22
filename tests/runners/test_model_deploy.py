@@ -2198,7 +2198,11 @@ class TestHFTokenValidation:
                     ModelBuilder(str(target), validate_api_ids=False)
 
     def test_validate_config_not_found_raises(self):
-        """ModelBuilder raises UserError with 'not found' for missing repo."""
+        """Anonymous 'not_found' with no valid token → asks for authentication
+        (since HF returns not_found for both missing and private repos when
+        unauthenticated, we can't tell them apart without a token).
+        When a valid token is provided and the repo is truly missing, the
+        'not found' error is raised."""
         import shutil
         from pathlib import Path
         from unittest.mock import patch
@@ -2224,6 +2228,7 @@ class TestHFTokenValidation:
             with config_path.open("w") as f:
                 yaml.dump(config, f, sort_keys=False)
 
+            # No token: not_found → prompt for authentication.
             with (
                 patch(
                     "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
@@ -2232,6 +2237,23 @@ class TestHFTokenValidation:
                 patch(
                     "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
                     return_value=False,
+                ),
+            ):
+                with pytest.raises(UserError, match="requires authentication"):
+                    ModelBuilder(str(target), validate_api_ids=False)
+
+            # With a valid token that still sees the repo as not_found → "not found".
+            config["checkpoints"]["hf_token"] = "hf_valid_token"
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+            with (
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                    side_effect=[(False, "not_found"), (False, "not_found")],
+                ),
+                patch(
+                    "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                    return_value=True,
                 ),
             ):
                 with pytest.raises(UserError, match="not found"):
@@ -2367,6 +2389,49 @@ class TestHFTokenValidation:
                 ModelBuilder(str(target), validate_api_ids=False)
                 # 1st anonymous, 2nd with config token
                 assert mv.call_count == 2
+                assert mv.call_args_list[1].kwargs["token"] == "hf_config_token"
+
+    def test_validate_config_private_repo_retries_with_token(self):
+        """Private (non-gated) HF repos return 'not_found' to anonymous requests;
+        validation must retry with the configured token instead of failing."""
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        tests_dir = Path(__file__).parent.resolve()
+        original_dummy_path = tests_dir / "dummy_runner_models"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            target = Path(tmp_dir) / "test_model"
+            shutil.copytree(original_dummy_path, target)
+
+            config_path = target / "config.yaml"
+            with config_path.open("r") as f:
+                config = yaml.safe_load(f)
+
+            config["checkpoints"] = {
+                "type": "huggingface",
+                "repo_id": "some-user/private-repo",
+                "hf_token": "hf_config_token",
+                "when": "runtime",
+            }
+            with config_path.open("w") as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # 1st call (anonymous) → not_found (private repo), 2nd (with token) → success
+            mock_validate = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access",
+                side_effect=[(False, "not_found"), (True, "")],
+            )
+            mock_hftoken = patch(
+                "clarifai.runners.utils.loader.HuggingFaceLoader.validate_hftoken",
+                return_value=True,
+            )
+
+            with mock_validate as mv, mock_hftoken:
+                ModelBuilder(str(target), validate_api_ids=False)
+                assert mv.call_count == 2
+                assert mv.call_args_list[0].kwargs["token"] is False
                 assert mv.call_args_list[1].kwargs["token"] == "hf_config_token"
 
 
