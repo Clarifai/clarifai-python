@@ -5,6 +5,7 @@ and starts the server.
 
 import argparse
 import os
+import sys
 from concurrent import futures
 from typing import Optional
 
@@ -20,6 +21,19 @@ from clarifai.utils.secrets import get_secrets_path, load_secrets, start_secrets
 
 
 def main():
+    if os.environ.get("CLARIFAI_DEV_POD") == "true":
+        # Redirect stdout/stderr to process 1's stdout so fluentd can capture the logs
+        fd = None
+        try:
+            fd = os.open('/proc/1/fd/1', os.O_WRONLY)
+            os.dup2(fd, sys.stdout.fileno())
+            os.dup2(fd, sys.stderr.fileno())
+        except Exception as e:
+            logger.warning(f"Failed to redirect stdout/stderr to /proc/1/fd/1: {e}")
+        finally:
+            if fd is not None:
+                os.close(fd)
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--port',
