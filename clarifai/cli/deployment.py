@@ -103,21 +103,10 @@ def list(ctx, nodepool_id, page_no, per_page):
         click.echo("  Deploy a model: clarifai model deploy ./my-model --instance gpu-nvidia-a10g")
         return
 
-    def _status_label(dep):
-        return "Enabled" if dep.status == 0 else "Disabled"
-
-    def _replicas(dep):
-        m = dep.deployment_metrics
-        if m:
-            return f"{m.live_replicas}/{m.desired_replicas}"
-        return "-"
-
     display_co_resources(
         response,
         custom_columns={
             'ID': lambda c: c.id,
-            'STATUS': _status_label,
-            'REPLICAS': _replicas,
             'MODEL_ID': lambda c: c.worker.model.id,
             'MODEL_VERSION': lambda c: c.worker.model.model_version.id[:12]
             if c.worker.model.model_version.id

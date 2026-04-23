@@ -179,6 +179,7 @@ class TestComputeOrchestration:
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output
 
+    @pytest.mark.coverage_only
     def test_list_deployments(self, cli_runner):
         cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
         result = cli_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
