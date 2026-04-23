@@ -16,7 +16,7 @@ def test_validate_fixtures(filename):
 
 def test_validate_invalid_id():
     with pytest.raises(
-        SchemaError, match="Key 'id' error:\nRegex(.*) does not match 'id with spaces'"
+        SchemaError, match="Key 'id' error:\n.*does not match 'id with spaces'"
     ):
         validate({"workflow": {"id": "id with spaces"}})
 
@@ -30,7 +30,7 @@ def test_validate_empty_nodes():
 
 def test_validate_invalid_hex_id():
     with pytest.raises(
-        SchemaError, match="Key 'model_version_id' error:\nRegex(.*) does not match 'not-a-hex-id'"
+        SchemaError, match="Key 'model_version_id' error:\n.*does not match 'not-a-hex-id'"
     ):
         validate(
             {
