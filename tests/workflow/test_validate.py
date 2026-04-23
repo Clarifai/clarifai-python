@@ -15,9 +15,7 @@ def test_validate_fixtures(filename):
 
 
 def test_validate_invalid_id():
-    with pytest.raises(
-        SchemaError, match="Key 'id' error:\n.*does not match 'id with spaces'"
-    ):
+    with pytest.raises(SchemaError, match="Key 'id' error:\n.*does not match 'id with spaces'"):
         validate({"workflow": {"id": "id with spaces"}})
 
 
