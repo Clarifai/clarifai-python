@@ -389,59 +389,38 @@ class PipelineBuilder:
         The step versions should be resolved from the corresponding config-lock.yaml
         file of each pipeline-step, located in the step_directories.
         """
-        for template in argo_spec["spec"]["templates"]:
-            if "steps" in template:
-                for step_group in template["steps"]:
-                    for step in step_group:
-                        if "templateRef" in step:
-                            template_ref = step["templateRef"]
-                            name = template_ref["name"]
-                            # Extract step name
-                            parts = name.split('/')
+        for template_ref in self.validator.iter_template_refs(argo_spec):
+            name = template_ref["name"]
+            parts = name.split('/')
 
-                            # Check if this is a templateRef without version that we uploaded
-                            if self.validator.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
-                                step_name = parts[-1]
-                                # The step name should match the directory name or be derivable from it
-                                version_id = self.uploaded_step_versions.get(step_name, None)
+            if self.validator.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
+                step_name = parts[-1]
+                version_id = self.uploaded_step_versions.get(step_name, None)
+                if version_id is None:
+                    version_id = self._get_version_from_config_lock(step_name)
 
-                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
-                                if version_id is None:
-                                    version_id = self._get_version_from_config_lock(step_name)
+                if version_id is not None:
+                    new_name = f"{name}/versions/{version_id}"
+                    template_ref["name"] = new_name
+                    template_ref["template"] = new_name
+                    logger.info(f"Updated templateRef from {name} to {new_name}")
+                else:
+                    logger.warning(f"Could not find version for step: {step_name}")
+            elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
+                orig_name = name
+                name = orig_name.rsplit('/versions/', 1)[0]
+                step_name = parts[-3]
+                version_id = self.uploaded_step_versions.get(step_name, None)
+                if version_id is None:
+                    version_id = self._get_version_from_config_lock(step_name)
 
-                                if version_id is not None:
-                                    # Update the templateRef to include version
-                                    new_name = f"{name}/versions/{version_id}"
-                                    template_ref["name"] = new_name
-                                    template_ref["template"] = new_name
-                                    logger.info(f"Updated templateRef from {name} to {new_name}")
-                                else:
-                                    logger.warning(f"Could not find version for step: {step_name}")
-                            elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
-                                # strip the /versions/{version_id} from the end of name
-                                # to get the name like above
-                                orig_name = name
-                                name = orig_name.rsplit('/versions/', 1)[0]
-                                step_name = parts[-3]  # Get the step name from the path
-
-                                # if it already has a version, make sure it matches the uploaded
-                                # version
-                                version_id = self.uploaded_step_versions.get(step_name, None)
-
-                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
-                                if version_id is None:
-                                    version_id = self._get_version_from_config_lock(step_name)
-
-                                if version_id is not None:
-                                    # Update the templateRef to include version
-                                    new_name = f"{name}/versions/{version_id}"
-                                    template_ref["name"] = new_name
-                                    template_ref["template"] = new_name
-                                    logger.info(
-                                        f"Updated templateRef from {orig_name} to {new_name}"
-                                    )
-                                else:
-                                    logger.warning(f"Could not find version for step: {step_name}")
+                if version_id is not None:
+                    new_name = f"{name}/versions/{version_id}"
+                    template_ref["name"] = new_name
+                    template_ref["template"] = new_name
+                    logger.info(f"Updated templateRef from {orig_name} to {new_name}")
+                else:
+                    logger.warning(f"Could not find version for step: {step_name}")
 
     def _get_version_from_config_lock(self, step_name: str) -> str:
         """
