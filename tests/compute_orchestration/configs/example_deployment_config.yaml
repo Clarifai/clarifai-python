@@ -11,11 +11,11 @@ deployment:
     disable_packing: false
   worker:
     model:
-      id: "python_string_cat"
+      id: "hello-world"
       model_version:
-        id: "d87bde385b7d43aa9c2c40c64761e706"
+        id: "a554eed5bd6c413aa815912472712cf3"
       user_id: "clarifai"
-      app_id: "Test-Model-Upload"
+      app_id: "ci-test-model-DO-NOT-DELETE"
   scheduling_choice: 4
   nodepools:
     - id: "test-nodepool-6"
