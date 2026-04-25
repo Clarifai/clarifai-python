@@ -2265,7 +2265,7 @@ def serve_cmd(
                                 },
                             }
                         ],
-                        "deploy_latest_version": True,
+                        "deploy_latest_version": False,
                         "visibility": {
                             "gettable": app_visibility.gettable,
                         },
