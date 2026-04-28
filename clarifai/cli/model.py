@@ -2265,9 +2265,7 @@ def serve_cmd(
                     ],
                     action='overwrite',
                 )
-                resp = nodepool._grpc_request(
-                    nodepool.STUB.PatchDeployments, patch_req
-                )
+                resp = nodepool._grpc_request(nodepool.STUB.PatchDeployments, patch_req)
                 if resp.status.code != status_code_pb2.SUCCESS:
                     out.warning(
                         f"Could not update deployment binding "
