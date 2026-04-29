@@ -469,13 +469,21 @@ def run(
 @optgroup.option(
     '--template',
     required=False,
-    help='Initialize from a template (e.g., image-classification, text-prep)',
+    help=(
+        'Initialize from a template. Run `clarifai pipelinetemplate ls` to list '
+        'available templates (e.g., classifier-pipeline-resnet-quick-start, '
+        'detector-pipeline-yolof-quick-start).'
+    ),
 )
 @optgroup.option(
     '--set',
     'set_values',
     multiple=True,
-    help='Override template parameters inline. Format: --set key=value. Can be used multiple times.',
+    help=(
+        'Override template parameters inline at init time. Format: --set key=value, repeatable. '
+        'Use --set id=<my_pipeline_id> to rename the pipeline, or --set <param>=<value> '
+        '(e.g. --set num_epochs=20) to change a model parameter default in the generated config.'
+    ),
 )
 @click.option(
     '--user_id',
@@ -496,6 +504,12 @@ def init(ctx, pipeline_path, template, set_values, user_id, app_id):
     When using --template, initializes from a predefined template with specific
     parameters and structure. Without --template, uses the interactive flow
     to create a custom pipeline structure.
+
+    \b
+    Tip: pass --user_id / --app_id to override the user/app inherited from your
+    `clarifai login` context, --set id=<my_pipeline_id> to rename the pipeline,
+    and --set <param>=<value> (e.g. --set num_epochs=20) to override a model
+    parameter default at initialization time.
 
     \b
     Creates the following structure in the specified directory:
@@ -590,14 +604,25 @@ def _show_completion_message(pipeline_path):
     click.echo()
     click.echo(f"Pipeline initialization complete in {pipeline_path}")
     click.echo()
-    click.echo("Next steps:")
-    click.echo("1. Review and customize the generated pipeline steps")
-    click.echo("2. Add any additional dependencies to requirements.txt files")
     click.echo(
-        f"3. Run 'clarifai pipeline upload {pipeline_path}/config.yaml' to upload your pipeline"
+        "Next steps (run all subsequent `clarifai pipeline ...` commands from INSIDE the generated folder):"
     )
+    click.echo("1. Change into the generated pipeline folder and review the generated steps")
+    click.echo("   (add any extra dependencies to each step's requirements.txt as needed):")
+    click.echo(f"          cd {pipeline_path}")
+    click.echo("2. Upload your pipeline:")
+    click.echo("          clarifai pipeline upload")
+    click.echo("3. Run the pipeline. Pick ONE of:")
+    click.echo("     a) Auto-create / reuse compute from an instance type (simplest):")
+    click.echo("          clarifai pipeline run --instance=g6e.xlarge")
+    click.echo("     b) Use your existing nodepool + compute cluster (both required):")
     click.echo(
-        f"4. Use 'clarifai pipeline run --config {pipeline_path}/config.yaml [--set key=value]' to execute your pipeline"
+        "          clarifai pipeline run --nodepool_id=<your_nodepool_id> "
+        "--compute_cluster_id=<your_compute_cluster_id>"
+    )
+    click.echo("   To override pipeline parameters at run time, repeat --set key=value, e.g.:")
+    click.echo(
+        "          clarifai pipeline run --instance=g6e.xlarge --set num_epochs=20 --set batch_size=32"
     )
 
 
