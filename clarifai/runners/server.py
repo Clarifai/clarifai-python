@@ -32,13 +32,13 @@ def _redirect_stdio_for_dev_pod():
         os.close(fd)
     except Exception as e:
         logger.warning(f"Failed to redirect stdout/stderr to /proc/1/fd/1: {e}")
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def main():
     _redirect_stdio_for_dev_pod()
-        finally:
-            if fd is not None:
-                os.close(fd)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
