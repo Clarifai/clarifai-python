@@ -1854,6 +1854,7 @@ def serve_cmd(
         return
 
     from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+    from clarifai_grpc.grpc.api.status import status_code_pb2
 
     from clarifai.client.user import User
     from clarifai.runners.models import deploy_output as out
@@ -2224,11 +2225,25 @@ def serve_cmd(
             click.echo("done")
 
         # 8. Deployment — reuse if exists, create if not.
-        #    deploy_latest_version=True means it auto-routes to new versions.
+        #
+        # Three things to know about PatchDeployments:
+        #   1. The backend only accepts action='overwrite' — 'merge' returns
+        #      "Invalid action: Unrecognized action 'merge'".
+        #   2. `worker` is the *observed* state (read-only on input). Writes to
+        #      it are silently ignored. The writable input is `desired_worker`.
+        #   3. With `deploy_latest_version=False` (set in #1022 for serve
+        #      deployments), the deployment is pinned to whatever
+        #      `desired_worker.model.model_version.id` it has.
+        #
+        # When the method-signatures hash changes, a new model_version is
+        # created and the runner is rebound — but unless we re-patch
+        # `desired_worker` here, the deployment stays pinned to the old
+        # version_id and API calls route to a version with no live runner
+        # ("Model is still deploying..."). Re-patching is a no-op when the
+        # version is unchanged and the correct heal action when it changed.
         deployment_exists = False
         try:
             nodepool.deployment(deployment_id)
-            # Patch visibility to match --public flag
             try:
                 patch_req = service_pb2.PatchDeploymentsRequest(
                     user_app_id=nodepool.user_app_id,
@@ -2236,13 +2251,28 @@ def serve_cmd(
                         resources_pb2.Deployment(
                             id=deployment_id,
                             visibility=app_visibility,
+                            desired_worker=resources_pb2.Worker(
+                                model=resources_pb2.Model(
+                                    id=model_id,
+                                    user_id=user_id,
+                                    app_id=app_id,
+                                    model_version=resources_pb2.ModelVersion(
+                                        id=version_id,
+                                    ),
+                                )
+                            ),
                         )
                     ],
-                    action='merge',
+                    action='overwrite',
                 )
-                nodepool._grpc_request(nodepool.STUB.PatchDeployments, patch_req)
-            except Exception:
-                pass
+                resp = nodepool._grpc_request(nodepool.STUB.PatchDeployments, patch_req)
+                if resp.status.code != status_code_pb2.SUCCESS:
+                    out.warning(
+                        f"Could not update deployment binding "
+                        f"({resp.status.description}): {resp.status.details}"
+                    )
+            except Exception as exc:
+                out.warning(f"Failed to patch deployment {deployment_id}: {exc}")
             deployment_exists = True
             out.status(f"Deployment ready ({deployment_id})")
         except Exception:
