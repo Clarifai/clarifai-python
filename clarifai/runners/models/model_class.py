@@ -71,13 +71,13 @@ class ModelClass(ABC):
         setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
         return func
 
-    def set_output_context(self, prompt_tokens=None, completion_tokens=None):
-        """Set the prompt and completion tokens for the Output proto.
+    def set_output_context(self, prompt_tokens=None, completion_tokens=None, cached_tokens=None):
+        """Set the prompt, completion, and cached tokens for the Output proto.
         In batch mode, call this once per output, in order, before returning each output.
         """
         if not hasattr(self._thread_local, 'token_contexts'):
             self._thread_local.token_contexts = []
-        self._thread_local.token_contexts.append((prompt_tokens, completion_tokens))
+        self._thread_local.token_contexts.append((prompt_tokens, completion_tokens, cached_tokens))
 
     def load_model(self):
         """Load the model."""
@@ -276,13 +276,15 @@ class ModelClass(ABC):
                         # Replicate token context handling from _convert_output_to_proto
                         token_contexts = getattr(self._thread_local, 'token_contexts', None)
                         if token_contexts and len(token_contexts) > 0:
-                            pt, ct = token_contexts.pop(0)
+                            pt, ct, cached = token_contexts.pop(0)
                             if len(token_contexts) == 0:
                                 del self._thread_local.token_contexts
                             if pt is not None:
                                 out_proto.prompt_tokens = pt
                             if ct is not None:
                                 out_proto.completion_tokens = ct
+                            if cached is not None and hasattr(out_proto, 'cached_tokens'):
+                                out_proto.cached_tokens = cached
                     else:
                         self._convert_output_to_proto(
                             output,
@@ -425,9 +427,9 @@ class ModelClass(ABC):
         proto.status.code = status_code_pb2.SUCCESS
         # Per-output token context support
         token_contexts = getattr(self._thread_local, 'token_contexts', None)
-        prompt_tokens = completion_tokens = None
+        prompt_tokens = completion_tokens = cached_tokens = None
         if token_contexts and len(token_contexts) > 0:
-            prompt_tokens, completion_tokens = token_contexts.pop(0)
+            prompt_tokens, completion_tokens, cached_tokens = token_contexts.pop(0)
             # If this was the last, clean up
             if len(token_contexts) == 0:
                 del self._thread_local.token_contexts
@@ -435,6 +437,8 @@ class ModelClass(ABC):
             proto.prompt_tokens = prompt_tokens
         if completion_tokens is not None:
             proto.completion_tokens = completion_tokens
+        if cached_tokens is not None and hasattr(proto, 'cached_tokens'):
+            proto.cached_tokens = cached_tokens
         return proto
 
     @classmethod
