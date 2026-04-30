@@ -1720,8 +1720,8 @@ class TestPipelineInitCommand:
         assert result is True
         output = capsys.readouterr().out
         assert 'Template Parameters:' in output
-        assert '  EXAMPLE_PATH       : /default/path' in output
-        assert '  EXAMPLE_BATCH_SIZE : 16' in output
+        assert '  EXAMPLE_PATH       : /custom/path' in output
+        assert '  EXAMPLE_BATCH_SIZE : 32' in output
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
