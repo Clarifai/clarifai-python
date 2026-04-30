@@ -324,20 +324,17 @@ class Pipeline(Lister, BaseClient):
                         raw_entries = log_entry.message.strip().split('\n')
 
                         for raw in raw_entries:
-                            # Filter: only show logs from pipeline_step.py
-                            # and extract the "msg" property from JSON log lines.
+                            # Extract "msg" from JSON log lines, fall back to raw line.
                             try:
                                 parsed = json.loads(raw)
                             except (ValueError, TypeError):
                                 parsed = None
 
-                            if parsed and isinstance(parsed, dict):
-                                filename = parsed.get('filename', '')
-                                if filename != 'pipeline_step.py':
-                                    continue
-                                log_message = parsed.get('msg', raw)
-                            else:
-                                continue  # skip non-JSON lines
+                            log_message = (
+                                parsed.get('msg', raw)
+                                if parsed and isinstance(parsed, dict)
+                                else raw
+                            )
 
                             # Write to file if log_file is specified, otherwise log to console
                             if self.log_file:
