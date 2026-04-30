@@ -795,6 +795,28 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
         else:
             pipeline_id = click.prompt("Pipeline ID", default=template_name, type=str)
 
+        # Resolve model_id following the same pattern as clarifai model init:
+        # 1. Explicit override (--set model_id=X)
+        # 2. Environment variable
+        # 3. Derive from base_model_name parameter (like model init derives from --model-name)
+        # 4. Prompt interactively (or fail in non-interactive mode)
+        has_model_id_param = any(p['name'] == 'model_id' for p in (parameters or []))
+        model_id = None
+        if has_model_id_param:
+            model_id = overrides.get('model_id') or os.environ.get('CLARIFAI_MODEL_ID')
+            if not model_id:
+                # Derive from base_model_name if available (e.g. "unsloth/Qwen3-0.6B" -> "qwen3-06b")
+                base_model = overrides.get('base_model_name')
+                if not base_model:
+                    for p in parameters:
+                        if p['name'] == 'base_model_name':
+                            base_model = p['default_value']
+                            break
+                if base_model:
+                    from clarifai.cli.model import _sanitize_model_id
+
+                    model_id = _sanitize_model_id(base_model)
+
         parameter_substitutions = {}
         if parameters:
             if not has_context:
@@ -815,6 +837,8 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
         parameter_substitutions['user_id'] = user_id
         parameter_substitutions['app_id'] = app_id
         parameter_substitutions['id'] = pipeline_id
+        if model_id:
+            parameter_substitutions['model_id'] = model_id
 
         click.echo(f"Creating pipeline '{pipeline_id}' from template '{template_name}'...")
 
@@ -826,10 +850,12 @@ def _init_from_template(pipeline_path, template_name, set_values=None):
         if not success:
             click.echo("Error: Failed to create pipeline from template", err=True)
         elif parameters:
-            click.echo("\nTemplate Parameters (default values):")
+            click.echo("\nTemplate Parameters:")
             max_name_len = max(len(str(param['name'])) for param in parameters)
             for param in parameters:
-                click.echo(f"  {param['name']:<{max_name_len}} : {param['default_value']}")
+                name = param['name']
+                actual = parameter_substitutions.get(name, param['default_value'])
+                click.echo(f"  {name:<{max_name_len}} : {actual}")
 
         return success
 

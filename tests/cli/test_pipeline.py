@@ -1719,7 +1719,7 @@ class TestPipelineInitCommand:
 
         assert result is True
         output = capsys.readouterr().out
-        assert 'Template Parameters (default values):' in output
+        assert 'Template Parameters:' in output
         assert '  EXAMPLE_PATH       : /default/path' in output
         assert '  EXAMPLE_BATCH_SIZE : 16' in output
 
