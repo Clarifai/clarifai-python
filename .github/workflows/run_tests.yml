@@ -24,7 +24,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write  # for sticky-pull-request-comment posting coverage results
 
 jobs:
   build:
@@ -116,9 +115,26 @@ jobs:
         indicators: true
         output: both
         thresholds: '50 80'
+    - name: Upload coverage report artifact
+      uses: actions/upload-artifact@v4
+      if: runner.os == 'Linux' && matrix.python-version == '3.11'
+      with:
+        name: coverage-report
+        path: code-coverage-results.md
+
+  coverage-comment:
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # for sticky-pull-request-comment posting coverage results
+    steps:
+    - name: Download coverage report
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage-report
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
-      if: github.event_name == 'pull_request' && runner.os == 'Linux' && matrix.python-version == '3.11'
       with:
-          recreate: true
-          path: code-coverage-results.md
+        recreate: true
+        path: code-coverage-results.md
