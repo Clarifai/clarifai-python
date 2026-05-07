@@ -120,20 +120,20 @@ def upload(path, no_lockfile):
     upload_pipeline(path, no_lockfile=no_lockfile)
 
 
-@pipeline.command('generate')
+@pipeline.command()
 @click.argument('path', type=click.Path(exists=True), required=True)
 @click.option(
     '--output-dir',
     type=click.Path(),
     required=True,
-    help='Directory to write the generated pipeline config and step folders.',
+    help='Directory to write the compiled pipeline config and step folders.',
 )
-def generate(path, output_dir):
-    """Generate YAML/config-based pipeline assets from a Python pipeline definition."""
+def compile(path, output_dir):
+    """Compile YAML/config-based pipeline assets from a Python pipeline definition."""
     from clarifai.runners.pipelines import load_pipeline_from_file
 
     if not os.path.isfile(path) or not path.endswith('.py'):
-        raise click.UsageError('clarifai pipeline generate expects a Python file path.')
+        raise click.UsageError('clarifai pipeline compile expects a Python file path.')
 
     pipeline_obj = load_pipeline_from_file(path)
     config_path = pipeline_obj.generate(output_dir)

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import yaml
 from click.testing import CliRunner
 
-from clarifai.cli.pipeline import generate, upload
+from clarifai.cli.pipeline import compile, upload
 
 
 def test_upload_python_pipeline_file_generates_and_uploads_directory(tmp_path: Path):
@@ -40,7 +40,7 @@ def test_generate_python_pipeline_file_writes_output(tmp_path: Path):
         mock_pipeline.generate.return_value = str(output_dir / 'config.yaml')
         mock_loader.return_value = mock_pipeline
 
-        result = runner.invoke(generate, [str(pipeline_file), '--output-dir', str(output_dir)])
+        result = runner.invoke(compile, [str(pipeline_file), '--output-dir', str(output_dir)])
 
     assert result.exit_code == 0
     mock_loader.assert_called_once_with(str(pipeline_file))
@@ -53,7 +53,7 @@ def test_generate_real_example_pipeline_writes_mixed_step_config(tmp_path: Path)
     output_dir = tmp_path / 'generated'
     runner = CliRunner()
 
-    result = runner.invoke(generate, [str(pipeline_file), '--output-dir', str(output_dir)])
+    result = runner.invoke(compile, [str(pipeline_file), '--output-dir', str(output_dir)])
 
     assert result.exit_code == 0, result.output
 
