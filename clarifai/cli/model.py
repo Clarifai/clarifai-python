@@ -581,7 +581,9 @@ def _print_init_success(model_path, toolkit, instance=None):
     click.echo(f"    clarifai model serve {model_path} --mode container # run inside Docker")
     click.echo()
     click.echo("  Deploy to Clarifai:")
-    if instance:
+    if toolkit == 'mcp':
+        click.echo(f"    clarifai mcp deploy {model_path}")
+    elif instance:
         click.echo(f"    clarifai model deploy {model_path}")
     else:
         click.echo(f"    clarifai model deploy {model_path} --instance gpu-nvidia-a10g")
