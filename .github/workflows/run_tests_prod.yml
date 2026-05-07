@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '0 6,18 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   sdk-python-tests-prod:
     uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@master

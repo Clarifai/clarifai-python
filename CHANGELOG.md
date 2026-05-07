@@ -1,3 +1,20 @@
+## [[12.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.1) - [PyPI](https://pypi.org/project/clarifai/12.4.1/) - 2026-04-30
+
+### Added
+- Code-first Pipeline DSL with CLI generate/upload support [(#1017)](https://github.com/Clarifai/clarifai-python/pull/1017)
+- `clarifai pipeline run --dev` for local pipeline development [(#1012)](https://github.com/Clarifai/clarifai-python/pull/1012)
+- Report cached prompt tokens in model responses [(#1026)](https://github.com/Clarifai/clarifai-python/pull/1026)
+
+### Changed
+- Improved `clarifai pipeline init` help text and post-init next-steps message [(#1023)](https://github.com/Clarifai/clarifai-python/pull/1023)
+- Disabled `deploy_latest_version` for `clarifai model serve` deployments [(#1022)](https://github.com/Clarifai/clarifai-python/pull/1022)
+
+### Fixed
+- Re-pin deployment `desired_worker` to current model version on `clarifai model serve` [(#1024)](https://github.com/Clarifai/clarifai-python/pull/1024)
+- Loosen pinned requirements and fix Clarifai package detection [(#1020)](https://github.com/Clarifai/clarifai-python/pull/1020)
+- Validate Hugging Face access for private repos that report `not_found` to anonymous requests [(#1018)](https://github.com/Clarifai/clarifai-python/pull/1018)
+- Fix CI compute orchestration tests [(#1021)](https://github.com/Clarifai/clarifai-python/pull/1021)
+
 ## [[12.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.0) - [PyPI](https://pypi.org/project/clarifai/12.4.0/) - 2026-04-15
 
 ### Added

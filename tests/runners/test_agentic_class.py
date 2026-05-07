@@ -53,15 +53,15 @@ class TestAgenticModelClass:
 
     def test_drain_tokens(self, model):
         """Test draining and resetting token accumulator."""
-        model._thread_local.tokens = {'prompt': 10, 'completion': 20}
+        model._thread_local.tokens = {'prompt': 10, 'completion': 20, 'cached': 5}
         result = model._drain_tokens()
-        assert result == {'prompt': 10, 'completion': 20}
-        assert model._thread_local.tokens == {'prompt': 0, 'completion': 0}
+        assert result == {'prompt': 10, 'completion': 20, 'cached': 5}
+        assert model._thread_local.tokens == {'prompt': 0, 'completion': 0, 'cached': 0}
 
     def test_drain_tokens_with_no_prior_state(self, model):
         """Test draining when no tokens have been accumulated."""
         result = model._drain_tokens()
-        assert result == {'prompt': 0, 'completion': 0}
+        assert result == {'prompt': 0, 'completion': 0, 'cached': 0}
 
     def test_add_tokens_from_usage(self, model):
         """Test adding tokens from response with usage attribute."""
@@ -70,11 +70,14 @@ class TestAgenticModelClass:
         mock_usage.prompt_tokens = 10
         mock_usage.completion_tokens = 20
         mock_usage.total_tokens = None
+        mock_usage.prompt_tokens_details = None
+        mock_usage.input_tokens_details = None
         mock_response.usage = mock_usage
 
         model._add_tokens(mock_response)
         assert model._thread_local.tokens['prompt'] == 10
         assert model._thread_local.tokens['completion'] == 20
+        assert model._thread_local.tokens['cached'] == 0
 
     def test_add_tokens_from_response_usage(self, model):
         """Test adding tokens from response.response.usage."""
@@ -102,6 +105,8 @@ class TestAgenticModelClass:
         mock_usage1.prompt_tokens = 10
         mock_usage1.completion_tokens = 20
         mock_usage1.total_tokens = None
+        mock_usage1.prompt_tokens_details = None
+        mock_usage1.input_tokens_details = None
         mock_response1.usage = mock_usage1
 
         mock_response2 = MagicMock()
@@ -109,6 +114,8 @@ class TestAgenticModelClass:
         mock_usage2.prompt_tokens = 5
         mock_usage2.completion_tokens = 10
         mock_usage2.total_tokens = None
+        mock_usage2.prompt_tokens_details = None
+        mock_usage2.input_tokens_details = None
         mock_response2.usage = mock_usage2
 
         model._add_tokens(mock_response1)
@@ -116,15 +123,18 @@ class TestAgenticModelClass:
 
         assert model._thread_local.tokens['prompt'] == 15
         assert model._thread_local.tokens['completion'] == 30
+        assert model._thread_local.tokens['cached'] == 0
 
     def test_finalize_tokens(self, model):
         """Test finalizing tokens to output context."""
-        model._thread_local.tokens = {'prompt': 10, 'completion': 20}
+        model._thread_local.tokens = {'prompt': 10, 'completion': 20, 'cached': 0}
 
         with patch.object(model, 'set_output_context') as mock_set:
             model._finalize_tokens()
-            mock_set.assert_called_once_with(prompt_tokens=10, completion_tokens=20)
-            assert model._thread_local.tokens == {'prompt': 0, 'completion': 0}
+            mock_set.assert_called_once_with(
+                prompt_tokens=10, completion_tokens=20, cached_tokens=None
+            )
+            assert model._thread_local.tokens == {'prompt': 0, 'completion': 0, 'cached': 0}
 
     def test_finalize_tokens_no_tokens(self, model):
         """Test finalizing when no tokens were tracked."""

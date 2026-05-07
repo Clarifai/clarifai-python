@@ -286,8 +286,10 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             with open(requirements_path, 'r') as f:
                 requirements = f.readlines()
 
-        # Check if clarifai is already present
-        has_clarifai = any('clarifai' in line for line in requirements)
+        # Check if clarifai is already present (exact match to avoid matching clarifai-grpc etc.)
+        has_clarifai = any(
+            re.match(r'^clarifai([>=<!\s]|$)', line.strip()) for line in requirements
+        )
 
         if not has_clarifai:
             requirements.append(f'clarifai=={CLIENT_VERSION}\n')

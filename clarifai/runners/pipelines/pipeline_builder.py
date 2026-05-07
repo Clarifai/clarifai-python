@@ -389,59 +389,38 @@ class PipelineBuilder:
         The step versions should be resolved from the corresponding config-lock.yaml
         file of each pipeline-step, located in the step_directories.
         """
-        for template in argo_spec["spec"]["templates"]:
-            if "steps" in template:
-                for step_group in template["steps"]:
-                    for step in step_group:
-                        if "templateRef" in step:
-                            template_ref = step["templateRef"]
-                            name = template_ref["name"]
-                            # Extract step name
-                            parts = name.split('/')
+        for template_ref in self.validator.iter_template_refs(argo_spec):
+            name = template_ref["name"]
+            parts = name.split('/')
 
-                            # Check if this is a templateRef without version that we uploaded
-                            if self.validator.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
-                                step_name = parts[-1]
-                                # The step name should match the directory name or be derivable from it
-                                version_id = self.uploaded_step_versions.get(step_name, None)
+            if self.validator.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
+                step_name = parts[-1]
+                version_id = self.uploaded_step_versions.get(step_name, None)
+                if version_id is None:
+                    version_id = self._get_version_from_config_lock(step_name)
 
-                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
-                                if version_id is None:
-                                    version_id = self._get_version_from_config_lock(step_name)
+                if version_id is not None:
+                    new_name = f"{name}/versions/{version_id}"
+                    template_ref["name"] = new_name
+                    template_ref["template"] = new_name
+                    logger.info(f"Updated templateRef from {name} to {new_name}")
+                else:
+                    logger.warning(f"Could not find version for step: {step_name}")
+            elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
+                orig_name = name
+                name = orig_name.rsplit('/versions/', 1)[0]
+                step_name = parts[-3]
+                version_id = self.uploaded_step_versions.get(step_name, None)
+                if version_id is None:
+                    version_id = self._get_version_from_config_lock(step_name)
 
-                                if version_id is not None:
-                                    # Update the templateRef to include version
-                                    new_name = f"{name}/versions/{version_id}"
-                                    template_ref["name"] = new_name
-                                    template_ref["template"] = new_name
-                                    logger.info(f"Updated templateRef from {name} to {new_name}")
-                                else:
-                                    logger.warning(f"Could not find version for step: {step_name}")
-                            elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
-                                # strip the /versions/{version_id} from the end of name
-                                # to get the name like above
-                                orig_name = name
-                                name = orig_name.rsplit('/versions/', 1)[0]
-                                step_name = parts[-3]  # Get the step name from the path
-
-                                # if it already has a version, make sure it matches the uploaded
-                                # version
-                                version_id = self.uploaded_step_versions.get(step_name, None)
-
-                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
-                                if version_id is None:
-                                    version_id = self._get_version_from_config_lock(step_name)
-
-                                if version_id is not None:
-                                    # Update the templateRef to include version
-                                    new_name = f"{name}/versions/{version_id}"
-                                    template_ref["name"] = new_name
-                                    template_ref["template"] = new_name
-                                    logger.info(
-                                        f"Updated templateRef from {orig_name} to {new_name}"
-                                    )
-                                else:
-                                    logger.warning(f"Could not find version for step: {step_name}")
+                if version_id is not None:
+                    new_name = f"{name}/versions/{version_id}"
+                    template_ref["name"] = new_name
+                    template_ref["template"] = new_name
+                    logger.info(f"Updated templateRef from {orig_name} to {new_name}")
+                else:
+                    logger.warning(f"Could not find version for step: {step_name}")
 
     def _get_version_from_config_lock(self, step_name: str) -> str:
         """
@@ -659,3 +638,51 @@ def upload_pipeline(path: str, no_lockfile: bool = False):
     except Exception as e:
         logger.error(f"Pipeline upload failed: {e}")
         sys.exit(1)
+
+
+def upload_dev_pipeline(path: str) -> tuple[str, str, str, str]:
+    """
+    Upload a dev variant of a pipeline, reusing unchanged steps.
+
+    Creates (or updates) a pipeline named ``{pipeline_id}-dev`` by uploading
+    only the steps whose local files have changed since the last upload. A
+    separate lockfile (``config-lock-dev.yaml``) is written so that the
+    production lockfile is not affected.
+
+    :param path: Path to the pipeline project directory or config.yaml
+    :return: Tuple of (pipeline_id, pipeline_version_id, user_id, app_id)
+    """
+    # Resolve config path
+    if os.path.isdir(path):
+        config_path = os.path.join(path, "config.yaml")
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"config.yaml not found in directory: {path}")
+    else:
+        config_path = path
+
+    builder = PipelineBuilder(config_path)
+    original_pipeline_id = builder.pipeline_id
+    dev_pipeline_id = f"{original_pipeline_id}-dev"
+    builder.pipeline_id = dev_pipeline_id
+
+    logger.info(f"Starting dev pipeline upload ({dev_pipeline_id}) from config: {config_path}")
+
+    # Step 1: Upload only changed pipeline steps (hash-based skip)
+    if not builder.upload_pipeline_steps():
+        raise RuntimeError("Failed to upload pipeline steps for dev pipeline")
+
+    # Step 2: Prepare lockfile data with step versions
+    lockfile_data = builder.prepare_lockfile_with_step_versions()
+
+    # Step 3: Create the dev pipeline (or new version of it)
+    success, pipeline_version_id = builder.create_pipeline()
+    if not success:
+        raise RuntimeError("Failed to create dev pipeline")
+
+    # Step 4: Save dev lockfile (separate from production)
+    lockfile_data = builder.update_lockfile_with_pipeline_info(lockfile_data, pipeline_version_id)
+    dev_lockfile_path = os.path.join(builder.config_dir, "config-lock-dev.yaml")
+    builder.save_lockfile(lockfile_data, lockfile_path=dev_lockfile_path)
+
+    logger.info(f"Dev pipeline upload complete: {dev_pipeline_id} v{pipeline_version_id}")
+    return dev_pipeline_id, pipeline_version_id, builder.user_id, builder.app_id

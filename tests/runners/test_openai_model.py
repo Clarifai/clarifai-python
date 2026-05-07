@@ -183,11 +183,12 @@ class TestOpenAIModelClass:
         assert usage['input_tokens'] > 0
         assert usage['output_tokens'] > 0
         assert usage['total_tokens'] == usage['input_tokens'] + usage['output_tokens']
-        received_in_toks, received_out_toks = getattr(
-            model._thread_local, "token_contexts", [(None, None)]
+        received_in_toks, received_out_toks, received_cached_toks = getattr(
+            model._thread_local, "token_contexts", [(None, None, None)]
         )[0]
         assert usage['input_tokens'] == received_in_toks
         assert usage['output_tokens'] == received_out_toks
+        assert received_cached_toks is None
 
     def test_openai_transport_responses_api(self):
         """Test OpenAI transport method with streaming request."""
@@ -274,7 +275,7 @@ class TestRawSseStream:
         # Verify token context was set
         token_contexts = getattr(model._thread_local, 'token_contexts', [])
         assert len(token_contexts) == 1
-        assert token_contexts[0] == (10, 20)
+        assert token_contexts[0] == (10, 20, None)
 
     def test_raw_sse_captures_usage_with_input_tokens(self):
         """Verify usage is captured for providers using input_tokens (e.g. Anthropic-style)."""
@@ -300,7 +301,7 @@ class TestRawSseStream:
         assert len(results) == 1
         token_contexts = getattr(model._thread_local, 'token_contexts', [])
         assert len(token_contexts) == 1
-        assert token_contexts[0] == (15, 25)
+        assert token_contexts[0] == (15, 25, None)
 
     def test_raw_sse_uses_total_minus_prompt_for_completion(self):
         """Verify completion_tokens = total_tokens - prompt_tokens when total is present."""
@@ -323,7 +324,7 @@ class TestRawSseStream:
             list(model._raw_sse_stream({"model": "test", "stream": True}))
 
         token_contexts = getattr(model._thread_local, 'token_contexts', [])
-        assert token_contexts[0] == (10, 40)  # completion = 50 - 10
+        assert token_contexts[0] == (10, 40, None)  # completion = 50 - 10
 
     def test_raw_sse_fallback_when_no_iter_events(self):
         """Verify graceful fallback to Pydantic path when _iter_events is missing."""

@@ -53,6 +53,10 @@ LOG_FORMAT = (
     f"thread=%(thread)d {COLORS.get('RESET')}"
 )
 
+PIPELINE_LOG_FORMAT = (
+    f"[%(levelname)s] {COLORS.get('TIME')}%(asctime)s{COLORS.get('RESET')} %(message)s"
+)
+
 # Create thread local storage that the format() call below uses.
 # This is only used by the json_logger in the appropriate CLARIFAI_DEPLOY levels.
 thread_log_info = threading.local()
@@ -454,6 +458,40 @@ class TerminalFormatter(logging.Formatter):
         except Exception:
             # During Python shutdown, datetime may already be torn down.
             return ""
+
+
+class PipelineFormatter(TerminalFormatter):
+    """Compact formatter for pipeline run output: no thread ID, no microseconds."""
+
+    def __init__(self):
+        super().__init__(PIPELINE_LOG_FORMAT)
+
+    def formatTime(self, record, datefmt=None):
+        try:
+            return datetime.datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
+        except Exception:
+            return ""
+
+
+def pipeline_logging():
+    """Context manager that temporarily applies PipelineFormatter to the SDK logger."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _ctx():
+        sdk_logger = logging.getLogger("clarifai")
+        old_formatters = []
+        for handler in sdk_logger.handlers:
+            old_formatters.append((handler, handler.formatter))
+            if isinstance(handler.formatter, TerminalFormatter):
+                handler.setFormatter(PipelineFormatter())
+        try:
+            yield
+        finally:
+            for handler, fmt in old_formatters:
+                handler.setFormatter(fmt)
+
+    return _ctx()
 
 
 # the default logger for the SDK.

@@ -165,10 +165,17 @@ class OpenAIModelClass(ModelClass):
                                     or usage.get("output_tokens", 0)
                                     or 0
                                 )
+                            details = (
+                                usage.get("prompt_tokens_details")
+                                or usage.get("input_tokens_details")
+                                or {}
+                            )
+                            cached_tokens = details.get("cached_tokens", 0) or 0
                             if prompt_tokens or completion_tokens:
                                 self.set_output_context(
                                     prompt_tokens=prompt_tokens,
                                     completion_tokens=completion_tokens,
+                                    cached_tokens=cached_tokens if cached_tokens else None,
                                 )
                     except (ValueError, _json.JSONDecodeError):
                         pass
@@ -264,6 +271,7 @@ class OpenAIModelClass(ModelClass):
         if has_response_usage or has_usage:
             prompt_tokens = 0
             completion_tokens = 0
+            cached_tokens = 0
             if has_usage:
                 prompt_tokens = getattr(resp.usage, "prompt_tokens", 0) or getattr(
                     resp.usage, "input_tokens", 0
@@ -276,6 +284,13 @@ class OpenAIModelClass(ModelClass):
                     completion_tokens = getattr(resp.usage, "completion_tokens", 0) or getattr(
                         resp.usage, "output_tokens", 0
                     )
+                # Cache hits live under prompt_tokens_details (chat.completions) or
+                # input_tokens_details (responses.create). Absent => no discount.
+                details = getattr(resp.usage, "prompt_tokens_details", None) or getattr(
+                    resp.usage, "input_tokens_details", None
+                )
+                if details is not None:
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
             # stream responses.create
             else:
                 prompt_tokens = getattr(resp.response.usage, "input_tokens", 0)
@@ -284,6 +299,11 @@ class OpenAIModelClass(ModelClass):
                     completion_tokens = total_tokens - prompt_tokens
                 else:
                     completion_tokens = getattr(resp.response.usage, "output_tokens", 0)
+                details = getattr(resp.response.usage, "input_tokens_details", None) or getattr(
+                    resp.response.usage, "prompt_tokens_details", None
+                )
+                if details is not None:
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
             if prompt_tokens is None:
                 prompt_tokens = 0
             if completion_tokens is None:
@@ -294,6 +314,7 @@ class OpenAIModelClass(ModelClass):
             self.set_output_context(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                cached_tokens=cached_tokens if cached_tokens else None,
             )
             # logger.info(f"Token usage - prompt_tokens: {prompt_tokens}, completion_tokens: {completion_tokens}")
 

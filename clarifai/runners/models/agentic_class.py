@@ -443,9 +443,13 @@ class AgenticModelClass(OpenAIModelClass):
 
     def _drain_tokens(self) -> dict:
         """Drain and reset token accumulator. Returns accumulated values."""
-        tokens = getattr(self._thread_local, 'tokens', {'prompt': 0, 'completion': 0})
-        result = {'prompt': tokens['prompt'], 'completion': tokens['completion']}
-        self._thread_local.tokens = {'prompt': 0, 'completion': 0}
+        tokens = getattr(self._thread_local, 'tokens', {'prompt': 0, 'completion': 0, 'cached': 0})
+        result = {
+            'prompt': tokens.get('prompt', 0),
+            'completion': tokens.get('completion', 0),
+            'cached': tokens.get('cached', 0),
+        }
+        self._thread_local.tokens = {'prompt': 0, 'completion': 0, 'cached': 0}
         return result
 
     def _add_tokens(self, resp):
@@ -456,7 +460,7 @@ class AgenticModelClass(OpenAIModelClass):
         if not usage:
             return
         if not hasattr(self._thread_local, 'tokens'):
-            self._thread_local.tokens = {'prompt': 0, 'completion': 0}
+            self._thread_local.tokens = {'prompt': 0, 'completion': 0, 'cached': 0}
         prompt_tokens = (
             getattr(usage, 'prompt_tokens', None) or getattr(usage, 'input_tokens', None) or 0
         )
@@ -471,8 +475,14 @@ class AgenticModelClass(OpenAIModelClass):
                 getattr(usage, 'completion_tokens', 0) or getattr(usage, 'output_tokens', 0) or 0
             )
         )
+        details = getattr(usage, 'prompt_tokens_details', None) or getattr(
+            usage, 'input_tokens_details', None
+        )
+        cached_tokens = (getattr(details, 'cached_tokens', 0) or 0) if details is not None else 0
         self._thread_local.tokens['prompt'] += prompt_tokens
         self._thread_local.tokens['completion'] += completion_tokens
+        self._thread_local.tokens.setdefault('cached', 0)
+        self._thread_local.tokens['cached'] += cached_tokens
         # logger.info(f"Adding tokens - prompt: {prompt_tokens}, completion+reasoning: {completion_tokens}, total: {total_tokens}")
         # logger.info(
         #     f"Accumulated tokens - prompt: {self._thread_local.tokens['prompt']}, completion+reasoning: {self._thread_local.tokens['completion']}"
@@ -483,7 +493,12 @@ class AgenticModelClass(OpenAIModelClass):
         t = self._drain_tokens()
         if t['prompt'] > 0 or t['completion'] > 0:
             # logger.info(f"Finalizing tokens - prompt: {t['prompt']}, completion: {t['completion']}")
-            self.set_output_context(prompt_tokens=t['prompt'], completion_tokens=t['completion'])
+            cached = t.get('cached', 0)
+            self.set_output_context(
+                prompt_tokens=t['prompt'],
+                completion_tokens=t['completion'],
+                cached_tokens=cached if cached > 0 else None,
+            )
 
     async def _clear_bg_tokens(self) -> dict:
         """Drain token accumulator from background thread and return values.
@@ -1257,9 +1272,11 @@ class AgenticModelClass(OpenAIModelClass):
                     logger.info(
                         f"Background tokens used: prompt_tokens={bg_tokens['prompt']}, completion_tokens={bg_tokens['completion']}"
                     )
+                    bg_cached = bg_tokens.get('cached', 0)
                     self.set_output_context(
                         prompt_tokens=bg_tokens['prompt'],
                         completion_tokens=bg_tokens['completion'],
+                        cached_tokens=bg_cached if bg_cached > 0 else None,
                     )
                 return
 

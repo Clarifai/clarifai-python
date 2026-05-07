@@ -1,6 +1,6 @@
 deployment:
-  id: "my_string_cat_8_thread_dep"
-  description: "some random deployment"
+  id: "ci_test_deployment"
+  description: "CI test deployment for clarifai-python"
   autoscale_config:
     min_replicas: 0
     max_replicas: 1
@@ -11,11 +11,11 @@ deployment:
     disable_packing: false
   worker:
     model:
-      id: "python_string_cat"
+      id: "hello-world"
       model_version:
-        id: "d87bde385b7d43aa9c2c40c64761e706"
-      user_id: "clarifai"
-      app_id: "Test-Model-Upload"
+        id: "cf5a37cc5ea7444bbcc2b8fcf9d8e23d"
+      user_id: "python-grpc-tester"
+      app_id: "ci-test-clarifai-python-DO-NOT-DELETE"
   scheduling_choice: 4
   nodepools:
     - id: "test-nodepool-6"
