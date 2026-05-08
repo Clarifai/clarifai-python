@@ -1970,9 +1970,10 @@ def serve_cmd(
     # Only create a new version when method signatures change.
     import hashlib
 
-    def _signatures_hash(sigs):
-        """SHA256 hash of serialized method signatures."""
+    def _signatures_hash(sigs, public):
+        """SHA256 hash of serialized method signatures, salted with --public so toggling it invalidates reuse."""
         h = hashlib.sha256()
+        h.update(b"public=1\n" if public else b"public=0\n")
         for sig in sorted(sigs, key=lambda s: s.name):
             data = sig.SerializeToString()
             if isinstance(data, bytes):
@@ -1981,7 +1982,7 @@ def serve_cmd(
                 h.update(str(data).encode())
         return h.hexdigest()
 
-    current_sig_hash = _signatures_hash(method_signatures) if method_signatures else ""
+    current_sig_hash = _signatures_hash(method_signatures, public) if method_signatures else ""
 
     # Always load saved state for resource reuse.
     # State is saved per model_id in CLARIFAI_SERVE_STATE in the user's active context.
@@ -2144,6 +2145,11 @@ def serve_cmd(
             try:
                 model.model_info.model_version.id = saved_version_id
                 model.load_info()
+                # Align version visibility with --public on reuse — App/Model/Deployment do this; version did not.
+                try:
+                    model.patch_version(saved_version_id, visibility=app_visibility)
+                except Exception as exc:
+                    out.warning(f"Could not update version visibility: {exc}")
                 version_id = saved_version_id
                 out.status(f"Model version ready ({version_id[:8]})")
             except Exception:
