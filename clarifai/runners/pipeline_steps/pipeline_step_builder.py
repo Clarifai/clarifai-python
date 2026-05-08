@@ -477,7 +477,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             )
         )
 
-    def _monitor_pipeline_step_build(self, timeout_sec=300, interval_sec=1):
+    def _monitor_pipeline_step_build(self, timeout_sec=1200, interval_sec=2):
         """
         Monitor the pipeline step build process with timeout and log display.
 
