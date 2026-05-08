@@ -579,8 +579,10 @@ class TestSmartResourceReuse:
         mock_method_sig.name = "predict"
         mock_method_sig.SerializeToString.return_value = stable_bytes
 
-        # Compute the hash that serve_cmd will compute
+        # Compute the hash that serve_cmd will compute. The default invocation
+        # below is without --public, so the salt prefix is "public=0\n".
         h = hashlib.sha256()
+        h.update(b"public=0\n")
         h.update(stable_bytes)
         sig_hash = h.hexdigest()
 
@@ -657,6 +659,175 @@ class TestSmartResourceReuse:
     @patch("clarifai.cli.model.check_requirements_installed")
     @patch("clarifai.cli.model.parse_requirements")
     @patch("clarifai.cli.model.validate_context")
+    def test_public_flag_invalidates_saved_version_hash(
+        self,
+        mock_validate_context,
+        mock_parse_requirements,
+        mock_check_requirements,
+        mock_builder_class,
+        mock_user_class,
+        mock_server_class,
+        dummy_model_dir,
+    ):
+        """Toggling --public invalidates the saved signatures_hash so a new version is created."""
+        import hashlib
+
+        stable_bytes = b"predict-signature-bytes"
+        mock_method_sig = MagicMock()
+        mock_method_sig.name = "predict"
+        mock_method_sig.SerializeToString.return_value = stable_bytes
+
+        # Saved hash was computed for a non-public serve (public=0 salt).
+        h = hashlib.sha256()
+        h.update(b"public=0\n")
+        h.update(stable_bytes)
+        saved_hash = h.hexdigest()
+
+        mock_ctx = _make_mock_context(
+            extra_env={
+                'CLARIFAI_SERVE_STATE': {
+                    'dummy-runner-model': {
+                        'compute_cluster_id': 'local-runner-compute-cluster',
+                        'nodepool_id': 'local-runner-nodepool',
+                        'model_version_id': 'saved-version-123',
+                        'runner_id': 'saved-runner-456',
+                        'deployment_id': 'local-dummy-runner-model',
+                        'signatures_hash': saved_hash,
+                    },
+                },
+            }
+        )
+
+        mock_check_requirements.return_value = True
+        mock_parse_requirements.return_value = []
+
+        mock_builder = MagicMock()
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
+        mock_builder.get_method_signatures.return_value = [mock_method_sig]
+        mock_builder_class.return_value = mock_builder
+
+        mock_user = _make_mock_user_with_existing_resources()
+        mock_user_class.return_value = mock_user
+        mock_server_class.return_value = MagicMock()
+
+        def validate_ctx_mock(ctx):
+            ctx.obj = mock_ctx.obj
+
+        mock_validate_context.side_effect = validate_ctx_mock
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["model", "serve", str(dummy_model_dir), "--public"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
+        # Hash mismatch (public salt differs) → fresh version created
+        mock_user.app().model().create_version.assert_called_once()
+        # Saved version was NOT reused
+        mock_user.app().model().patch_version.assert_not_called()
+
+    @patch("clarifai.runners.server.ModelServer")
+    @patch("clarifai.client.user.User")
+    @patch("clarifai.runners.models.model_builder.ModelBuilder")
+    @patch("clarifai.cli.model.check_requirements_installed")
+    @patch("clarifai.cli.model.parse_requirements")
+    @patch("clarifai.cli.model.validate_context")
+    def test_public_flag_patches_visibility_on_version_reuse(
+        self,
+        mock_validate_context,
+        mock_parse_requirements,
+        mock_check_requirements,
+        mock_builder_class,
+        mock_user_class,
+        mock_server_class,
+        dummy_model_dir,
+    ):
+        """When the saved hash matches (public salt aligned), version is reused AND visibility is patched."""
+        import hashlib
+
+        stable_bytes = b"predict-signature-bytes"
+        mock_method_sig = MagicMock()
+        mock_method_sig.name = "predict"
+        mock_method_sig.SerializeToString.return_value = stable_bytes
+
+        # Saved hash already includes public=1 salt (matches what serve --public computes).
+        h = hashlib.sha256()
+        h.update(b"public=1\n")
+        h.update(stable_bytes)
+        saved_hash = h.hexdigest()
+
+        mock_ctx = _make_mock_context(
+            extra_env={
+                'CLARIFAI_SERVE_STATE': {
+                    'dummy-runner-model': {
+                        'compute_cluster_id': 'local-runner-compute-cluster',
+                        'nodepool_id': 'local-runner-nodepool',
+                        'model_version_id': 'saved-version-123',
+                        'runner_id': 'saved-runner-456',
+                        'deployment_id': 'local-dummy-runner-model',
+                        'signatures_hash': saved_hash,
+                    },
+                },
+            }
+        )
+
+        mock_check_requirements.return_value = True
+        mock_parse_requirements.return_value = []
+
+        mock_builder = MagicMock()
+        mock_builder.config = {
+            "model": {"id": "dummy-runner-model", "model_type_id": "multimodal-to-text"},
+            "toolkit": {},
+        }
+        mock_builder.get_method_signatures.return_value = [mock_method_sig]
+        mock_builder_class.return_value = mock_builder
+
+        mock_user = _make_mock_user_with_existing_resources()
+        mock_user_class.return_value = mock_user
+        mock_server_class.return_value = MagicMock()
+
+        def validate_ctx_mock(ctx):
+            ctx.obj = mock_ctx.obj
+
+        mock_validate_context.side_effect = validate_ctx_mock
+
+        mock_cc = mock_user.compute_cluster.return_value
+        mock_np = mock_cc.nodepool.return_value
+        mock_model = mock_user.app.return_value.model.return_value
+        mock_model.model_info.model_version.id = ""
+        mock_model.load_info.return_value = None
+        mock_saved_runner = MagicMock()
+        mock_saved_runner.id = "saved-runner-456"
+        mock_np.list_runners.return_value = [mock_saved_runner]
+        mock_np.deployment.side_effect = None
+        mock_np.deployment.return_value = MagicMock()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["model", "serve", str(dummy_model_dir), "--public"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
+        # Version reused, not recreated
+        mock_model.create_version.assert_not_called()
+        # But visibility was patched to align with --public
+        mock_model.patch_version.assert_called_once()
+        call_kwargs = mock_model.patch_version.call_args.kwargs
+        assert call_kwargs['visibility'].gettable == 50  # PUBLIC
+
+    @patch("clarifai.runners.server.ModelServer")
+    @patch("clarifai.client.user.User")
+    @patch("clarifai.runners.models.model_builder.ModelBuilder")
+    @patch("clarifai.cli.model.check_requirements_installed")
+    @patch("clarifai.cli.model.parse_requirements")
+    @patch("clarifai.cli.model.validate_context")
     def test_default_preserves_resources_on_exit(
         self,
         mock_validate_context,
@@ -713,6 +884,7 @@ class TestSmartResourceReuse:
         import hashlib
 
         h = hashlib.sha256()
+        h.update(b"public=0\n")  # serve invoked below without --public
         mock_sig = MagicMock()
         mock_sig.name = "predict"
         data = mock_sig.SerializeToString()
