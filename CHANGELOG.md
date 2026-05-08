@@ -1,3 +1,19 @@
+## [[12.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.5.0) - [PyPI](https://pypi.org/project/clarifai/12.5.0/) - 2026-05-08
+
+### Added
+- Prompt for pipeline template parameters with placeholder values [(#1032)](https://github.com/Clarifai/clarifai-python/pull/1032)
+
+### Changed
+- Renamed pipeline `generate` command to `compile` [(#1028)](https://github.com/Clarifai/clarifai-python/pull/1028)
+- Removed overly aggressive client-side log filtering [(#1030)](https://github.com/Clarifai/clarifai-python/pull/1030)
+- Bumped python-dependencies group across 1 directory with 28 updates [(#1031)](https://github.com/Clarifai/clarifai-python/pull/1031)
+- Added ruff to test dependencies [(#1033)](https://github.com/Clarifai/clarifai-python/pull/1033)
+- Added pip package ecosystem to dependabot.yml [(#1025)](https://github.com/Clarifai/clarifai-python/pull/1025)
+
+### Fixed
+- Fixed per-character alias bug in pipeline command [(#1028)](https://github.com/Clarifai/clarifai-python/pull/1028)
+- Closed 9 open CodeQL/Dependabot alerts: workflow permissions and torch in test fixtures [(#1035)](https://github.com/Clarifai/clarifai-python/pull/1035)
+
 ## [[12.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.4.1) - [PyPI](https://pypi.org/project/clarifai/12.4.1/) - 2026-04-30
 
 ### Added
