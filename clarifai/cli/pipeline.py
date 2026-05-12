@@ -225,6 +225,19 @@ def compile(path, output_dir):
     help='Upload local code to an ephemeral dev pipeline before running. '
     'Only changed steps are re-uploaded.',
 )
+@click.option(
+    '--local',
+    is_flag=True,
+    default=False,
+    help='Run the pipeline locally on a Minikube/K3s/kind cluster. '
+    'Bypasses the Clarifai API and submits directly to the local K8s cluster via Argo Workflows.',
+)
+@click.option(
+    '--namespace',
+    'local_namespace',
+    default='clarifai-local',
+    help='Kubernetes namespace for local pipeline runs. Default: clarifai-local.',
+)
 @click.pass_context
 def run(
     ctx,
@@ -248,6 +261,8 @@ def run(
     override_params,
     overrides_file,
     dev,
+    local,
+    local_namespace,
 ):
     """Run a pipeline and monitor its progress.
 
@@ -256,7 +271,34 @@ def run(
     \tWhen provided, config precedence is config-lock.yaml > config.yaml.
     The --config option is accepted for backwards compatibility but PATH
     is preferred.
+
+    \bWith --local, the pipeline runs directly on a local K8s cluster
+    (Minikube/K3s/kind) via Argo Workflows, bypassing the Clarifai API.
+    Requires: Docker, kubectl, and Argo Workflows installed on the cluster.
     """
+    # Local execution path — bypass the Clarifai API entirely
+    if local:
+        from clarifai.runners.pipelines.local.runner import run_local_pipeline
+
+        run_path = path or os.getcwd()
+        if not os.path.isdir(run_path):
+            raise click.ClickException(f'--local requires a pipeline directory, got: {run_path}')
+
+        pat = ctx.obj.current.pat if ctx.obj and ctx.obj.current else None
+        api_base = ctx.obj.current.api_base if ctx.obj and ctx.obj.current else None
+
+        phase = run_local_pipeline(
+            pipeline_dir=run_path,
+            namespace=local_namespace,
+            pat=pat,
+            api_base=api_base,
+            timeout=timeout,
+            poll_interval=monitor_interval,
+        )
+        if phase != 'Succeeded':
+            sys.exit(1)
+        return
+
     import json
 
     from clarifai.client.pipeline import Pipeline
