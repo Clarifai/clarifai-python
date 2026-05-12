@@ -21,7 +21,7 @@ def check_docker():
         text=True,
     )
     if result.returncode != 0:
-        raise EnvironmentError('Docker daemon is not running. Please start Docker Desktop.')
+        raise EnvironmentError('Docker daemon is not running. Please start Docker.')
     logger.info('Docker is running.')
 
 
