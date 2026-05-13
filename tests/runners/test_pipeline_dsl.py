@@ -4,17 +4,27 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from clarifai.runners.pipelines import ComputeInfo, Pipeline, step, step_ref
+from clarifai.runners.pipelines import ComputeInfo, Pipeline, load_pipeline_from_file, step, step_ref
 from clarifai.runners.utils.pipeline_validation import PipelineConfigValidator
 
 
 def normalize_text(value: str) -> str:
-    return ' '.join(value.strip().split())
+    import importlib.util
+
+    module_path = Path(__file__).with_name('sample_module.py')
+    spec = importlib.util.spec_from_file_location('sample_module', module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f'Could not load helper module from {module_path}')
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.clean_text(value)
 
 
 @step(
     id='prepare-text',
     requirements=['transformers>=4.0'],
+    assets=['../assets/sample.txt', '../assets/sample_texts', './sample_module.py'],
     compute=ComputeInfo(cpu_limit='500m', cpu_memory='500Mi'),
 )
 def prepare_text(input_text: str) -> str:
@@ -104,6 +114,9 @@ def test_pipeline_generate_writes_helper_functions_and_expected_files(tmp_path: 
     assert (tmp_path / 'prepare-text' / 'requirements.txt').exists()
     step_script = tmp_path / 'prepare-text' / '1' / 'pipeline_step.py'
     assert step_script.exists()
+    assert (tmp_path / 'prepare-text' / '1' / 'sample.txt').exists()
+    assert (tmp_path / 'prepare-text' / '1' / 'sample_module.py').exists()
+    assert (tmp_path / 'prepare-text' / '1' / 'sample_texts' / 'sample1.txt').exists()
 
     step_script_content = step_script.read_text(encoding='utf-8')
     requirements_content = (tmp_path / 'prepare-text' / 'requirements.txt').read_text(
@@ -111,10 +124,33 @@ def test_pipeline_generate_writes_helper_functions_and_expected_files(tmp_path: 
     )
 
     assert 'def normalize_text(value: str) -> str:' in step_script_content
+    assert "with_name('sample_module.py')" in step_script_content
     assert '@step' not in step_script_content
     assert 'transformers>=4.0' in requirements_content
     assert not (tmp_path / 'summarize').exists()
     assert not (tmp_path / 'classify-sentiment').exists()
+
+
+def test_pipeline_generate_raises_for_missing_step_asset(tmp_path: Path):
+    @step(id='missing-asset', assets=['./does-not-exist.txt'])
+    def missing_asset_step(input_text: str) -> str:
+        return input_text
+
+    with Pipeline(id='asset-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw_text = pipeline.input('input_text')
+        missing_asset_step(input_text=raw_text)
+
+    with pytest.raises(ValueError, match='asset path does not exist'):
+        pipeline.generate(str(tmp_path))
+
+
+def test_pipeline_generate_raises_for_reserved_step_asset_name(tmp_path: Path):
+    pipeline = load_pipeline_from_file(
+        str(Path(__file__).with_name('invalid_reserved_asset_pipeline.py'))
+    )
+
+    with pytest.raises(ValueError, match='asset basename is reserved'):
+        pipeline.generate(str(tmp_path / 'generated'))
 
 
 def test_validator_collects_only_managed_steps_without_versions():
