@@ -4,7 +4,13 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from clarifai.runners.pipelines import ComputeInfo, Pipeline, load_pipeline_from_file, step, step_ref
+from clarifai.runners.pipelines import (
+    ComputeInfo,
+    Pipeline,
+    load_pipeline_from_file,
+    step,
+    step_ref,
+)
 from clarifai.runners.utils.pipeline_validation import PipelineConfigValidator
 
 
