@@ -150,6 +150,26 @@ def test_pipeline_generate_raises_for_missing_step_asset(tmp_path: Path):
         pipeline.generate(str(tmp_path))
 
 
+def test_pipeline_generate_raises_for_duplicate_asset_basename(tmp_path: Path):
+    dir_a = tmp_path / 'a'
+    dir_b = tmp_path / 'b'
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / 'helper.py').write_text('# helper a')
+    (dir_b / 'helper.py').write_text('# helper b')
+
+    @step(id='dup-asset', assets=[str(dir_a / 'helper.py'), str(dir_b / 'helper.py')])
+    def dup_asset_step(input_text: str) -> str:
+        return input_text
+
+    with Pipeline(id='dup-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw_text = pipeline.input('input_text')
+        dup_asset_step(input_text=raw_text)
+
+    with pytest.raises(ValueError, match='duplicate asset basename'):
+        pipeline.generate(str(tmp_path / 'generated'))
+
+
 def test_pipeline_generate_raises_for_reserved_step_asset_name(tmp_path: Path):
     pipeline = load_pipeline_from_file(
         str(Path(__file__).with_name('invalid_reserved_asset_pipeline.py'))

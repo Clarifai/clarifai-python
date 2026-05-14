@@ -167,7 +167,7 @@ def _resolve_step_assets(step_definition) -> list:
     resolved = []
     seen_names = set()
     assets = step_definition.assets
-    if isinstance(assets, str):
+    if isinstance(assets, (str, os.PathLike)):
         assets = [assets]
 
     for asset in assets:
@@ -195,19 +195,18 @@ def _resolve_step_assets(step_definition) -> list:
     return resolved
 
 
-def _copy_step_assets(step_definition, version_dir: str) -> None:
-    resolved = _resolve_step_assets(step_definition)
+def _copy_step_assets(resolved: list, version_dir: str) -> None:
     for normalized_asset_path, asset_name in resolved:
         destination = os.path.join(version_dir, asset_name)
         if os.path.isdir(normalized_asset_path):
-            shutil.copytree(normalized_asset_path, destination)
+            shutil.copytree(normalized_asset_path, destination, dirs_exist_ok=True)
         else:
             shutil.copy2(normalized_asset_path, destination)
 
 
 def generate_step_directory(step_definition, output_dir: str, user_id: str, app_id: str) -> str:
     # Validate assets early so we get a clear error before doing any file I/O.
-    _resolve_step_assets(step_definition)
+    resolved_assets = _resolve_step_assets(step_definition)
 
     step_dir = os.path.join(output_dir, step_definition.id)
     version_dir = os.path.join(step_dir, '1')
@@ -236,7 +235,7 @@ def generate_step_directory(step_definition, output_dir: str, user_id: str, app_
     with open(step_script_path, 'w', encoding='utf-8') as handle:
         handle.write(_build_step_script(step_definition))
 
-    _copy_step_assets(step_definition, version_dir)
+    _copy_step_assets(resolved_assets, version_dir)
 
     _format_file(step_script_path)
 
