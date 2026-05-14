@@ -65,5 +65,6 @@ def test_generate_real_example_pipeline_writes_mixed_step_config(tmp_path: Path)
     assert config['pipeline']['step_directories'] == ['prepare-text', 'assemble-report']
     assert tasks['summarize']['templateRef']['name'].endswith('/versions/summary-v1')
     assert tasks['classify-sentiment']['templateRef']['name'].endswith('/versions/sentiment-v3')
+    assert (output_dir / 'prepare-text' / '1' / 'text_utils.py').exists()
     assert not (output_dir / 'summarize').exists()
     assert not (output_dir / 'classify-sentiment').exists()

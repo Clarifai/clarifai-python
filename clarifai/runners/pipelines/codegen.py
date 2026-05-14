@@ -1,6 +1,7 @@
 import ast
 import inspect
 import os
+import shutil
 import subprocess
 import textwrap
 from typing import List, Sequence, Set
@@ -36,6 +37,8 @@ _DSL_ONLY_MODULES = frozenset(
         'clarifai.runners.pipelines',
     }
 )
+
+_RESERVED_STEP_ASSET_NAMES = frozenset({'pipeline_step.py'})
 
 
 def _is_dsl_only_import(node: ast.AST) -> bool:
@@ -149,7 +152,62 @@ def _build_step_script(step_definition) -> str:
     )
 
 
+def _resolve_step_assets(step_definition) -> list:
+    """Resolve and validate asset paths for a step.
+
+    Returns a list of (normalized_path, asset_name) tuples.
+    Raises ValueError if any asset path does not exist, basenames are duplicated,
+    or a basename collides with a generated file.
+    """
+    source_file = inspect.getsourcefile(step_definition.func)
+    if source_file is None:
+        raise ValueError(f'Could not determine source file for step {step_definition.id}')
+
+    source_dir = os.path.dirname(os.path.abspath(source_file))
+    resolved = []
+    seen_names = set()
+    assets = step_definition.assets
+    if isinstance(assets, (str, os.PathLike)):
+        assets = [assets]
+
+    for asset in assets:
+        if not str(asset).strip():
+            continue
+        raw_path = str(asset).strip()
+        asset_path = raw_path if os.path.isabs(raw_path) else os.path.join(source_dir, raw_path)
+        normalized_asset_path = os.path.normpath(asset_path)
+
+        if not os.path.exists(normalized_asset_path):
+            raise ValueError(f"Step '{step_definition.id}' asset path does not exist: {raw_path}")
+
+        asset_name = os.path.basename(normalized_asset_path)
+        if asset_name in _RESERVED_STEP_ASSET_NAMES:
+            raise ValueError(
+                f"Step '{step_definition.id}' asset basename is reserved: {asset_name}"
+            )
+        if asset_name in seen_names:
+            raise ValueError(
+                f"Step '{step_definition.id}' has duplicate asset basename: {asset_name}"
+            )
+        seen_names.add(asset_name)
+        resolved.append((normalized_asset_path, asset_name))
+
+    return resolved
+
+
+def _copy_step_assets(resolved: list, version_dir: str) -> None:
+    for normalized_asset_path, asset_name in resolved:
+        destination = os.path.join(version_dir, asset_name)
+        if os.path.isdir(normalized_asset_path):
+            shutil.copytree(normalized_asset_path, destination, dirs_exist_ok=True)
+        else:
+            shutil.copy2(normalized_asset_path, destination)
+
+
 def generate_step_directory(step_definition, output_dir: str, user_id: str, app_id: str) -> str:
+    # Validate assets early so we get a clear error before doing any file I/O.
+    resolved_assets = _resolve_step_assets(step_definition)
+
     step_dir = os.path.join(output_dir, step_definition.id)
     version_dir = os.path.join(step_dir, '1')
     os.makedirs(version_dir, exist_ok=True)
@@ -176,6 +234,8 @@ def generate_step_directory(step_definition, output_dir: str, user_id: str, app_
     step_script_path = os.path.join(version_dir, 'pipeline_step.py')
     with open(step_script_path, 'w', encoding='utf-8') as handle:
         handle.write(_build_step_script(step_definition))
+
+    _copy_step_assets(resolved_assets, version_dir)
 
     _format_file(step_script_path)
 

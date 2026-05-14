@@ -95,6 +95,7 @@ class StepDefinition:
         *,
         id: Optional[str] = None,
         requirements=None,
+        assets=None,
         compute: Optional[ComputeInfo] = None,
         python_version: str = '3.12',
         secrets: Optional[Dict[str, str]] = None,
@@ -102,6 +103,7 @@ class StepDefinition:
         self.func = func
         self.id = id or func.__name__.replace('_', '-')
         self.requirements = requirements or []
+        self.assets = assets or []
         self.compute = compute or ComputeInfo()
         self.python_version = python_version
         self.secrets = secrets or {}
@@ -210,6 +212,7 @@ def step(
     *,
     id: Optional[str] = None,
     requirements=None,
+    assets=None,
     compute: Optional[ComputeInfo] = None,
     python_version: str = '3.12',
     secrets: Optional[Dict[str, str]] = None,
@@ -219,6 +222,7 @@ def step(
             func,
             id=id,
             requirements=requirements,
+            assets=assets,
             compute=compute,
             python_version=python_version,
             secrets=secrets,

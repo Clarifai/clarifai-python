@@ -33,18 +33,29 @@ from clarifai.runners.pipelines import ComputeInfo, Pipeline, step, step_ref
 
 def normalize_text(value: str) -> str:
     """Small helper intentionally kept outside the step for codegen extraction."""
-    return " ".join(value.strip().split())
+    import importlib.util
+    from pathlib import Path
+
+    module_path = Path(__file__).with_name("text_utils.py")
+    spec = importlib.util.spec_from_file_location("text_utils", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load helper module from {module_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.clean_text(value)
 
 
 @step(
     id="prepare-text",
     requirements=["transformers>=4.0"],
+    assets=["./text_utils.py"],
     compute=ComputeInfo(cpu_limit="500m", cpu_memory="500Mi"),
 )
 def prepare_text(input_text: str) -> str:
     """Normalize text before downstream processing."""
     cleaned = normalize_text(input_text)
-    return cleaned.lower()
+    return cleaned
 
 
 summarize = step_ref.from_url(
