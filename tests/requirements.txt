@@ -5,9 +5,9 @@ pytest-asyncio
 py
 llama-index-core==0.14.16
 huggingface_hub[hf_transfer]>=1.8.0
-pypdf==6.10.2
+pypdf==6.11.0
 seaborn==0.13.2
 pycocotools>=2.0.11
 rich>=15.0.0
 ruff>=0.15.12
-pydantic==2.13.3
+pydantic==2.13.4
