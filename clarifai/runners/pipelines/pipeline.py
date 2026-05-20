@@ -19,7 +19,20 @@ from clarifai.runners.pipelines.step import (
 class Pipeline:
     """Code-first pipeline definition that compiles to the existing config format."""
 
-    def __init__(self, id: str, user_id: str, app_id: str, visibility: str = 'PRIVATE'):
+    def __init__(
+        self,
+        id: str,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        visibility: str = 'PRIVATE',
+    ):
+        if user_id is None or app_id is None:
+            user_id, app_id = self._resolve_from_context(user_id, app_id)
+        if not user_id or not app_id:
+            raise ValueError(
+                "Pipeline(...) needs user_id and app_id. Pass them explicitly, "
+                "or run `clarifai login` to set them in your CLI context."
+            )
         self.id = id
         self.user_id = user_id
         self.app_id = app_id
@@ -29,6 +42,20 @@ class Pipeline:
         self._workflow_params = OrderedDict()
         self._active = False
         self._uploaded_pipeline_version_id: Optional[str] = None
+
+    @staticmethod
+    def _resolve_from_context(user_id: Optional[str], app_id: Optional[str]) -> tuple:
+        """Fill missing user_id/app_id from the current CLI context."""
+        try:
+            from clarifai.utils.config import Config
+
+            config = Config.from_yaml()
+            ctx = config.current
+            user_id = user_id or getattr(ctx, 'user_id', None)
+            app_id = app_id or getattr(ctx, 'app_id', None)
+        except Exception:
+            pass
+        return user_id, app_id
 
     def __enter__(self):
         self._active = True
