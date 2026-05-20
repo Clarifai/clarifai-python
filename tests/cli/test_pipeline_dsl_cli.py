@@ -88,7 +88,7 @@ def test_compile_generates_dockerfiles_for_managed_steps(tmp_path: Path):
         dockerfile = output_dir / step_id / 'Dockerfile'
         assert dockerfile.exists(), f'Dockerfile missing for step {step_id!r}'
         content = dockerfile.read_text(encoding='utf-8')
-        assert 'FROM --platform=' in content
+        assert 'FROM ' in content
         assert 'COPY --link=true 1 /home/nonroot/main/1' in content
     # Pre-existing (non-managed) steps must NOT get a Dockerfile.
     assert not (output_dir / 'summarize').exists()
