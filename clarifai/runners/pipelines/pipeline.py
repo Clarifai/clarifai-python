@@ -26,8 +26,7 @@ class Pipeline:
         app_id: Optional[str] = None,
         visibility: str = 'PRIVATE',
     ):
-        if user_id is None or app_id is None:
-            user_id, app_id = self._resolve_from_context(user_id, app_id)
+        user_id, app_id = self._resolve_from_context(user_id, app_id)
         if not user_id or not app_id:
             raise ValueError(
                 "Pipeline(...) needs user_id and app_id. Pass them explicitly, "
