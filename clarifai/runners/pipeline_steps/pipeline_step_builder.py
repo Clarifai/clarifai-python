@@ -259,7 +259,7 @@ class PipelineStepBuilder:
             'COPY --link requirements.txt /home/nonroot/requirements.txt\n'
             '\n'
             '# Install uv, create a venv, and install requirements\n'
-            f'RUN pip install uv && uv venv /venv --python {python_version}\n'
+            f'RUN pip install uv && uv venv /venv --python {python_version} --clear\n'
             'ENV VIRTUAL_ENV=/venv\n'
             'ENV PATH="/venv/bin:$PATH"\n'
             'RUN uv pip install --no-cache-dir -r /home/nonroot/requirements.txt\n'
