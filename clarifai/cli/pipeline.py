@@ -103,12 +103,12 @@ def pipeline():
 @click.option(
     '--user-id',
     default=None,
-    help='Override the user_id in the pipeline definition (only used with a .py file).',
+    help='Override the user_id from the Clarifai context.',
 )
 @click.option(
     '--app-id',
     default=None,
-    help='Override the app_id in the pipeline definition (only used with a .py file).',
+    help='Override the app_id from the Clarifai context.',
 )
 def upload(path, no_lockfile, user_id, app_id):
     """Upload a pipeline with associated pipeline steps to Clarifai.
@@ -142,8 +142,8 @@ def upload(path, no_lockfile, user_id, app_id):
     required=True,
     help='Directory to write the compiled pipeline config and step folders.',
 )
-@click.option('--user-id', default=None, help='Override the user_id in the pipeline definition.')
-@click.option('--app-id', default=None, help='Override the app_id in the pipeline definition.')
+@click.option('--user-id', default=None, help='Override the user_id from the Clarifai context.')
+@click.option('--app-id', default=None, help='Override the app_id from the Clarifai context.')
 def compile(path, output_dir, user_id, app_id):
     """Compile YAML/config-based pipeline assets from a Python pipeline definition.
 
