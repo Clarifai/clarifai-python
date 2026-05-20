@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -238,3 +239,34 @@ def test_step_ref_from_url_parses_versioned_pipeline_step_url():
 def test_step_ref_from_url_requires_versioned_pipeline_step_path():
     with pytest.raises(ValueError, match='versioned pipeline step URL or resource path'):
         step_ref.from_url('users/demo-user/apps/shared-app/pipeline_steps/summarize')
+
+
+def _mock_config_with_context(user_id, app_id):
+    """Return a mock Config whose .current gives a context with the given ids."""
+    ctx = SimpleNamespace(user_id=user_id, app_id=app_id)
+    config = Mock()
+    config.current = ctx
+    return config
+
+
+def test_pipeline_defaults_user_id_and_app_id_from_context():
+    config = _mock_config_with_context('ctx-user', 'ctx-app')
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p1')
+    assert pipeline.user_id == 'ctx-user'
+    assert pipeline.app_id == 'ctx-app'
+
+
+def test_pipeline_explicit_args_override_context():
+    config = _mock_config_with_context('ctx-user', 'ctx-app')
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p2', user_id='explicit-user', app_id='explicit-app')
+    assert pipeline.user_id == 'explicit-user'
+    assert pipeline.app_id == 'explicit-app'
+
+
+def test_pipeline_raises_without_context_or_explicit_args():
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        with pytest.raises(ValueError, match='clarifai login'):
+            Pipeline(id='p3')
