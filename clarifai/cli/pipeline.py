@@ -100,7 +100,17 @@ def pipeline():
     is_flag=True,
     help='Skip creating config-lock.yaml file.',
 )
-def upload(path, no_lockfile):
+@click.option(
+    '--user-id',
+    default=None,
+    help='Override the user_id in the pipeline definition (only used with a .py file).',
+)
+@click.option(
+    '--app-id',
+    default=None,
+    help='Override the app_id in the pipeline definition (only used with a .py file).',
+)
+def upload(path, no_lockfile, user_id, app_id):
     """Upload a pipeline with associated pipeline steps to Clarifai.
 
     PATH: Path to the pipeline configuration file or directory containing config.yaml. If not specified, the current directory is used by default.
@@ -110,6 +120,10 @@ def upload(path, no_lockfile):
 
     if os.path.isfile(path) and path.endswith('.py'):
         pipeline_obj = load_pipeline_from_file(path)
+        if user_id:
+            pipeline_obj.user_id = user_id
+        if app_id:
+            pipeline_obj.app_id = app_id
         output_dir = os.path.join(
             os.path.dirname(os.path.abspath(path)), f'generated-{pipeline_obj.id}'
         )
@@ -128,16 +142,43 @@ def upload(path, no_lockfile):
     required=True,
     help='Directory to write the compiled pipeline config and step folders.',
 )
-def compile(path, output_dir):
-    """Compile YAML/config-based pipeline assets from a Python pipeline definition."""
+@click.option('--user-id', default=None, help='Override the user_id in the pipeline definition.')
+@click.option('--app-id', default=None, help='Override the app_id in the pipeline definition.')
+def compile(path, output_dir, user_id, app_id):
+    """Compile YAML/config-based pipeline assets from a Python pipeline definition.
+
+    Generates config.yaml, step directories (with requirements.txt and
+    pipeline_step.py), and a Dockerfile for each locally managed step.
+    """
+    from clarifai.runners.pipeline_steps.pipeline_step_builder import PipelineStepBuilder
     from clarifai.runners.pipelines import load_pipeline_from_file
 
     if not os.path.isfile(path) or not path.endswith('.py'):
         raise click.UsageError('clarifai pipeline compile expects a Python file path.')
 
     pipeline_obj = load_pipeline_from_file(path)
+    if user_id:
+        pipeline_obj.user_id = user_id
+    if app_id:
+        pipeline_obj.app_id = app_id
     config_path = pipeline_obj.generate(output_dir)
-    logger.info(f"Generated pipeline assets at {config_path}")
+
+    # Generate Dockerfiles for all locally managed step directories.
+    # Note: avoid calling list() here — `list` is shadowed by a Click command in this module.
+    seen: set = set()
+    step_ids = []
+    for node in pipeline_obj.nodes:
+        sid = node.step_definition.id
+        if node.step_definition.is_managed and sid not in seen:
+            seen.add(sid)
+            step_ids.append(sid)
+    for step_id in step_ids:
+        step_dir = os.path.join(output_dir, step_id)
+        if os.path.isdir(step_dir):
+            PipelineStepBuilder(step_dir).create_dockerfile()
+            logger.info(f"Generated Dockerfile for step '{step_id}'")
+
+    logger.info(f'Generated pipeline assets at {config_path}')
 
 
 @pipeline.command()

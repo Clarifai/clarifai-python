@@ -236,6 +236,95 @@ class TestPipelineStepBuilder:
         assert "COPY --link requirements.txt" in content
         assert "COPY --link=true 1 /home/nonroot/main/1" in content
         assert "3.12" in content  # Python version from config
+        assert "public.ecr.aws/clarifai-models/python-base" in content
+
+    def test_create_dockerfile_custom_base_image(self, mock_base_client, temp_dir, valid_config):
+        """Test Dockerfile creation with a custom base image."""
+        config = dict(valid_config)
+        config['build_info'] = {
+            'python_version': '3.12',
+            'base_image': 'my-registry/my-image:latest',
+        }
+
+        config_path = os.path.join(temp_dir, "config.yaml")
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+
+        os.makedirs(os.path.join(temp_dir, "1"), exist_ok=True)
+        with open(os.path.join(temp_dir, "1", "pipeline_step.py"), 'w') as f:
+            f.write("# Pipeline step implementation")
+        with open(os.path.join(temp_dir, "requirements.txt"), 'w') as f:
+            f.write("requests==2.32.0\n")
+
+        builder = PipelineStepBuilder(temp_dir)
+        builder.create_dockerfile()
+
+        dockerfile_path = os.path.join(temp_dir, "Dockerfile")
+        assert os.path.exists(dockerfile_path)
+
+        with open(dockerfile_path, 'r') as f:
+            content = f.read()
+
+        assert "FROM --platform=$TARGETPLATFORM my-registry/my-image:latest as final" in content
+        assert "public.ecr.aws/clarifai-models/python-base" not in content
+        assert "COPY --link requirements.txt" in content
+        assert "COPY --link=true 1 /home/nonroot/main/1" in content
+
+    def test_create_dockerfile_custom_platform(self, mock_base_client, temp_dir, valid_config):
+        """Test Dockerfile creation with an explicit build platform."""
+        config = dict(valid_config)
+        config['build_info'] = {'python_version': '3.12', 'platform': 'linux/arm64'}
+
+        config_path = os.path.join(temp_dir, "config.yaml")
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+
+        os.makedirs(os.path.join(temp_dir, "1"), exist_ok=True)
+        with open(os.path.join(temp_dir, "1", "pipeline_step.py"), 'w') as f:
+            f.write("# Pipeline step implementation")
+        with open(os.path.join(temp_dir, "requirements.txt"), 'w') as f:
+            f.write("requests==2.32.0\n")
+
+        builder = PipelineStepBuilder(temp_dir)
+        builder.create_dockerfile()
+
+        with open(os.path.join(temp_dir, "Dockerfile"), 'r') as f:
+            content = f.read()
+
+        assert "FROM --platform=linux/arm64" in content
+        assert "$TARGETPLATFORM" not in content
+        assert "public.ecr.aws/clarifai-models/python-base" in content
+
+    def test_create_dockerfile_custom_platform_and_base_image(
+        self, mock_base_client, temp_dir, valid_config
+    ):
+        """Test Dockerfile creation with both a custom platform and custom base image."""
+        config = dict(valid_config)
+        config['build_info'] = {
+            'python_version': '3.12',
+            'platform': 'linux/amd64',
+            'base_image': 'ghcr.io/org/my-image:latest',
+        }
+
+        config_path = os.path.join(temp_dir, "config.yaml")
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+
+        os.makedirs(os.path.join(temp_dir, "1"), exist_ok=True)
+        with open(os.path.join(temp_dir, "1", "pipeline_step.py"), 'w') as f:
+            f.write("# Pipeline step implementation")
+        with open(os.path.join(temp_dir, "requirements.txt"), 'w') as f:
+            f.write("requests==2.32.0\n")
+
+        builder = PipelineStepBuilder(temp_dir)
+        builder.create_dockerfile()
+
+        with open(os.path.join(temp_dir, "Dockerfile"), 'r') as f:
+            content = f.read()
+
+        assert "FROM --platform=linux/amd64 ghcr.io/org/my-image:latest as final" in content
+        assert "$TARGETPLATFORM" not in content
+        assert "public.ecr.aws/clarifai-models/python-base" not in content
 
     def test_tar_file_property(self, mock_base_client, setup_test_folder):
         """Test tar_file property returns correct path."""
