@@ -232,7 +232,8 @@ class TestPipelineStepBuilder:
         with open(dockerfile_path, 'r') as f:
             content = f.read()
 
-        assert "FROM --platform=$TARGETPLATFORM" in content
+        assert "FROM " in content
+        assert "--platform" not in content.split('\n')[0]  # no platform when not specified
         assert "COPY --link requirements.txt" in content
         assert "COPY --link=true 1 /home/nonroot/main/1" in content
         assert "3.12" in content  # Python version from config
@@ -265,7 +266,7 @@ class TestPipelineStepBuilder:
         with open(dockerfile_path, 'r') as f:
             content = f.read()
 
-        assert "FROM --platform=$TARGETPLATFORM my-registry/my-image:latest as final" in content
+        assert "FROM  my-registry/my-image:latest as final" in content
         assert "public.ecr.aws/clarifai-models/python-base" not in content
         assert "COPY --link requirements.txt" in content
         assert "COPY --link=true 1 /home/nonroot/main/1" in content
