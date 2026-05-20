@@ -376,8 +376,27 @@ def test_pipeline_explicit_args_override_context():
     assert pipeline.app_id == 'explicit-app'
 
 
-def test_pipeline_raises_without_context_or_explicit_args():
+def test_pipeline_no_context_or_explicit_args_defers_validation():
+    # Validation of user_id/app_id is deferred to upload/compile time,
+    # so constructing a Pipeline without them should not raise.
     config = _mock_config_with_context(None, None)
     with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
-        with pytest.raises(ValueError, match='clarifai login'):
-            Pipeline(id='p3')
+        pipeline = Pipeline(id='p3')
+    assert pipeline.user_id is None
+    assert pipeline.app_id is None
+
+
+def test_pipeline_generate_raises_without_user_id_or_app_id(tmp_path):
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p3')
+    with pytest.raises(ValueError, match='clarifai login'):
+        pipeline.generate(str(tmp_path))
+
+
+def test_pipeline_upload_raises_without_user_id_or_app_id():
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p3')
+    with pytest.raises(ValueError, match='clarifai login'):
+        pipeline.upload()
