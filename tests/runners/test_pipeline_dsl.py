@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -349,3 +350,34 @@ def test_step_with_platform_and_base_image(tmp_path: Path):
     )
     assert config['build_info']['base_image'] == 'ghcr.io/org/ml-base:latest'
     assert config['build_info']['platform'] == 'linux/amd64'
+
+
+def _mock_config_with_context(user_id, app_id):
+    """Return a mock Config whose .current gives a context with the given ids."""
+    ctx = SimpleNamespace(user_id=user_id, app_id=app_id)
+    config = Mock()
+    config.current = ctx
+    return config
+
+
+def test_pipeline_defaults_user_id_and_app_id_from_context():
+    config = _mock_config_with_context('ctx-user', 'ctx-app')
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p1')
+    assert pipeline.user_id == 'ctx-user'
+    assert pipeline.app_id == 'ctx-app'
+
+
+def test_pipeline_explicit_args_override_context():
+    config = _mock_config_with_context('ctx-user', 'ctx-app')
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p2', user_id='explicit-user', app_id='explicit-app')
+    assert pipeline.user_id == 'explicit-user'
+    assert pipeline.app_id == 'explicit-app'
+
+
+def test_pipeline_raises_without_context_or_explicit_args():
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        with pytest.raises(ValueError, match='clarifai login'):
+            Pipeline(id='p3')
