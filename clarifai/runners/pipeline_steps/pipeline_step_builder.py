@@ -247,21 +247,21 @@ class PipelineStepBuilder:
         # Ensure requirements.txt has clarifai
         self._ensure_clarifai_requirement()
 
-        platform_str = platform or '$TARGETPLATFORM'
+        platform_str = f'--platform={platform}' if platform else ''
         image = (
             base_image
             or f'public.ecr.aws/clarifai-models/python-base:{python_version}-df565436eea93efb3e8d1eb558a0a46df29523ec'
         )
 
         dockerfile_content = (
-            f'FROM --platform={platform_str} {image} as final\n'
+            f'FROM {platform_str} {image} as final\n'
             '\n'
             'COPY --link requirements.txt /home/nonroot/requirements.txt\n'
             '\n'
             '# Install uv, create a venv, and install requirements\n'
-            f'RUN pip install uv && uv venv /venv --python {python_version} --clear\n'
-            'ENV VIRTUAL_ENV=/venv\n'
-            'ENV PATH="/venv/bin:$PATH"\n'
+            f'RUN pip install uv && uv venv /tmp/venv --python {python_version} --clear\n'
+            'ENV VIRTUAL_ENV=/tmp/venv\n'
+            'ENV PATH="/tmp/venv/bin:$PATH"\n'
             'RUN uv pip install --no-cache-dir -r /home/nonroot/requirements.txt\n'
             '\n'
             '# Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/pipeline_step.py for the actual pipeline step.\n'
