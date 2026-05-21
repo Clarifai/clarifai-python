@@ -390,13 +390,15 @@ def test_pipeline_generate_raises_without_user_id_or_app_id(tmp_path):
     config = _mock_config_with_context(None, None)
     with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
         pipeline = Pipeline(id='p3')
-    with pytest.raises(ValueError, match='clarifai login'):
+    with pytest.raises(ValueError, match='clarifai login') as exc_info:
         pipeline.generate(str(tmp_path))
+    assert '--user_id/--app_id' in str(exc_info.value)
 
 
 def test_pipeline_upload_raises_without_user_id_or_app_id():
     config = _mock_config_with_context(None, None)
     with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
         pipeline = Pipeline(id='p3')
-    with pytest.raises(ValueError, match='clarifai login'):
+    with pytest.raises(ValueError, match='clarifai login') as exc_info:
         pipeline.upload()
+    assert '--user_id/--app_id' in str(exc_info.value)

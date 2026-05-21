@@ -6,6 +6,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
+from clarifai.cli.pipeline import compile as compile_command
 from clarifai.cli.pipeline import init, run, upload
 from clarifai.cli.pipeline_template import info, list_templates
 from clarifai.runners.pipelines.pipeline_builder import (
@@ -384,6 +385,21 @@ class TestPipelineCLIIntegration:
         assert result.exit_code == 0
         assert "Upload a pipeline with associated pipeline steps" in result.output
         assert "PATH" in result.output
+        assert '--user_id' in result.output
+        assert '--app_id' in result.output
+        assert '--user-id' not in result.output
+        assert '--app-id' not in result.output
+
+    def test_cli_compile_help_uses_underscore_identity_flags(self):
+        """Test compile help uses the existing underscore flag convention."""
+        runner = CliRunner()
+        result = runner.invoke(compile_command, ['--help'])
+
+        assert result.exit_code == 0
+        assert '--user_id' in result.output
+        assert '--app_id' in result.output
+        assert '--user-id' not in result.output
+        assert '--app-id' not in result.output
 
     def test_cli_upload_missing_config(self):
         """Test CLI upload with missing config file."""

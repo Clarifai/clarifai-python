@@ -112,7 +112,7 @@ class Pipeline:
         if not self.user_id or not self.app_id:
             raise ValueError(
                 "Pipeline(...) needs user_id and app_id. Pass them explicitly, "
-                "set --user-id/--app-id on the CLI, or run `clarifai login`."
+                "set --user_id/--app_id on the CLI, or run `clarifai login`."
             )
 
     def validate(self):
