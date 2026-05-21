@@ -322,9 +322,7 @@ def resume(
 
 @pipelinerun.command(['ls'])
 @click.option('--page_no', required=False, type=int, help='Page number to list.', default=1)
-@click.option(
-    '--per_page', required=False, type=int, help='Number of items per page.', default=16
-)
+@click.option('--per_page', required=False, type=int, help='Number of items per page.', default=16)
 @click.option('--user_id', required=False, help='User ID that owns the pipeline.')
 @click.option('--app_id', required=False, help='App ID that contains the pipeline.')
 @click.option('--pipeline_id', required=False, help='Pipeline ID.')

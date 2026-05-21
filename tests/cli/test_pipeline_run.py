@@ -423,9 +423,7 @@ class TestPipelineRunList:
                     'user_id': 'test-user',
                     'app_id': 'test-app',
                     'pipeline_version': {'id': 'v1'},
-                    'orchestration_status': {
-                        'status': {'code': status_code_pb2.JOB_RUNNING}
-                    },
+                    'orchestration_status': {'status': {'code': status_code_pb2.JOB_RUNNING}},
                 }
             ]
         )
@@ -490,9 +488,7 @@ class TestPipelineRunList:
 
     @patch('clarifai.cli.pipeline_run.validate_context')
     @patch('os.path.exists')
-    def test_list_without_required_params(
-        self, mock_exists, mock_validate, runner, mock_context
-    ):
+    def test_list_without_required_params(self, mock_exists, mock_validate, runner, mock_context):
         """Test list command fails without required parameters and no config-lock.yaml."""
         from clarifai.cli.pipeline_run import list as list_cmd
 
