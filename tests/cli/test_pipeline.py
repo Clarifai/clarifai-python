@@ -2115,7 +2115,7 @@ class TestPipelineListCommand:
         ctx_obj.current.api_base = 'https://api.clarifai.com'
 
         # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline import list as list_command
+        from clarifai.cli.pipeline import list_pipelines as list_command
 
         result = runner.invoke(
             list_command,
@@ -2152,7 +2152,7 @@ class TestPipelineListCommand:
         ctx_obj.current.api_base = 'https://api.clarifai.com'
 
         # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline import list as list_command
+        from clarifai.cli.pipeline import list_pipelines as list_command
 
         result = runner.invoke(
             list_command,
@@ -2185,7 +2185,7 @@ class TestPipelineListCommand:
         ctx_obj.current.api_base = 'https://api.clarifai.com'
 
         # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline import list as list_command
+        from clarifai.cli.pipeline import list_pipelines as list_command
 
         with patch('clarifai.client.app.App') as mock_app_class:
             mock_app_instance = Mock()

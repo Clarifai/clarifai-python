@@ -164,7 +164,6 @@ def compile(path, output_dir, user_id, app_id):
     config_path = pipeline_obj.generate(output_dir)
 
     # Generate Dockerfiles for all locally managed step directories.
-    # Note: avoid calling list() here — `list` is shadowed by a Click command in this module.
     seen: set = set()
     step_ids = []
     for node in pipeline_obj.nodes:
@@ -1090,7 +1089,7 @@ def validate_lock(lockfile_path):
         raise click.Abort()
 
 
-@pipeline.command(['ls'])
+@pipeline.command(name='list', aliases=['ls'])
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.option(
@@ -1104,7 +1103,7 @@ def validate_lock(lockfile_path):
     help='User ID to list pipelines from. If not provided, uses current user.',
 )
 @click.pass_context
-def list(ctx, page_no, per_page, app_id, user_id):
+def list_pipelines(ctx, page_no, per_page, app_id, user_id):
     """List all pipelines for the user."""
     validate_context(ctx)
 
