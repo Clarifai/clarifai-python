@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from typing import Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -354,6 +354,66 @@ class Pipeline(Lister, BaseClient):
             logger.debug(f"Error fetching logs: {e}")
             # Return current page on error to retry the same page next fetch
             return current_page
+
+    def list_pipeline_version_runs(
+        self,
+        pipeline_version_id: Optional[str] = None,
+        filter_by: Dict[str, Any] = None,
+        page_no: int = None,
+        per_page: int = None,
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Lists all pipeline version runs for a pipeline version.
+
+        Args:
+            pipeline_version_id (str): Pipeline Version ID whose runs should be listed.
+                If not provided, falls back to ``self.pipeline_version_id``.
+            filter_by (dict): Additional filters to apply to the list request. May include
+                ``status_codes``, ``compute_cluster_id``, or ``nodepool_id``.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about each pipeline version run.
+
+        Raises:
+            UserError: If neither ``pipeline_version_id`` is provided nor set on this
+                Pipeline instance.
+
+        Example:
+            >>> from clarifai.client.pipeline import Pipeline
+            >>> pipeline = Pipeline(pipeline_id="pid", user_id="uid", app_id="aid")
+            >>> for run in pipeline.list_pipeline_version_runs(pipeline_version_id="vid"):
+            ...     print(run)
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        version_id = pipeline_version_id or self.pipeline_version_id
+        if not version_id:
+            raise UserError(
+                "pipeline_version_id is required to list pipeline version runs. "
+                "Pass it as an argument or set it on the Pipeline instance."
+            )
+
+        request_data = dict(
+            user_app_id=self.user_app_id,
+            pipeline_id=self.pipeline_id,
+            pipeline_version_id=version_id,
+        )
+        if filter_by:
+            request_data.update(filter_by)
+
+        all_runs_info = self.list_pages_generator(
+            self.STUB.ListPipelineVersionRuns,
+            service_pb2.ListPipelineVersionRunsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for run_info in all_runs_info:
+            yield run_info
 
     def patch_pipeline_version_run(
         self,

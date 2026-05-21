@@ -403,3 +403,124 @@ class TestPipelineRunMonitor:
 
         assert result.exit_code != 0
         assert 'pipeline_version_run_id is required' in result.output
+
+
+class TestPipelineRunList:
+    """Test cases for list command."""
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_list_with_flags(self, mock_pipeline_class, mock_validate, runner, mock_context):
+        """Test list command with explicit flags."""
+        from clarifai.cli.pipeline_run import list as list_cmd
+
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.list_pipeline_version_runs.return_value = iter(
+            [
+                {
+                    'pipeline_version_run_id': 'run-1',
+                    'user_id': 'test-user',
+                    'app_id': 'test-app',
+                    'pipeline_version': {'id': 'v1'},
+                    'orchestration_status': {
+                        'status': {'code': status_code_pb2.JOB_RUNNING}
+                    },
+                }
+            ]
+        )
+
+        result = runner.invoke(
+            list_cmd,
+            [
+                '--user_id=test-user',
+                '--app_id=test-app',
+                '--pipeline_id=test-pipeline',
+                '--pipeline_version_id=v1',
+            ],
+            obj=mock_context.obj,
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_pipeline_class.assert_called_once_with(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='v1',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+        mock_pipeline.list_pipeline_version_runs.assert_called_once_with(page_no=1, per_page=16)
+        assert 'run-1' in result.output
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.cli.pipeline_run.from_yaml')
+    @patch('os.path.exists')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_list_with_config_lock(
+        self,
+        mock_pipeline_class,
+        mock_exists,
+        mock_from_yaml,
+        mock_validate,
+        runner,
+        mock_context,
+        config_lock_data,
+    ):
+        """Test list command loading parameters from config-lock.yaml."""
+        from clarifai.cli.pipeline_run import list as list_cmd
+
+        mock_exists.return_value = True
+        mock_from_yaml.return_value = config_lock_data
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.list_pipeline_version_runs.return_value = iter([])
+
+        result = runner.invoke(list_cmd, [], obj=mock_context.obj)
+
+        assert result.exit_code == 0, result.output
+        mock_pipeline_class.assert_called_once_with(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='v1',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('os.path.exists')
+    def test_list_without_required_params(
+        self, mock_exists, mock_validate, runner, mock_context
+    ):
+        """Test list command fails without required parameters and no config-lock.yaml."""
+        from clarifai.cli.pipeline_run import list as list_cmd
+
+        mock_exists.return_value = False
+
+        result = runner.invoke(list_cmd, [], obj=mock_context.obj)
+
+        assert result.exit_code != 0
+        assert 'Missing required parameters' in result.output
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_list_without_pipeline_version_id(
+        self, mock_pipeline_class, mock_validate, runner, mock_context
+    ):
+        """Test list command fails when pipeline_version_id is missing (required by backend)."""
+        from clarifai.cli.pipeline_run import list as list_cmd
+
+        result = runner.invoke(
+            list_cmd,
+            [
+                '--user_id=test-user',
+                '--app_id=test-app',
+                '--pipeline_id=test-pipeline',
+            ],
+            obj=mock_context.obj,
+        )
+
+        assert result.exit_code != 0
+        assert 'Missing required parameters' in result.output
+        mock_pipeline_class.assert_not_called()
