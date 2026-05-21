@@ -219,7 +219,15 @@ def generate_step_directory(step_definition, output_dir: str, user_id: str, app_
             'app_id': app_id,
         },
         'pipeline_step_input_params': step_definition.get_input_params(),
-        'build_info': {'python_version': step_definition.python_version},
+        'build_info': {
+            k: v
+            for k, v in [
+                ('python_version', step_definition.python_version),
+                ('base_image', step_definition.base_image),
+                ('platform', step_definition.platform),
+            ]
+            if v is not None
+        },
         'pipeline_step_compute_info': MessageToDict(
             step_definition.compute, preserving_proto_field_name=True
         ),

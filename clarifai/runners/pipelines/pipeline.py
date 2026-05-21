@@ -27,11 +27,6 @@ class Pipeline:
         visibility: str = 'PRIVATE',
     ):
         user_id, app_id = self._resolve_from_context(user_id, app_id)
-        if not user_id or not app_id:
-            raise ValueError(
-                "Pipeline(...) needs user_id and app_id. Pass them explicitly, "
-                "or run `clarifai login` to set them in your CLI context."
-            )
         self.id = id
         self.user_id = user_id
         self.app_id = app_id
@@ -111,6 +106,14 @@ class Pipeline:
             candidate = f'{step_id}-{suffix}'
             suffix += 1
         return candidate
+
+    def _validate_identity(self):
+        """Raise if user_id/app_id are still unresolved at the time of use."""
+        if not self.user_id or not self.app_id:
+            raise ValueError(
+                "Pipeline(...) needs user_id and app_id. Pass them explicitly, "
+                "set --user_id/--app_id on the CLI, or run `clarifai login`."
+            )
 
     def validate(self):
         nodes_by_name = {node.name: node for node in self.nodes}
@@ -247,6 +250,7 @@ class Pipeline:
         return config
 
     def generate(self, output_dir: str) -> str:
+        self._validate_identity()
         os.makedirs(output_dir, exist_ok=True)
         step_definitions = OrderedDict()
         for node in self.nodes:
@@ -262,6 +266,7 @@ class Pipeline:
         return config_path
 
     def upload(self, no_lockfile: bool = False) -> Optional[str]:
+        self._validate_identity()
         from clarifai.runners.pipelines.pipeline_builder import PipelineBuilder
 
         with tempfile.TemporaryDirectory(prefix='clarifai-pipeline-') as temp_dir:

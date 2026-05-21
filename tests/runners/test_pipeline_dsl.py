@@ -236,9 +236,120 @@ def test_step_ref_from_url_parses_versioned_pipeline_step_url():
     assert step_definition.secrets == {'OPENAI_API_KEY': 'users/demo-user/secrets/openai-key'}
 
 
+def test_argo_spec_propagates_function_default_parameters():
+    # NOTE: avoid using 'name' as a parameter name here — StepDefinition.__call__
+    # does `kwargs.pop('name', None)` to extract the optional task-name override,
+    # which silently swallows any step parameter literally called 'name'.
+    @step(id='greet')
+    def greet(text: str, greeting: str = 'Hello', repeat: int = 1) -> str:
+        return f'{greeting} {text}' * repeat
+
+    with Pipeline(id='defaults-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw_text = pipeline.input('input_text')
+        # Only pass 'text'; 'greeting' and 'repeat' should be filled from defaults.
+        greet(text=raw_text)
+
+    argo_spec = pipeline.to_argo_spec()
+    step_groups = argo_spec['spec']['templates'][0]['steps']
+    tasks = {entry['name']: entry for group in step_groups for entry in group}
+
+    params = {p['name']: p['value'] for p in tasks['greet']['arguments']['parameters']}
+    assert params['text'] == '{{workflow.parameters.input_text}}'
+    assert params['greeting'] == 'Hello'
+    assert params['repeat'] == '1'
+
+
 def test_step_ref_from_url_requires_versioned_pipeline_step_path():
     with pytest.raises(ValueError, match='versioned pipeline step URL or resource path'):
         step_ref.from_url('users/demo-user/apps/shared-app/pipeline_steps/summarize')
+
+
+# Module-level step definitions so codegen can locate their source in this file.
+@step(
+    id='custom-base-step',
+    base_image='my-registry.example.com/my-python:3.12-gpu',
+)
+def custom_base_step(text: str) -> str:
+    return text
+
+
+@step(id='no-base-step')
+def no_base_step(text: str) -> str:
+    return text
+
+
+@step(
+    id='arm64-step',
+    platform='linux/arm64',
+)
+def arm64_step(text: str) -> str:
+    return text
+
+
+@step(
+    id='custom-platform-and-image-step',
+    base_image='ghcr.io/org/ml-base:latest',
+    platform='linux/amd64',
+)
+def custom_platform_and_image_step(text: str) -> str:
+    return text
+
+
+def test_step_with_base_image_writes_build_info(tmp_path: Path):
+    """base_image specified in @step is written to build_info in config.yaml."""
+    with Pipeline(id='base-image-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw = pipeline.input('input_text')
+        custom_base_step(text=raw)
+
+    pipeline.generate(str(tmp_path))
+
+    config_path = tmp_path / 'custom-base-step' / 'config.yaml'
+    assert config_path.exists()
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8'))
+
+    assert config['build_info']['base_image'] == 'my-registry.example.com/my-python:3.12-gpu'
+
+
+def test_step_without_base_image_omits_field_from_build_info(tmp_path: Path):
+    """When base_image is not set the key is absent from build_info."""
+    with Pipeline(id='no-base-image-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw = pipeline.input('input_text')
+        no_base_step(text=raw)
+
+    pipeline.generate(str(tmp_path))
+
+    config_path = tmp_path / 'no-base-step' / 'config.yaml'
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8'))
+
+    assert 'base_image' not in config.get('build_info', {})
+
+
+def test_step_with_platform_writes_build_info(tmp_path: Path):
+    """platform specified in @step is written to build_info in config.yaml."""
+    with Pipeline(id='arm64-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw = pipeline.input('input_text')
+        arm64_step(text=raw)
+
+    pipeline.generate(str(tmp_path))
+
+    config = yaml.safe_load((tmp_path / 'arm64-step' / 'config.yaml').read_text(encoding='utf-8'))
+    assert config['build_info']['platform'] == 'linux/arm64'
+    assert 'base_image' not in config['build_info']
+
+
+def test_step_with_platform_and_base_image(tmp_path: Path):
+    """Both platform and base_image are written to build_info when set together."""
+    with Pipeline(id='combo-pipeline', user_id='me', app_id='my-app') as pipeline:
+        raw = pipeline.input('input_text')
+        custom_platform_and_image_step(text=raw)
+
+    pipeline.generate(str(tmp_path))
+
+    config = yaml.safe_load(
+        (tmp_path / 'custom-platform-and-image-step' / 'config.yaml').read_text(encoding='utf-8')
+    )
+    assert config['build_info']['base_image'] == 'ghcr.io/org/ml-base:latest'
+    assert config['build_info']['platform'] == 'linux/amd64'
 
 
 def _mock_config_with_context(user_id, app_id):
@@ -265,8 +376,29 @@ def test_pipeline_explicit_args_override_context():
     assert pipeline.app_id == 'explicit-app'
 
 
-def test_pipeline_raises_without_context_or_explicit_args():
+def test_pipeline_no_context_or_explicit_args_defers_validation():
+    # Validation of user_id/app_id is deferred to upload/compile time,
+    # so constructing a Pipeline without them should not raise.
     config = _mock_config_with_context(None, None)
     with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
-        with pytest.raises(ValueError, match='clarifai login'):
-            Pipeline(id='p3')
+        pipeline = Pipeline(id='p3')
+    assert pipeline.user_id is None
+    assert pipeline.app_id is None
+
+
+def test_pipeline_generate_raises_without_user_id_or_app_id(tmp_path):
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p3')
+    with pytest.raises(ValueError, match='clarifai login') as exc_info:
+        pipeline.generate(str(tmp_path))
+    assert '--user_id/--app_id' in str(exc_info.value)
+
+
+def test_pipeline_upload_raises_without_user_id_or_app_id():
+    config = _mock_config_with_context(None, None)
+    with patch('clarifai.utils.config.Config.from_yaml', return_value=config):
+        pipeline = Pipeline(id='p3')
+    with pytest.raises(ValueError, match='clarifai login') as exc_info:
+        pipeline.upload()
+    assert '--user_id/--app_id' in str(exc_info.value)

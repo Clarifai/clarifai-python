@@ -38,6 +38,7 @@ def test_generate_python_pipeline_file_writes_output(tmp_path: Path):
     with patch('clarifai.runners.pipelines.load_pipeline_from_file') as mock_loader:
         mock_pipeline = Mock()
         mock_pipeline.generate.return_value = str(output_dir / 'config.yaml')
+        mock_pipeline.nodes = []  # no managed steps → no Dockerfiles expected
         mock_loader.return_value = mock_pipeline
 
         result = runner.invoke(compile, [str(pipeline_file), '--output-dir', str(output_dir)])
@@ -66,5 +67,29 @@ def test_generate_real_example_pipeline_writes_mixed_step_config(tmp_path: Path)
     assert tasks['summarize']['templateRef']['name'].endswith('/versions/summary-v1')
     assert tasks['classify-sentiment']['templateRef']['name'].endswith('/versions/sentiment-v3')
     assert (output_dir / 'prepare-text' / '1' / 'text_utils.py').exists()
+    assert not (output_dir / 'summarize').exists()
+    assert not (output_dir / 'classify-sentiment').exists()
+    # compile must also generate Dockerfiles for locally managed steps
+    assert (output_dir / 'prepare-text' / 'Dockerfile').exists()
+    assert (output_dir / 'assemble-report' / 'Dockerfile').exists()
+
+
+def test_compile_generates_dockerfiles_for_managed_steps(tmp_path: Path):
+    """compile writes a Dockerfile next to each locally managed step directory."""
+    repo_root = Path(__file__).resolve().parents[2]
+    pipeline_file = repo_root / 'examples' / 'pipeline_dsl_text_pipeline.py'
+    output_dir = tmp_path / 'compiled'
+    runner = CliRunner()
+
+    result = runner.invoke(compile, [str(pipeline_file), '--output-dir', str(output_dir)])
+
+    assert result.exit_code == 0, result.output
+    for step_id in ('prepare-text', 'assemble-report'):
+        dockerfile = output_dir / step_id / 'Dockerfile'
+        assert dockerfile.exists(), f'Dockerfile missing for step {step_id!r}'
+        content = dockerfile.read_text(encoding='utf-8')
+        assert 'FROM ' in content
+        assert 'COPY --link=true 1 /home/nonroot/main/1' in content
+    # Pre-existing (non-managed) steps must NOT get a Dockerfile.
     assert not (output_dir / 'summarize').exists()
     assert not (output_dir / 'classify-sentiment').exists()

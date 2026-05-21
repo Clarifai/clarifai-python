@@ -98,6 +98,8 @@ class StepDefinition:
         assets=None,
         compute: Optional[ComputeInfo] = None,
         python_version: str = '3.12',
+        base_image: Optional[str] = None,
+        platform: Optional[str] = None,
         secrets: Optional[Dict[str, str]] = None,
     ):
         self.func = func
@@ -106,6 +108,8 @@ class StepDefinition:
         self.assets = assets or []
         self.compute = compute or ComputeInfo()
         self.python_version = python_version
+        self.base_image = base_image
+        self.platform = platform
         self.secrets = secrets or {}
         self.signature = inspect.signature(func)
 
@@ -215,6 +219,8 @@ def step(
     assets=None,
     compute: Optional[ComputeInfo] = None,
     python_version: str = '3.12',
+    base_image: Optional[str] = None,
+    platform: Optional[str] = None,
     secrets: Optional[Dict[str, str]] = None,
 ):
     def decorator(func: Callable[..., Any]) -> StepDefinition:
@@ -225,6 +231,8 @@ def step(
             assets=assets,
             compute=compute,
             python_version=python_version,
+            base_image=base_image,
+            platform=platform,
             secrets=secrets,
         )
 

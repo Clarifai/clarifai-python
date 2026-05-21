@@ -3,7 +3,6 @@ import re
 import sys
 import tarfile
 import time
-from string import Template
 from typing import List, Optional
 
 import yaml
@@ -240,41 +239,46 @@ class PipelineStepBuilder:
 
     def create_dockerfile(self):
         """Create a Dockerfile for the pipeline step."""
-        # Use similar logic to model builder for dockerfile creation
-        dockerfile_template = """FROM --platform=$TARGETPLATFORM public.ecr.aws/clarifai-models/python-base:$PYTHON_VERSION-df565436eea93efb3e8d1eb558a0a46df29523ec as final
-
-COPY --link requirements.txt /home/nonroot/requirements.txt
-
-# Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
-RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
-
-# Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/pipeline_step.py for the actual pipeline step.
-COPY --link=true 1 /home/nonroot/main/1
-# At this point we only need these for validation in the SDK.
-COPY --link=true requirements.txt config.yaml /home/nonroot/main/
-"""
-
-        # Get Python version from config or use default
         build_info = self.config.get('build_info', {})
         python_version = build_info.get('python_version', '3.12')
+        base_image = build_info.get('base_image')
+        platform = build_info.get('platform')
 
         # Ensure requirements.txt has clarifai
         self._ensure_clarifai_requirement()
 
-        # Replace placeholders
-        dockerfile_content = Template(dockerfile_template).safe_substitute(
-            PYTHON_VERSION=python_version
+        platform_str = f'--platform={platform}' if platform else ''
+        image = (
+            base_image
+            or f'public.ecr.aws/clarifai-models/python-base:{python_version}-df565436eea93efb3e8d1eb558a0a46df29523ec'
+        )
+
+        dockerfile_content = (
+            f'FROM {platform_str} {image} as final\n'
+            '\n'
+            'COPY --link requirements.txt /home/nonroot/requirements.txt\n'
+            '\n'
+            '# Install uv, create a venv, and install requirements\n'
+            f'RUN pip install uv && uv venv /tmp/venv --python {python_version} --clear\n'
+            'ENV VIRTUAL_ENV=/tmp/venv\n'
+            'ENV PATH="/tmp/venv/bin:$PATH"\n'
+            'RUN uv pip install --no-cache-dir -r /home/nonroot/requirements.txt\n'
+            '\n'
+            '# Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/pipeline_step.py for the actual pipeline step.\n'
+            'COPY --link=true 1 /home/nonroot/main/1\n'
+            '# At this point we only need these for validation in the SDK.\n'
+            'COPY --link=true requirements.txt config.yaml /home/nonroot/main/\n'
         )
 
         # Write Dockerfile if it doesn't exist
         dockerfile_path = os.path.join(self.folder, 'Dockerfile')
         if os.path.exists(dockerfile_path):
-            logger.info(f"Dockerfile already exists at {dockerfile_path}, skipping creation.")
+            logger.info(f'Dockerfile already exists at {dockerfile_path}, skipping creation.')
             return
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
-        logger.info(f"Created Dockerfile at {dockerfile_path}")
+        logger.info(f'Created Dockerfile at {dockerfile_path}')
 
     def _ensure_clarifai_requirement(self):
         """Ensure clarifai is in requirements.txt with proper version."""
