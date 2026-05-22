@@ -320,6 +320,85 @@ def resume(
         raise click.ClickException(str(e))
 
 
+@pipelinerun.command(['ls'])
+@click.option('--page_no', required=False, type=int, help='Page number to list.', default=1)
+@click.option('--per_page', required=False, type=int, help='Number of items per page.', default=16)
+@click.option('--user_id', required=False, help='User ID that owns the pipeline.')
+@click.option('--app_id', required=False, help='App ID that contains the pipeline.')
+@click.option('--pipeline_id', required=False, help='Pipeline ID.')
+@click.option('--pipeline_version_id', required=False, help='Pipeline Version ID.')
+@click.pass_context
+def list(ctx, page_no, per_page, user_id, app_id, pipeline_id, pipeline_version_id):
+    """List pipeline version runs for a pipeline version.
+
+    \b
+    Examples:
+        # List runs for a pipeline version (parameters loaded from config-lock.yaml)
+        clarifai pr list
+
+    \b
+        # With explicit parameters
+        clarifai pr ls \\
+            --user_id=USER_ID \\
+            --app_id=APP_ID \\
+            --pipeline_id=PIPELINE_ID \\
+            --pipeline_version_id=VERSION_ID
+    """
+    from clarifai.utils.cli import convert_timestamp_to_string, display_co_resources
+
+    validate_context(ctx)
+
+    # Load parameters from config-lock.yaml if not provided.
+    user_id, app_id, pipeline_id, pipeline_version_id = _load_pipeline_params_from_config(
+        user_id, app_id, pipeline_id, pipeline_version_id
+    )
+
+    # All four IDs are required by the backend's ListPipelineVersionRuns endpoint.
+    _validate_pipeline_params(user_id, app_id, pipeline_id, pipeline_version_id)
+
+    pipeline = _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id)
+
+    try:
+        response = pipeline.list_pipeline_version_runs(page_no=page_no, per_page=per_page)
+
+        def _status(run):
+            status = run.get('orchestration_status') or {}
+            inner = status.get('status') or {}
+            code = inner.get('code')
+            if code is None:
+                return ''
+            try:
+                from clarifai_grpc.grpc.api.status import status_code_pb2
+
+                if isinstance(code, int):
+                    return status_code_pb2.StatusCode.Name(code)
+                return str(code)
+            except Exception:
+                return str(code)
+
+        display_co_resources(
+            response,
+            custom_columns={
+                'ID': lambda r: r.get('pipeline_version_run_id', '') or r.get('id', ''),
+                'USER_ID': lambda r: r.get('user_id', ''),
+                'APP_ID': lambda r: r.get('app_id', ''),
+                'PIPELINE_VERSION_ID': lambda r: (r.get('pipeline_version') or {}).get('id', ''),
+                'STATUS': _status,
+                'CREATED_AT': lambda r: convert_timestamp_to_string(r.get('created_at', '')),
+                'MODIFIED_AT': lambda r: convert_timestamp_to_string(r.get('modified_at', '')),
+                'STARTED_AT': lambda r: r.get('started_at', '') or '',
+                'ENDED_AT': lambda r: r.get('ended_at', '') or '',
+            },
+            sort_by_columns=[
+                ('CREATED_AT', 'desc'),
+                ('ID', 'asc'),
+            ],
+        )
+    except Exception as e:
+        logger.error(f"Failed to list pipeline version runs: {e}")
+        raise click.ClickException(str(e))
+
+
 @pipelinerun.command()
 @click.argument('pipeline_version_run_id', required=False)
 @click.option(
