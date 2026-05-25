@@ -175,12 +175,234 @@ class TestArtifactCLI:
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
-        """Test list command with missing required parameters."""
+        """Test list command with no user_id available errors clearly."""
         mock_obj = setup_context_mock(mock_validate)
+        # Explicitly clear user_id on the context to simulate "no user in context".
+        mock_obj.current.user_id = None
 
         result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
         assert result.exit_code != 0
-        assert "Missing argument 'PATH'" in result.output
+        assert "No user_id provided" in result.output
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_command_with_flags(self, mock_artifact_class, mock_validate):
+        """Test list command using --user_id/--app_id flag convention."""
+        mock_validate.return_value = None
+
+        mock_artifact_instance = Mock()
+        mock_artifact_instance.list.return_value = []
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--user_id', 'test_user', '--app_id', 'test_app'],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        mock_artifact_class.assert_called_once()
+        kwargs = mock_artifact_class.call_args.kwargs
+        assert kwargs['user_id'] == 'test_user'
+        assert kwargs['app_id'] == 'test_app'
+        mock_artifact_instance.list.assert_called_once()
+        assert result.exit_code == 0
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.user.User')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_default_iterates_user_apps(
+        self, mock_artifact_class, mock_user_class, mock_validate
+    ):
+        """With no --app_id, list iterates the user's apps."""
+        mock_validate.return_value = None
+
+        app1 = Mock()
+        app1.id = 'app-1'
+        app2 = Mock()
+        app2.id = 'app-2'
+        mock_user_instance = Mock()
+        mock_user_instance.list_apps.return_value = iter([app1, app2])
+        mock_user_class.return_value = mock_user_instance
+
+        mock_artifact_instance = Mock()
+        mock_artifact_instance.list.return_value = []
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'context_user'
+
+        result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        assert result.exit_code == 0
+        mock_user_class.assert_called_once()
+        assert mock_user_class.call_args.kwargs.get('user_id') == 'context_user'
+        assert mock_artifact_class.call_count == 2
+        app_ids_called = {c.kwargs['app_id'] for c in mock_artifact_class.call_args_list}
+        assert app_ids_called == {'app-1', 'app-2'}
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    def test_list_versions_with_flags(self, mock_artifact_version_class, mock_validate):
+        """List versions using --versions/--app_id/--artifact_id flags."""
+        mock_validate.return_value = None
+
+        mock_version_instance = Mock()
+        mock_version_instance.list.return_value = []
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'list',
+                '--versions',
+                '--user_id',
+                'test_user',
+                '--app_id',
+                'test_app',
+                '--artifact_id',
+                'test_artifact',
+            ],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        mock_artifact_version_class.assert_called_once()
+        kwargs = mock_artifact_version_class.call_args.kwargs
+        assert kwargs['user_id'] == 'test_user'
+        assert kwargs['app_id'] == 'test_app'
+        assert kwargs['artifact_id'] == 'test_artifact'
+        assert result.exit_code == 0
+        mock_version_instance.list.assert_called_once_with()
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    def test_list_versions_pagination_with_flags(self, mock_artifact_version_class, mock_validate):
+        """Version pagination should forward page/per_page correctly."""
+        mock_validate.return_value = None
+
+        mock_version_instance = Mock()
+        mock_version_instance.list.return_value = []
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'list',
+                '--versions',
+                '--user_id',
+                'test_user',
+                '--app_id',
+                'test_app',
+                '--artifact_id',
+                'test_artifact',
+                '--page_no',
+                '2',
+                '--per_page',
+                '5',
+            ],
+            obj=mock_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_version_instance.list.assert_called_once_with(page=2, per_page=5)
+
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_list_versions_requires_artifact_id(self, mock_validate):
+        """--versions without --artifact_id should error."""
+        mock_validate.return_value = None
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'u'
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--versions', '--app_id', 'a'],
+            obj=mock_obj,
+        )
+        assert result.exit_code != 0
+        assert '--artifact_id' in result.output
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_with_artifact_id_returns_single_row(self, mock_artifact_class, mock_validate):
+        """--artifact_id without --versions does a single-artifact lookup."""
+        mock_validate.return_value = None
+
+        mock_artifact_instance = Mock()
+        single = Mock()
+        single.id = 'my-artifact'
+        single.artifact_version = Mock()
+        single.artifact_version.id = 'v1'
+        single.artifact_version.visibility.gettable = 10
+        single.created_at = None
+        mock_artifact_instance.get.return_value = single
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'list',
+                '--user_id',
+                'u',
+                '--app_id',
+                'a',
+                '--artifact_id',
+                'my-artifact',
+            ],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        assert result.exit_code == 0
+        mock_artifact_instance.get.assert_called_once_with(artifact_id='my-artifact')
+        mock_artifact_instance.list.assert_not_called()
+
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_list_artifact_id_requires_app_id(self, mock_validate):
+        """--artifact_id without --app_id should error."""
+        mock_validate.return_value = None
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'u'
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--artifact_id', 'x'],
+            obj=mock_obj,
+        )
+        assert result.exit_code != 0
+        assert '--app_id' in result.output
+
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_list_cross_app_pagination_requires_app_id(self, mock_validate):
+        """Cross-app listing should reject pagination flags."""
+        mock_validate.return_value = None
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'u'
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--page_no', '2'],
+            obj=mock_obj,
+        )
+        assert result.exit_code != 0
+        assert 'Global pagination across all apps is not supported' in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.client.artifact_version.ArtifactVersion')

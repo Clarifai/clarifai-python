@@ -263,15 +263,77 @@ def artifact():
 
 
 @artifact.command(['list', 'ls'])
-@click.argument('path')
-@click.option('--versions', is_flag=True, help='List artifact versions instead of artifacts')
+@click.argument('path', required=False)
+@click.option('--user_id', required=False, help='User ID. Defaults to the current context user.')
+@click.option(
+    '--app_id',
+    required=False,
+    help=(
+        "App ID. If omitted, lists artifacts across all of the user's apps. "
+        "Required with --artifact_id."
+    ),
+)
+@click.option(
+    '--artifact_id',
+    required=False,
+    help=(
+        'Artifact ID. With --versions, lists versions for this artifact. '
+        'Without --versions, lists the artifact itself. Requires --app_id.'
+    ),
+)
+@click.option(
+    '--versions',
+    is_flag=True,
+    help='List versions for the specified artifact instead of artifacts.',
+)
+@click.option(
+    '--page_no',
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        'Page number to list (must be >= 1). '
+        'Omit both --page_no and --per_page to list all results. '
+        'Supported with --app_id or --versions.'
+    ),
+)
+@click.option(
+    '--per_page',
+    type=click.IntRange(min=1),
+    default=None,
+    help=('Number of items per page (must be >= 1). Supported with --app_id or --versions.'),
+)
 @click.pass_context
-def list(ctx, path, versions):
+def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
     """List artifacts or artifact versions.
 
+    \b
     Examples:
-        clarifai af list users/u/apps/a
-        clarifai af list users/u/apps/a/artifacts/my-artifact --versions
+      # List all artifacts for the current user across all of their apps
+      clarifai af list
+
+    \b
+      # Scope to a single app
+      clarifai af list --app_id my-app
+
+    \b
+      # Paginate within a single app
+      clarifai af list --app_id my-app --page_no 2 --per_page 50
+
+    \b
+      # List versions of a specific artifact
+      clarifai af list --versions --app_id my-app --artifact_id my-artifact
+
+    \b
+      # Look up a single artifact by id
+      clarifai af list --app_id my-app --artifact_id my-artifact
+
+    \b
+      # Another user
+      clarifai af list --user_id other-user --app_id their-app
+
+    \b
+      # Legacy URI path (deprecated)
+      clarifai af list users/u/apps/a
     """
 
     from clarifai_grpc.grpc.api import resources_pb2
@@ -282,25 +344,48 @@ def list(ctx, path, versions):
     try:
         validate_context(ctx)
 
-        # Parse path and extract components
-        if versions:
+        # Back-compat: parse legacy positional URI path and back-fill any unset flags.
+        if path:
+            logger.warning(
+                "Passing a URI path positionally is deprecated; use --user_id/--app_id/--artifact_id flags instead."
+            )
             parsed = parse_artifact_path(path)
-            if not parsed['artifact_id']:
+            user_id = user_id or parsed.get('user_id')
+            app_id = app_id or parsed.get('app_id')
+            artifact_id = artifact_id or parsed.get('artifact_id')
+
+        # Default user_id from the current CLI context.
+        if not user_id:
+            user_id = getattr(ctx.obj.current, 'user_id', None)
+        if not user_id:
+            click.echo(
+                "No user_id provided and none found in current context. "
+                "Pass --user_id or set a context with a user_id.",
+                err=True,
+            )
+            raise click.Abort()
+
+        if versions:
+            if not app_id or not artifact_id:
                 click.echo(
-                    "When using --versions, path must include artifact ID: users/<user-id>/apps/<app-id>/artifacts/<artifact-id>",
+                    "--versions requires --app_id and --artifact_id.",
                     err=True,
                 )
                 raise click.Abort()
 
-            # List artifact versions with full data
             artifact_version = ArtifactVersion(
-                artifact_id=parsed['artifact_id'],
-                user_id=parsed['user_id'],
-                app_id=parsed['app_id'],
+                artifact_id=artifact_id,
+                user_id=user_id,
+                app_id=app_id,
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
-            versions_list = builtin_list(artifact_version.list())
+            list_kwargs = {}
+            if page_no is not None:
+                list_kwargs['page'] = page_no
+            if per_page is not None:
+                list_kwargs['per_page'] = per_page
+            versions_list = builtin_list(artifact_version.list(**list_kwargs))
 
             if not versions_list:
                 click.echo("No artifact versions found")
@@ -321,28 +406,51 @@ def list(ctx, path, versions):
                     'CREATED_AT': lambda v: str(v.created_at.ToDatetime()) if v.created_at else '',
                 },
             )
-        else:
-            # For listing artifacts, we expect app-level path: users/<user-id>/apps/<app-id>
-            if '/artifacts/' in path:
-                click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
+            return
+
+        # Listing artifacts (not versions).
+        list_kwargs = {}
+        if page_no is not None:
+            list_kwargs['page'] = page_no
+        if per_page is not None:
+            list_kwargs['per_page'] = per_page
+
+        if artifact_id:
+            # Single-artifact lookup mode (kubectl-style: pass the ID, get one row).
+            if not app_id:
+                click.echo(
+                    "--artifact_id requires --app_id.",
+                    err=True,
+                )
                 raise click.Abort()
 
-            # Parse app-level path
-            parsed = parse_artifact_path(path)
-
-            # Validate it's an app-level path (no artifact_id)
-            if parsed['artifact_id'] is not None:
-                click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
-                raise click.Abort()
-
-            # List artifacts
-            artifact = Artifact(
-                user_id=parsed['user_id'],
-                app_id=parsed['app_id'],
+            artifact_client = Artifact(
+                user_id=user_id,
+                app_id=app_id,
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
-            artifacts_list = builtin_list(artifact.list())
+            single = artifact_client.get(artifact_id=artifact_id)
+            display_co_resources(
+                [single],
+                custom_columns={
+                    'ARTIFACT': lambda a: a.id,
+                    'LATEST_VERSION': lambda a: _resolve_latest_version_id(a),
+                    'VISIBILITY': lambda a: _resolve_visibility(resources_pb2, a),
+                    'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
+                },
+            )
+            return
+
+        if app_id:
+            # Single-app mode.
+            artifact_client = Artifact(
+                user_id=user_id,
+                app_id=app_id,
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
+            )
+            artifacts_list = builtin_list(artifact_client.list(**list_kwargs))
 
             if not artifacts_list:
                 click.echo("No artifacts found")
@@ -357,7 +465,69 @@ def list(ctx, path, versions):
                     'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
                 },
             )
+            return
 
+        if page_no is not None or per_page is not None:
+            click.echo(
+                "--page_no and --per_page require --app_id (or --versions). "
+                "Global pagination across all apps is not supported.",
+                err=True,
+            )
+            raise click.Abort()
+
+        # User-default mode: iterate apps and aggregate artifacts.
+        from clarifai.client.user import User
+
+        user_client = User(
+            user_id=user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        apps = builtin_list(user_client.list_apps())
+        if not apps:
+            click.echo("No apps found for user")
+            return
+
+        logger.info(
+            f"Listing all artifacts across {len(apps)} app(s) for user {user_id}. "
+            "Use --app_id to scope to a single app."
+        )
+
+        aggregated = []
+        for app in apps:
+            app_id_value = getattr(app, 'id', None) or getattr(app, 'app_id', None)
+            if not app_id_value:
+                continue
+            try:
+                art_client = Artifact(
+                    user_id=user_id,
+                    app_id=app_id_value,
+                    pat=ctx.obj.current.pat,
+                    base=ctx.obj.current.api_base,
+                )
+                for a in art_client.list(**list_kwargs):
+                    aggregated.append((app_id_value, a))
+            except Exception as inner:
+                logger.warning(f"Failed to list artifacts for app {app_id_value}: {inner}")
+
+        if not aggregated:
+            click.echo("No artifacts found")
+            return
+
+        app_id_by_artifact = {id(a): app_id_value for app_id_value, a in aggregated}
+        display_co_resources(
+            [a for _, a in aggregated],
+            custom_columns={
+                'APP_ID': lambda a: app_id_by_artifact.get(id(a), ''),
+                'ARTIFACT': lambda a: a.id,
+                'LATEST_VERSION': lambda a: _resolve_latest_version_id(a),
+                'VISIBILITY': lambda a: _resolve_visibility(resources_pb2, a),
+                'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
+            },
+        )
+
+    except click.Abort:
+        raise
     except UserError as e:
         click.echo(str(e), err=True)
         raise click.Abort()

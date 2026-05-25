@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -188,8 +188,8 @@ class Artifact(BaseClient):
         self,
         user_id: str = "",
         app_id: str = "",
-        page: int = 1,
-        per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
         **kwargs,
     ) -> Generator[resources_pb2.Artifact, None, None]:
         """List artifacts in an app.
@@ -197,8 +197,10 @@ class Artifact(BaseClient):
         Args:
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
-            page: The page number for pagination. Defaults to 1.
-            per_page: The number of results per page. Defaults to 20.
+            page: The page number for pagination. If None and per_page is also None,
+                all pages are listed.
+            per_page: The number of results per page. If page is specified and per_page
+                is omitted, the default page size is used.
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Yields:
@@ -214,17 +216,35 @@ class Artifact(BaseClient):
             raise UserError("user_id is required")
         if not app_id:
             raise UserError("app_id is required")
+        if page is not None and page < 1:
+            raise UserError("page must be >= 1")
+        if per_page is not None and per_page < 1:
+            raise UserError("per_page must be >= 1")
 
-        request = service_pb2.ListArtifactsRequest(
-            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
-            page=page,
-            per_page=per_page,
-        )
+        request_page = 1 if page is None else page
+        request_per_page = per_page or DEFAULT_ARTIFACTS_PAGE_SIZE
 
-        response = self._grpc_request(self.STUB.ListArtifacts, request)
+        while True:
+            request = service_pb2.ListArtifactsRequest(
+                user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+                page=request_page,
+                per_page=request_per_page,
+            )
 
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(f"Failed to list artifacts: {response.status.description}")
+            response = self._grpc_request(self.STUB.ListArtifacts, request)
 
-        for artifact_pb in response.artifacts:
-            yield artifact_pb
+            if response.status.code != status_code_pb2.SUCCESS:
+                raise Exception(f"Failed to list artifacts: {response.status.description}")
+
+            if not response.artifacts:
+                break
+
+            for artifact_pb in response.artifacts:
+                yield artifact_pb
+
+            if page is not None or per_page is not None:
+                break
+            if len(response.artifacts) < request_per_page:
+                break
+
+            request_page += 1
