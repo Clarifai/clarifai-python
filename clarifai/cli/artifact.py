@@ -268,12 +268,36 @@ def artifact():
 @click.option(
     '--app_id',
     required=False,
-    help="App ID. If omitted, lists artifacts across all of the user's apps.",
+    help=(
+        "App ID. If omitted, lists artifacts across all of the user's apps. "
+        "Required with --artifact_id."
+    ),
 )
-@click.option('--artifact_id', required=False, help='Artifact ID (required with --versions).')
-@click.option('--versions', is_flag=True, help='List artifact versions instead of artifacts.')
-@click.option('--page_no', type=int, default=None, help='Page number to list.')
-@click.option('--per_page', type=int, default=None, help='Number of items per page.')
+@click.option(
+    '--artifact_id',
+    required=False,
+    help=(
+        'Artifact ID. With --versions, lists versions for this artifact. '
+        'Without --versions, lists the artifact itself. Requires --app_id.'
+    ),
+)
+@click.option(
+    '--versions',
+    is_flag=True,
+    help='List versions for the specified artifact instead of artifacts.',
+)
+@click.option(
+    '--page_no',
+    type=int,
+    default=None,
+    help='Page number to list. Omit to list all results.',
+)
+@click.option(
+    '--per_page',
+    type=int,
+    default=None,
+    help='Number of items per page.',
+)
 @click.pass_context
 def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
     """List artifacts or artifact versions.
@@ -288,11 +312,15 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
       clarifai af list --app_id my-app
 
     \b
+      # Paginate within a single app
+      clarifai af list --app_id my-app --page_no 2 --per_page 50
+
+    \b
       # List versions of a specific artifact
       clarifai af list --versions --app_id my-app --artifact_id my-artifact
 
     \b
-      # Look up a single artifact by id (kubectl-style)
+      # Look up a single artifact by id
       clarifai af list --app_id my-app --artifact_id my-artifact
 
     \b
@@ -350,7 +378,7 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
             )
             list_kwargs = {}
             if page_no is not None:
-                list_kwargs['page_no'] = page_no
+                list_kwargs['page'] = page_no
             if per_page is not None:
                 list_kwargs['per_page'] = per_page
             versions_list = builtin_list(artifact_version.list(**list_kwargs))
@@ -435,6 +463,14 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
             )
             return
 
+        if page_no is not None or per_page is not None:
+            click.echo(
+                "--page_no and --per_page require --app_id (or --versions). "
+                "Global pagination across all apps is not supported.",
+                err=True,
+            )
+            raise click.Abort()
+
         # User-default mode: iterate apps and aggregate artifacts.
         from clarifai.client.user import User
 
@@ -449,7 +485,7 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
             return
 
         logger.info(
-            f"Listing artifacts across {len(apps)} app(s) for user {user_id}. "
+            f"Listing all artifacts across {len(apps)} app(s) for user {user_id}. "
             "Use --app_id to scope to a single app."
         )
 

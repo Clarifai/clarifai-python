@@ -8,6 +8,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import timestamp_pb2
 
 from clarifai.client.artifact_version import ArtifactVersion
+from clarifai.constants.artifact import DEFAULT_ARTIFACTS_PAGE_SIZE
 from clarifai.errors import UserError
 from clarifai.utils.misc import format_bytes
 from tests.test_artifact_utils import create_mock_artifact_version
@@ -431,6 +432,46 @@ class TestArtifactVersion:
             assert results[0].id == "version1"
             assert results[1].id == "version2"
             mock_grpc_request.assert_called_once()
+
+    def test_list_all_pages_by_default(self):
+        """Test version listing fetches all pages when pagination is omitted."""
+        first_page = Mock()
+        first_page.status.code = 10000  # SUCCESS
+        first_page.artifact_versions = [
+            Mock(id=f"version-{i}") for i in range(DEFAULT_ARTIFACTS_PAGE_SIZE)
+        ]
+
+        second_page = Mock()
+        second_page.status.code = 10000  # SUCCESS
+        last_version = Mock()
+        last_version.id = "version-last"
+        second_page.artifact_versions = [last_version]
+
+        with (
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.side_effect = [first_page, second_page]
+
+            version = ArtifactVersion(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            version.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.ListArtifactVersions = Mock()
+            version.STUB = mock_stub
+
+            results = list(version.list())
+
+            assert len(results) == DEFAULT_ARTIFACTS_PAGE_SIZE + 1
+            assert results[-1].id == "version-last"
+            assert mock_grpc_request.call_count == 2
+            assert mock_grpc_request.call_args_list[0][0][1].page == 1
+            assert mock_grpc_request.call_args_list[1][0][1].page == 2
 
     def test_list_missing_params(self):
         """Test list with missing required parameters."""

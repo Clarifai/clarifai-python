@@ -284,6 +284,41 @@ class TestArtifactCLI:
         assert kwargs['app_id'] == 'test_app'
         assert kwargs['artifact_id'] == 'test_artifact'
         assert result.exit_code == 0
+        mock_version_instance.list.assert_called_once_with()
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact_version.ArtifactVersion')
+    def test_list_versions_pagination_with_flags(self, mock_artifact_version_class, mock_validate):
+        """Version pagination should forward page/per_page correctly."""
+        mock_validate.return_value = None
+
+        mock_version_instance = Mock()
+        mock_version_instance.list.return_value = []
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'list',
+                '--versions',
+                '--user_id',
+                'test_user',
+                '--app_id',
+                'test_app',
+                '--artifact_id',
+                'test_artifact',
+                '--page_no',
+                '2',
+                '--per_page',
+                '5',
+            ],
+            obj=mock_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_version_instance.list.assert_called_once_with(page=2, per_page=5)
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_versions_requires_artifact_id(self, mock_validate):
@@ -353,6 +388,21 @@ class TestArtifactCLI:
         )
         assert result.exit_code != 0
         assert '--app_id' in result.output
+
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_list_cross_app_pagination_requires_app_id(self, mock_validate):
+        """Cross-app listing should reject pagination flags."""
+        mock_validate.return_value = None
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'u'
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--page_no', '2'],
+            obj=mock_obj,
+        )
+        assert result.exit_code != 0
+        assert 'Global pagination across all apps is not supported' in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.client.artifact_version.ArtifactVersion')

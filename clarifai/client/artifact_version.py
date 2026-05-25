@@ -684,8 +684,8 @@ class ArtifactVersion(BaseClient):
         artifact_id: str = "",
         user_id: str = "",
         app_id: str = "",
-        page: int = 1,
-        per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
         **kwargs,
     ) -> Generator[resources_pb2.ArtifactVersion, None, None]:
         """List artifact versions for this artifact.
@@ -694,8 +694,10 @@ class ArtifactVersion(BaseClient):
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
-            page: The page number for pagination. Defaults to 1.
-            per_page: The number of results per page. Defaults to 20.
+            page: The page number for pagination. If None and per_page is also None,
+                all pages are listed.
+            per_page: The number of results per page. If page is specified and per_page
+                is omitted, the default page size is used.
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Yields:
@@ -716,17 +718,31 @@ class ArtifactVersion(BaseClient):
         if not app_id:
             raise UserError("app_id is required")
 
-        request = service_pb2.ListArtifactVersionsRequest(
-            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
-            artifact_id=artifact_id,
-            page=page,
-            per_page=per_page,
-        )
+        request_page = 1 if page is None else page
+        request_per_page = per_page or DEFAULT_ARTIFACTS_PAGE_SIZE
 
-        response = self._grpc_request(self.STUB.ListArtifactVersions, request)
+        while True:
+            request = service_pb2.ListArtifactVersionsRequest(
+                user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+                artifact_id=artifact_id,
+                page=request_page,
+                per_page=request_per_page,
+            )
 
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(f"Failed to list artifact versions: {response.status.description}")
+            response = self._grpc_request(self.STUB.ListArtifactVersions, request)
 
-        for version_pb in response.artifact_versions:
-            yield version_pb
+            if response.status.code != status_code_pb2.SUCCESS:
+                raise Exception(f"Failed to list artifact versions: {response.status.description}")
+
+            if not response.artifact_versions:
+                break
+
+            for version_pb in response.artifact_versions:
+                yield version_pb
+
+            if page is not None or per_page is not None:
+                break
+            if len(response.artifact_versions) < request_per_page:
+                break
+
+            request_page += 1
