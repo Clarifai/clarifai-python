@@ -301,6 +301,60 @@ class TestArtifactCLI:
         assert '--artifact_id' in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_list_with_artifact_id_returns_single_row(self, mock_artifact_class, mock_validate):
+        """--artifact_id without --versions does a single-artifact lookup."""
+        mock_validate.return_value = None
+
+        mock_artifact_instance = Mock()
+        single = Mock()
+        single.id = 'my-artifact'
+        single.artifact_version = Mock()
+        single.artifact_version.id = 'v1'
+        single.artifact_version.visibility.gettable = 10
+        single.created_at = None
+        mock_artifact_instance.get.return_value = single
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        mock_obj = create_mock_context()
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'list',
+                '--user_id',
+                'u',
+                '--app_id',
+                'a',
+                '--artifact_id',
+                'my-artifact',
+            ],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        assert result.exit_code == 0
+        mock_artifact_instance.get.assert_called_once_with(artifact_id='my-artifact')
+        mock_artifact_instance.list.assert_not_called()
+
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_list_artifact_id_requires_app_id(self, mock_validate):
+        """--artifact_id without --app_id should error."""
+        mock_validate.return_value = None
+        mock_obj = create_mock_context()
+        mock_obj.current.user_id = 'u'
+
+        result = self.runner.invoke(
+            artifact,
+            ['list', '--artifact_id', 'x'],
+            obj=mock_obj,
+        )
+        assert result.exit_code != 0
+        assert '--app_id' in result.output
+
+    @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.client.artifact_version.ArtifactVersion')
     def test_list_versions_command(self, mock_artifact_version_class, mock_validate):
         """Test list versions command."""

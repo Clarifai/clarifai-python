@@ -292,6 +292,10 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
       clarifai af list --versions --app_id my-app --artifact_id my-artifact
 
     \b
+      # Look up a single artifact by id (kubectl-style)
+      clarifai af list --app_id my-app --artifact_id my-artifact
+
+    \b
       # Another user
       clarifai af list --user_id other-user --app_id their-app
 
@@ -373,18 +377,38 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
             return
 
         # Listing artifacts (not versions).
-        if artifact_id:
-            click.echo(
-                "--artifact_id is only valid with --versions when listing.",
-                err=True,
-            )
-            raise click.Abort()
-
         list_kwargs = {}
         if page_no is not None:
             list_kwargs['page'] = page_no
         if per_page is not None:
             list_kwargs['per_page'] = per_page
+
+        if artifact_id:
+            # Single-artifact lookup mode (kubectl-style: pass the ID, get one row).
+            if not app_id:
+                click.echo(
+                    "--artifact_id requires --app_id.",
+                    err=True,
+                )
+                raise click.Abort()
+
+            artifact_client = Artifact(
+                user_id=user_id,
+                app_id=app_id,
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
+            )
+            single = artifact_client.get(artifact_id=artifact_id)
+            display_co_resources(
+                [single],
+                custom_columns={
+                    'ARTIFACT': lambda a: a.id,
+                    'LATEST_VERSION': lambda a: _resolve_latest_version_id(a),
+                    'VISIBILITY': lambda a: _resolve_visibility(resources_pb2, a),
+                    'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
+                },
+            )
+            return
 
         if app_id:
             # Single-app mode.
