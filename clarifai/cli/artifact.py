@@ -288,15 +288,19 @@ def artifact():
 )
 @click.option(
     '--page_no',
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
-    help='Page number to list. Omit to list all results.',
+    help=(
+        'Page number to list (must be >= 1). '
+        'Omit both --page_no and --per_page to list all results. '
+        'Supported with --app_id or --versions.'
+    ),
 )
 @click.option(
     '--per_page',
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
-    help='Number of items per page.',
+    help=('Number of items per page (must be >= 1). Supported with --app_id or --versions.'),
 )
 @click.pass_context
 def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
@@ -522,6 +526,8 @@ def list(ctx, path, user_id, app_id, artifact_id, versions, page_no, per_page):
             },
         )
 
+    except click.Abort:
+        raise
     except UserError as e:
         click.echo(str(e), err=True)
         raise click.Abort()

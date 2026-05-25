@@ -216,6 +216,10 @@ class Artifact(BaseClient):
             raise UserError("user_id is required")
         if not app_id:
             raise UserError("app_id is required")
+        if page is not None and page < 1:
+            raise UserError("page must be >= 1")
+        if per_page is not None and per_page < 1:
+            raise UserError("per_page must be >= 1")
 
         request_page = 1 if page is None else page
         request_per_page = per_page or DEFAULT_ARTIFACTS_PAGE_SIZE
