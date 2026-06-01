@@ -45,14 +45,12 @@ class MyModel(ModelClass):
 
 def get_mcp_model_class_template() -> str:
     """Return the template for an MCPModelClass-based model."""
-    return '''from typing import Any
-
-from fastmcp import FastMCP
+    return '''from fastmcp import FastMCP
 from pydantic import Field
 
 from clarifai.runners.models.mcp_class import MCPModelClass
 
-server = FastMCP("my-mcp-server", instructions="A sample MCP server.", stateless_http=True)
+server = FastMCP("my-mcp-server", instructions="A sample MCP server.")
 
 
 @server.tool("hello", description="Say hello to someone")
